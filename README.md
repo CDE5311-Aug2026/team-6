@@ -30,3 +30,16 @@ The standard build is served from `/` for Vercel. GitHub Pages uses `pnpm build:
 Story, Ask AI, Pets, and You are navigable. The prototype uses fixed sample observations and scripted AI copy. Owner context is stored in this browser's local storage, so it survives a refresh on the same device; Undo removes it. No account, camera feed, or AI service is connected.
 
 The project is a working draft. Keep it in the personal repository during the workshop; move approved artifacts into the team's shared deliverables only after review.
+
+## Pawsona – Interactive Web Prototype
+
+Pawsona is an AI-powered pet care application designed
+to help pet owners better understand their pets through
+personalized observations and insights.
+
+### Live Demo
+
+**[Click here to explore our interactive prototype](https://pawsona-web-prototype.vercel.app)**
+
+The prototype is deployed on Vercel and can be accessed
+directly through any web browser without installation.
