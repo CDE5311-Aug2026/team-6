@@ -1,3 +1,10 @@
+### Live Demo
+
+**[Click here to explore our interactive prototype](https://pawsona-web-prototype.vercel.app)**
+
+The prototype is deployed on Vercel and can be accessed
+directly through any web browser without installation.
+
 # Pawsona browser prototype
 
 An interactive front-end draft for the CDE5311 Week 8 vibe-coding workshop. It follows the team's selected Pawsona palette and fonts and is based on the [Pawsona Figma prototype](https://www.figma.com/design/dlI1dj58oG7WTraYQc9bIp/Pawsona-Interim-Prototype--Copy-).
@@ -36,10 +43,3 @@ The project is a working draft. Keep it in the personal repository during the wo
 Pawsona is an AI-powered pet care application designed
 to help pet owners better understand their pets through
 personalized observations and insights.
-
-### Live Demo
-
-**[Click here to explore our interactive prototype](https://pawsona-web-prototype.vercel.app)**
-
-The prototype is deployed on Vercel and can be accessed
-directly through any web browser without installation.
