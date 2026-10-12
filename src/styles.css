@@ -1,3 +1,4 @@
+
 :root {
   font-family: 'Roboto', sans-serif;
   color: var(--color-text-primary);
@@ -208,6 +209,89 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .simple-card strong { font: 600 14px/21px 'Poppins', sans-serif; }
 .simple-card p { margin: 12px 0 0; color: var(--color-text-secondary); font: 400 14px/21px 'Roboto', sans-serif; }
 
+/* Pets and You profile screens from the Figma mobile prototype */
+.profile-page { padding-bottom: 34px; color: #1a2921; }
+.profile-page .main-header h1 { letter-spacing: -.35px; }
+.profile-page .main-header .avatar { width: 50px; height: 50px; margin-top: 11px; }
+.pet-profile-hero, .account-profile-hero { width: 100%; height: 127px; display: flex; align-items: center; gap: 16px; padding: 18px; border: 0; border-radius: 26px; background: #fff0a7; text-align: left; color: #111; }
+.pet-profile-hero { position: relative; margin-top: -7px; }
+.pet-profile-hero > .avatar { width: 82px !important; height: 82px !important; margin: 0 !important; border-radius: 20px; }
+.profile-hero-copy { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
+.profile-hero-copy > strong { font: 700 21px/26px 'Poppins', sans-serif; }
+.profile-hero-copy > small { color: #78644a; font: 400 12px/18px 'Roboto', sans-serif; white-space: nowrap; }
+.mini-action { height: 31px; margin-top: 8px; display: inline-flex; align-items: center; gap: 7px; padding: 0 14px; border: 0; border-radius: 99px; background: white; color: #111; font: 600 12px/17px 'Poppins', sans-serif; white-space: nowrap; }
+.mini-action span, .mini-action b { color: #1a2921; font-size: 12px; font-weight: 700; }
+.sort-action { position: absolute; top: 14px; right: 15px; width: 25px; height: 25px; padding: 0; border: 0; background: transparent; color: #736e55; font-size: 21px; line-height: 22px; }
+.profile-section { margin-top: 25px; }
+.profile-section > h2, .profile-section-heading h2 { margin: 0; font: 600 19px/26px 'Poppins', sans-serif; letter-spacing: -.45px; }
+.profile-section-heading { min-height: 26px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; }
+.profile-link { padding: 0; border: 0; background: none; color: #ffbd00; font: 600 12px/18px 'Poppins', sans-serif; white-space: nowrap; }
+.profile-card { overflow: hidden; border: 1px solid #f0efea; border-radius: 25px; background: #fff; box-shadow: 0 2px 8px #1a29210a; }
+.care-section { margin-top: 10px; }
+.care-section > h2 { margin: 0 2px 10px; }
+.care-card { height: 241px; padding: 12px 21px 9px; }
+.card-topline { height: 28px; display: flex; align-items: center; justify-content: space-between; }
+.card-topline > strong, .card-caption { font: 600 13px/19px 'Poppins', sans-serif; }
+.member-row { width: 100%; height: 65px; display: flex; align-items: center; gap: 12px; padding: 0; border: 0; border-bottom: 1px solid #f0efeb; background: transparent; color: #1a2921; text-align: left; }
+.member-row:last-child { border-bottom: 0; }
+.member-avatar { width: 39px; height: 39px; flex: none; display: grid; place-items: center; border: 2px solid #fff; border-radius: 50%; color: #27423b; font: 600 15px 'Poppins', sans-serif; box-shadow: 0 1px 3px #17251d22; }
+.emily-avatar { background: radial-gradient(circle at 50% 32%, #a6bba8 0 18%, #657d6d 19% 38%, #c0b390 39% 54%, #597975 55%); color: #eff3ea; }
+.mom-avatar { background: radial-gradient(circle at 52% 35%, #d9c5a1 0 19%, #526c52 20% 41%, #d8b94c 42% 58%, #344f43 59%); color: white; }
+.dad-avatar { background: radial-gradient(circle at 52% 34%, #bf9b72 0 19%, #52685f 20% 43%, #a4ad9d 44% 60%, #557c76 61%); color: white; }
+.member-row > span:nth-child(2), .you-row > span:nth-child(2), .media-row > span:nth-child(2) { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
+.member-row strong, .you-row strong, .media-row strong, .knowledge-row strong { font: 600 13px/19px 'Poppins', sans-serif; }
+.member-row small, .you-row small, .media-row small, .knowledge-row small { color: #78644a; font: 400 11px/17px 'Roboto', sans-serif; white-space: nowrap; }
+.member-row i, .knowledge-row i, .media-row i { margin-left: auto; color: #95a399; font: 400 20px/22px 'Roboto', sans-serif; font-style: normal; }
+.pets-page > .profile-section:not(.care-section) { margin-top: 26px; }
+.pattern-card { height: 241px; margin-top: 10px; padding: 12px 21px 10px; }
+.card-caption { display: block; height: 24px; }
+.knowledge-row { width: 100%; min-height: 66px; display: flex; align-items: center; gap: 13px; padding: 0; border: 0; border-bottom: 1px solid #f0efeb; background: transparent; color: #1a2921; text-align: left; }
+.knowledge-row:last-child { border-bottom: 0; }
+.knowledge-icon, .media-icon { width: 37px; height: 37px; flex: none; display: grid; place-items: center; border-radius: 13px; background: #fff0a7; color: #ffc313; font: 400 24px/1 'Roboto', sans-serif; }
+.knowledge-icon { border-radius: 50%; }
+.knowledge-row > span:nth-child(2) { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.knowledge-row strong { font-size: 12px; }
+.knowledge-row small { font-size: 10px; }
+.context-section { margin-top: 26px !important; }
+.context-card { margin-top: 10px; padding: 10px 21px; }
+.context-card .knowledge-row { min-height: 66px; }
+.context-card .knowledge-row:first-child { min-height: 76px; }
+.you-page .main-header { height: 97px; }
+.you-page .main-header > .avatar { display: none; }
+.account-profile-hero { height: 127px; margin-top: -7px; gap: 16px; }
+.account-avatar { width: 59px; height: 59px; font-size: 0; }
+.account-profile-hero .profile-hero-copy { gap: 0; }
+.account-profile-hero .profile-hero-copy > strong { font-size: 20px; }
+.account-profile-hero .profile-hero-copy > .mini-action { margin-top: 9px; }
+.you-section { margin-top: 10px; }
+.you-list { margin-top: 10px; padding: 0 18px; }
+.pets-list { height: 134px; }
+.you-row { width: 100%; height: 66px; display: flex; align-items: center; gap: 13px; padding: 0; border: 0; background: transparent; color: #1a2921; text-align: left; }
+.you-row .avatar, .you-row .cat-avatar { width: 39px; height: 39px; flex: none; margin: 0; border-radius: 13px; object-fit: cover; }
+.cat-avatar { display: grid; place-items: center; background: #eeeae4; font-size: 24px; }
+.you-row em, .media-row em { margin-left: auto; border-radius: 99px; background: #ffcf29; padding: 4px 12px; color: #1a2921; font: 600 11px/15px 'Poppins', sans-serif; font-style: normal; white-space: nowrap; }
+.media-section { margin-top: 29px; }
+.media-list { height: 202px; padding: 0 17px; }
+.media-row { width: 100%; height: 66px; display: flex; align-items: center; gap: 12px; padding: 0; border: 0; border-bottom: 1px solid #f0efeb; background: transparent; color: #1a2921; text-align: left; }
+.media-row:last-child { border-bottom: 0; }
+.media-icon { width: 37px; height: 37px; border-radius: 12px; font-size: 19px; }
+.media-row strong { font-size: 11px; }
+.media-row small { font-size: 10px; }
+.media-row em { padding: 4px 11px; font-size: 10px; }
+.media-row em.connected { color: #36785e; background: #eaf4ed; }
+.media-row em.not-connected { color: #84796d; background: #f4ede7; }
+.privacy-section { margin-top: 27px; }
+.privacy-list { height: 135px; padding: 0 17px; }
+.privacy-list .media-row { height: 66px; }
+.privacy-list .media-icon { width: 37px; height: 37px; }
+.privacy-list .media-row i { margin-right: 0; }
+.profile-dialog-backdrop { position: fixed; z-index: 10; inset: 0; display: grid; place-items: center; padding: 20px; background: #18221db0; }
+.profile-dialog { position: relative; width: min(100%, 350px); padding: 28px 22px 22px; border-radius: 24px; background: #fff; box-shadow: 0 18px 60px #0003; }
+.profile-dialog h2 { margin: 0 28px 12px 0; font: 600 20px/28px 'Poppins', sans-serif; }
+.profile-dialog p { margin: 0 0 22px; color: #78644a; font: 400 14px/22px 'Roboto', sans-serif; }
+.profile-dialog-close { position: absolute; top: 10px; right: 14px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: #f5f3eb; font-size: 23px; }
+.profile-dialog .primary-button { min-width: 94px; }
+
 /* Figma settings screens: Pets 01 and You 01 */
 .settings-page { min-height: calc(100dvh - 54px); display: flex; flex-direction: column; padding-bottom: 0; background: var(--color-page-bg); }
 .settings-header { height: 57px; flex: none; display: flex; align-items: flex-start; margin: 0 20px; border-bottom: 1px solid var(--color-border); }
@@ -230,4 +314,5 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 
 @media (min-width: 600px) { .phone { margin: 24px 0; height: min(calc(100dvh - 48px), 1079px); border-radius: 24px; } }
 @media (max-width: 370px) { .main-header h1 { font-size: 30px; } .today-hero h2 { font-size: 20px; line-height: 27px; } .quick-chips button { padding: 6px 7px; } }
+
 
