@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 
 type View =
   | 'today'
@@ -97,7 +97,7 @@ function BottomNav({ active, onNavigate }: { active: View; onNavigate: (view: Vi
     { id: 'today', label: 'Today', icon: 'nav-today.svg' },
     { id: 'story', label: 'Story', icon: 'nav-story.svg' },
     { id: 'ask', label: 'Ask AI', icon: 'nav-ai.svg' },
-    { id: 'pets', label: 'Pets', icon: 'nav-pets.svg' },
+    { id: 'pets', label: 'Pets', icon: 'paw' },
     { id: 'you', label: 'You' },
   ];
   return (
@@ -110,7 +110,7 @@ function BottomNav({ active, onNavigate }: { active: View; onNavigate: (view: Vi
           aria-current={active === item.id ? 'page' : undefined}
         >
           <span className="nav-icon">
-            {item.icon ? <img src={asset(item.icon)} alt="" /> : <span className="you-icon" />}
+            {item.icon === 'paw' ? <svg className="paw-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="5.2" cy="9" rx="2.1" ry="2.8" /><ellipse cx="10" cy="5.7" rx="2" ry="2.7" /><ellipse cx="15.2" cy="5.8" rx="2" ry="2.7" /><ellipse cx="19" cy="9.8" rx="2" ry="2.7" /><path d="M12 10.2c-2.1 0-3.1 1.9-4.5 3.4-1.2 1.3-2.2 2.6-1.7 4.1.6 1.7 2.2 1.7 3.8 1.2.9-.3 1.6-.5 2.5-.5s1.7.2 2.6.5c1.5.5 3.1.5 3.7-1.2.5-1.5-.5-2.8-1.7-4.1-1.4-1.5-2.5-3.4-4.7-3.4Z" /></svg> : item.icon ? <img src={asset(item.icon)} alt="" /> : <span className="you-icon" />}
           </span>
           <span>{item.label}</span>
         </button>
@@ -291,16 +291,55 @@ function UndonePage({ onBack, onReview }: { onBack: () => void; onReview: () => 
   );
 }
 
-function AskPage({ onEvidence, onContext }: { onEvidence: () => void; onContext: () => void }) {
+type AskAttachment = { url: string; name: string };
+type AskMessage = { role: 'user' | 'assistant'; text: string; attachment?: AskAttachment };
+
+function AskPage({ onEvidence, onContext, messages, messageEndRef }: { onEvidence: () => void; onContext: () => void; messages: AskMessage[]; messageEndRef: RefObject<HTMLDivElement | null> }) {
   return (
-    <>
+    <div className="ask-page">
       <MainHeader eyebrow="ASK AI · OBSERVATION DIALOGUE" title="Ask Pawsona" />
       <div className="linked-evidence ask-status"><span className="loading-ring" /><span><strong>Reviewing afternoon rest</strong><small>Linked to Today’s Story · 2 clips + your note</small></span></div>
-      <div className="chat-message ai">Luna rested longer this afternoon than in the recent clips available. I can’t tell why—or know exactly how she felt. Would you like to check the evidence or add what happened at home?<button className="text-link" onClick={onEvidence}>View evidence →</button></div>
-      <div className="chat-message owner">My family had visitors today. She often settles down after that.</div>
-      <div className="chat-message ai">Would you like to add this as owner context? You can review the clips before anything is saved.<div className="chat-choices"><button onClick={onContext}>Yes</button><button onClick={onEvidence}>No</button></div></div>
-      <div className="ask-composer"><span>Quick context</span><div className="quick-chips"><button onClick={onContext}>Food changed</button><button onClick={onContext}>Routine changed</button><button onClick={onContext}>Not sure yet</button></div><button className="composer-input" onClick={onContext}>What would you like to know? <b>↑</b></button></div>
-    </>
+      <section className="ask-thread" aria-label="Conversation with Pawsona">
+        <article className="chat-message ai">Luna rested longer this afternoon than in the recent clips available. I can’t tell why—or know exactly how she felt. Would you like to check the evidence or add what happened at home?<button className="text-link" onClick={onEvidence}>View evidence →</button></article>
+        <article className="chat-message owner">My family had visitors today. She often settles down after that.</article>
+        <article className="chat-message ai">Would you like to add this as owner context? You can review the clips before anything is saved.<div className="chat-choices"><button onClick={onContext}>Yes</button><button onClick={onEvidence}>No</button></div></article>
+        {messages.map((message, index) => message.role === 'user'
+          ? <article className="chat-message owner" key={`user-${index}`}>{message.attachment && <img className="chat-attachment" src={message.attachment.url} alt={message.attachment.name} />}{message.text && <span>{message.text}</span>}</article>
+          : <article className="chat-message ai dynamic-answer" key={`assistant-${index}`}>{message.text}<button className="text-link" onClick={onEvidence}>View linked evidence →</button></article>)}
+        <div ref={messageEndRef} />
+      </section>
+    </div>
+  );
+}
+
+function AskComposer({ value, onValue, onSend, onQuickContext }: { value: string; onValue: (value: string) => void; onSend: (attachment?: AskAttachment) => void; onQuickContext: (value: string) => void }) {
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [attachment, setAttachment] = useState<AskAttachment | undefined>();
+  function send() {
+    onSend(attachment);
+    setAttachment(undefined);
+    if (imageInputRef.current) imageInputRef.current.value = '';
+  }
+  return (
+    <section className="ask-dock" aria-label="Ask Pawsona a question">
+      <div className="quick-context-label">Quick context</div>
+      <div className="quick-chips">
+        <button onClick={() => onQuickContext('Food changed')}>Food changed</button>
+        <button onClick={() => onQuickContext('Routine changed')}>Routine changed</button>
+        <button onClick={() => onQuickContext('Not sure yet')}>Not sure yet</button>
+      </div>
+      <div className="ask-input-box">
+        <textarea aria-label="What would you like to ask Pawsona?" placeholder="What would you like to know?" value={value} onChange={(event) => onValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} />
+        <div className="ask-input-tools">
+          <button aria-label="Attach an image" onClick={() => imageInputRef.current?.click()}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" /><circle cx="9" cy="9" r="1.5" /><path d="m5 17 5-5 3 3 2-2 5 5" /></svg></button>
+          <button aria-label="Add context" onClick={() => onQuickContext('Please include this context: ')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6M16 6l6 6-6 6" /></svg></button>
+          <button aria-label="Voice note" onClick={() => onQuickContext('Voice note: ')}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8" /></svg></button>
+          <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={(event) => { const file = event.target.files?.[0]; setAttachment(file ? { url: URL.createObjectURL(file), name: file.name } : undefined); }} />
+          <button className="ask-send-button" aria-label="Send message" disabled={!value.trim() && !attachment} onClick={send}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button>
+        </div>
+        {attachment && <span className="attachment-name">{attachment.name}</span>}
+      </div>
+    </section>
   );
 }
 
@@ -429,11 +468,20 @@ export default function App() {
   const [note, setNote] = useState(saved?.note ?? 'Visitors were at home today. Luna often rests afterward.');
   const [interpretation, setInterpretation] = useState<Interpretation>(saved?.interpretation ?? 'normal');
   const [profileAction, setProfileAction] = useState<{ title: string; detail: string } | null>(null);
+  const [askInput, setAskInput] = useState('');
+  const [askMessages, setAskMessages] = useState<AskMessage[]>([]);
   const scrollRef = useRef<HTMLElement>(null);
+  const askEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
   }, [view]);
+
+  useEffect(() => {
+    if (view === 'ask' && askMessages.length && scrollRef.current) {
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [askMessages, view]);
 
   function saveContext() {
     const next = { note: note.trim(), interpretation, savedAt: new Date().toISOString() };
@@ -448,6 +496,13 @@ export default function App() {
     setView('undone');
   }
 
+  function sendAskMessage(attachment?: AskAttachment) {
+    const text = askInput.trim();
+    if (!text && !attachment) return;
+    setAskMessages((current) => [...current, { role: 'user', text, attachment }, { role: 'assistant', text: 'Thanks for sharing. I’ll keep that in context. Would you like to review the linked observations together?' }]);
+    setAskInput('');
+  }
+
   const mainView = (['today', 'story', 'ask', 'pets', 'you'] as View[]).includes(view);
   const activeNav: View = view === 'petDetails' ? 'pets' : view === 'profile' ? 'you' : mainView ? view : 'today';
   function navigate(view: View) {
@@ -459,7 +514,7 @@ export default function App() {
       <div className="phone">
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''}`}>
           <StatusBar />
-          <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'}`}>
+          <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''}`}>
             {view === 'today' && <TodayPage onStory={() => setView('story')} onEvidence={() => setView('overview')} saved={saved} />}
             {view === 'story' && <StoryPage onEvidence={() => setView('overview')} onAdd={() => setView('context')} saved={saved} />}
             {view === 'overview' && <OverviewPage onBack={() => setView('today')} onClip={() => setView('clip')} saved={saved} onSaved={() => setView('saved')} />}
@@ -468,12 +523,13 @@ export default function App() {
             {view === 'confirm' && <ConfirmPage note={note} interpretation={interpretation} onBack={() => setView('context')} onSave={saveContext} />}
             {view === 'saved' && saved && <SavedPage saved={saved} onBack={() => setView('today')} onUndo={undoContext} onEvidence={() => setView('clip')} onEdit={() => setView('context')} />}
             {view === 'undone' && <UndonePage onBack={() => setView('today')} onReview={() => setView('overview')} />}
-            {view === 'ask' && <AskPage onEvidence={() => setView('overview')} onContext={() => setView('context')} />}
+            {view === 'ask' && <AskPage onEvidence={() => setView('overview')} onContext={() => setView('context')} messages={askMessages} messageEndRef={askEndRef} />}
             {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} ownerName={ownerName} onPetEdit={() => setView('petDetails')} onProfileEdit={() => setView('profile')} onAction={(title, detail) => setProfileAction({ title, detail })} />}
             {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} onSaved={setPetName} onBack={() => setView('pets')} />}
             {view === 'profile' && <SettingsPage kind="profile" initialName={ownerName} onSaved={setOwnerName} onBack={() => setView('you')} />}
           </div>
         </main>
+        {view === 'ask' && <AskComposer value={askInput} onValue={setAskInput} onSend={sendAskMessage} onQuickContext={(value) => setAskInput((current) => current ? `${current} ${value}` : value)} />}
         {profileAction && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setProfileAction(null)}><section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-dialog-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={() => setProfileAction(null)}>×</button><h2 id="profile-dialog-title">{profileAction.title}</h2><p>{profileAction.detail}</p><button className="primary-button" onClick={() => setProfileAction(null)}>Done</button></section></div>}
         {mainView && <BottomNav active={activeNav} onNavigate={navigate} />}
       </div>
