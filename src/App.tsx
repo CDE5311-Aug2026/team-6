@@ -6,6 +6,8 @@ type View =
   | 'ask'
   | 'pets'
   | 'you'
+  | 'petDetails'
+  | 'profile'
   | 'overview'
   | 'clip'
   | 'context'
@@ -322,6 +324,49 @@ function SimplePage({ kind }: { kind: 'pets' | 'you' }) {
   );
 }
 
+function SettingsPage({ kind, onBack }: { kind: 'petDetails' | 'profile'; onBack: () => void }) {
+  const pet = kind === 'petDetails';
+  const initialName = pet ? 'Luna' : 'Emily';
+  const [name, setName] = useState(() => localStorage.getItem(pet ? 'pawsona-pet-name' : 'pawsona-owner-name') || initialName);
+  const [saved, setSaved] = useState(false);
+
+  function save() {
+    try { localStorage.setItem(pet ? 'pawsona-pet-name' : 'pawsona-owner-name', name.trim()); } catch { /* Keep the current value in this view. */ }
+    setSaved(true);
+  }
+
+  return (
+    <section className="settings-page">
+      <header className="settings-header">
+        <button className="settings-back" aria-label="Back to Today" onClick={onBack}>←</button>
+        <h1>{pet ? 'Luna’s details' : 'My account'}</h1>
+      </header>
+      <p className="settings-eyebrow">{pet ? 'PET PROFILE' : 'YOUR SPACE'}</p>
+      <section className="settings-summary">
+        <strong>{pet ? name || 'Luna' : name || 'Emily'}</strong>
+        <p>{pet ? 'Keep the details that help carers recognise her.' : 'Your details stay separate from Luna’s records.'}</p>
+      </section>
+      <div className="settings-fields">
+        <label className="settings-field">
+          <strong>Name</strong>
+          <input value={name} onChange={(event) => { setName(event.target.value); setSaved(false); }} aria-label={pet ? 'Pet name' : 'Your name'} />
+        </label>
+        {pet ? <>
+          <div className="settings-field"><strong>Breed</strong><p>Golden Retriever</p></div>
+          <div className="settings-field"><strong>Age</strong><p>3 years old</p></div>
+        </> : <>
+          <div className="settings-field"><strong>Role</strong><p>Primary owner</p></div>
+          <div className="settings-field"><strong>Preferences</strong><p>Manage your account details here.</p></div>
+        </>}
+      </div>
+      <div className="settings-action">
+        <button className="primary-button full" onClick={save}>{saved ? 'Saved' : pet ? 'Save details' : 'Save profile'}</button>
+        {saved && <p role="status">Your changes have been saved.</p>}
+      </div>
+    </section>
+  );
+}
+
 export default function App() {
   const [view, setView] = useState<View>('today');
   const [saved, setSaved] = useState<OwnerContext | null>(readSavedContext);
@@ -347,7 +392,10 @@ export default function App() {
   }
 
   const mainView = (['today', 'story', 'ask', 'pets', 'you'] as View[]).includes(view);
-  const activeNav: View = mainView ? view : 'today';
+  const activeNav: View = view === 'petDetails' ? 'pets' : view === 'profile' ? 'you' : mainView ? view : 'today';
+  function navigate(view: View) {
+    setView(view === 'pets' ? 'petDetails' : view === 'you' ? 'profile' : view);
+  }
 
   return (
     <div className="app-stage">
@@ -365,10 +413,13 @@ export default function App() {
             {view === 'undone' && <UndonePage onBack={() => setView('today')} onReview={() => setView('overview')} />}
             {view === 'ask' && <AskPage onEvidence={() => setView('overview')} onContext={() => setView('context')} />}
             {(view === 'pets' || view === 'you') && <SimplePage kind={view} />}
+            {view === 'petDetails' && <SettingsPage kind="petDetails" onBack={() => setView('today')} />}
+            {view === 'profile' && <SettingsPage kind="profile" onBack={() => setView('today')} />}
           </div>
         </main>
-        {mainView && <BottomNav active={activeNav} onNavigate={setView} />}
+        {mainView && <BottomNav active={activeNav} onNavigate={navigate} />}
       </div>
     </div>
   );
 }
+
