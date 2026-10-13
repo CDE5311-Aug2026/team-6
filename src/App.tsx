@@ -21,6 +21,8 @@ type View =
   | 'addCompose'
   | 'addPreview'
   | 'addSaved'
+  | 'storyEdit'
+  | 'drafts'
   | 'undone';
 
 type Interpretation = 'normal' | 'one-time' | 'open';
@@ -32,7 +34,23 @@ type OwnerContext = {
 };
 
 type CareMember = { id: string; name: string; role: string; detail: string };
-type StoryObservation = { id: string; note: string; title: string; image: string; momentCount: number; context: string; privateRecord: boolean; savedAt: string };
+type StoryObservation = { id: string; note: string; title: string; image: string; momentCount: number; momentIds?: string[]; context: string; privateRecord: boolean; savedAt: string };
+type StoryDraft = { id: string; selectedMoments: string[]; note: string; context: string; savedAt: string; privateRecord?: boolean };
+
+const storyDraftsKey = 'pawsona-story-drafts-v1';
+function readStoryDrafts(): StoryDraft[] {
+  try {
+    const value = localStorage.getItem(storyDraftsKey);
+    const parsed: unknown = value ? JSON.parse(value) : [];
+    return Array.isArray(parsed) ? parsed as StoryDraft[] : [];
+  } catch { return []; }
+}
+
+function formatObservationTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Today';
+  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(date) + '\n' + new Intl.DateTimeFormat('en', { hour: 'numeric', minute: '2-digit' }).format(date);
+}
 
 const readStoryObservations = (): StoryObservation[] => {
   try {
@@ -189,27 +207,27 @@ function TodayPage({ onStory, onEvidence, onPetsNavigate, saved }: { onStory: ()
   );
 }
 
-function StoryPage({ onEvidence, onAdd, onPetsNavigate, saved, observations }: { onEvidence: () => void; onAdd: () => void; onPetsNavigate: () => void; saved: OwnerContext | null; observations: StoryObservation[] }) {
+function StoryPage({ onEvidence, onEditStory, onPetsNavigate, saved, observations, includedMoments }: { onEvidence: () => void; onEditStory: () => void; onPetsNavigate: () => void; saved: OwnerContext | null; observations: StoryObservation[]; includedMoments: string[] | null }) {
   const moments = [
     { time: '8:10 AM', title: 'Breakfast at her bowl', note: 'Observed eating as usual', image: 'story-breakfast.png' },
     { time: '11:35 AM', title: 'Rest by the window', note: saved ? 'Emily added context to this moment' : 'A quiet moment to remember', image: 'story-window.png' },
     { time: '4:20 PM', title: 'Her favourite toy chase', note: 'One of today’s highlights!', image: 'story-toy.png' },
   ];
-  const visibleObservations = observations.filter((observation) => !observation.privateRecord);
+  const visibleObservations = observations.filter((observation) => !observation.privateRecord && (!includedMoments || includedMoments.includes(observation.id)));
   return (
     <>
       <MainHeader eyebrow="LUNA · DAILY STORY" title="Her moments" subtitle="Tuesday · 15 September" onPetsNavigate={onPetsNavigate} />
       <div className="story-summary"><img src={asset('story-heart.png')} alt="" /><strong>3 moments, one lovely day</strong></div>
       <section className="timeline-section">
-        <div className="section-heading"><h2>Today’s timeline</h2><button className="text-link" onClick={onAdd}>Edit story ✎</button></div>
+        <div className="section-heading"><h2>Today’s timeline</h2><button className="text-link" onClick={onEditStory}>Edit story ✎</button></div>
         <div className="timeline-list">
           {visibleObservations.map((observation) => (
             <button className="timeline-row" key={observation.id} onClick={onEvidence}>
-              <span className="timeline-time">Today</span>
+              <span className="timeline-time">{formatObservationTime(observation.savedAt)}</span>
               <span className="timeline-card"><img src={observation.image} alt="" /><span><strong>{observation.title}</strong><small>{observation.note}</small></span><span className="dots" aria-hidden="true">···</span></span>
             </button>
           ))}
-          {moments.map((moment) => (
+          {moments.filter((moment) => !includedMoments || includedMoments.includes(moment.time === '8:10 AM' ? 'breakfast' : moment.time === '4:20 PM' ? 'toy' : 'window')).map((moment) => (
             <button className="timeline-row" key={moment.time} onClick={onEvidence}>
               <span className="timeline-time">{moment.time.replace(' ', '\n')}</span>
               <span className="timeline-card">
@@ -224,6 +242,38 @@ function StoryPage({ onEvidence, onAdd, onPetsNavigate, saved, observations }: {
       {saved && <button className="story-owner-note" onClick={onEvidence}><strong>Emily’s context</strong><span>{saved.note}</span></button>}
     </>
   );
+}
+
+type StoryEditRow = { id: string; image: string; title: string; meta: string; note?: string; context?: string };
+
+function StoryEditPage({ observations, onBack, onAdd, onSave, onEdit, onDelete }: { observations: StoryObservation[]; onBack: () => void; onAdd: () => void; onSave: (ids: string[]) => void; onEdit: (row: StoryEditRow) => void; onDelete: (id: string) => void }) {
+  const [included, setIncluded] = useState<string[]>(() => [...observations.filter((entry) => !entry.privateRecord).map((entry) => entry.id), 'breakfast', 'toy']);
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const longPressTimer = useRef<number | null>(null);
+  const suppressClick = useRef(false);
+  const rows: StoryEditRow[] = [
+    ...observations.filter((entry) => !entry.privateRecord).map((entry) => ({ id: entry.id, image: entry.image, title: entry.title, meta: `${formatObservationTime(entry.savedAt)} · written observation`, note: entry.note, context: entry.context })),
+    { id: 'breakfast', image: asset('story-breakfast.png'), title: 'Breakfast at her bowl', meta: '08:10 · selected clip', note: 'Observed eating as usual' },
+    { id: 'toy', image: asset('story-toy.png'), title: 'Her favourite toy chase', meta: '16:20 · selected clip', note: 'One of today’s highlights!' },
+  ];
+  const clearLongPress = () => { if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current); longPressTimer.current = null; };
+  const beginLongPress = (id: string) => { clearLongPress(); longPressTimer.current = window.setTimeout(() => { suppressClick.current = true; setOpenMenuId(id); }, 520); };
+  const removeRow = (id: string) => { setRemovedIds((current) => [...current, id]); setIncluded((current) => current.filter((entry) => entry !== id)); setOpenMenuId(null); onDelete(id); };
+  return <section className="story-edit-page">
+    <header className="story-edit-header"><button className="back-button" aria-label="Go back" onClick={onBack}>←</button><h1>Edit story</h1></header>
+    <div className="story-edit-rows">{rows.filter((row) => !removedIds.includes(row.id)).map((row) => <div className="story-edit-item" key={row.id} onPointerDown={() => beginLongPress(row.id)} onPointerUp={clearLongPress} onPointerLeave={clearLongPress} onPointerCancel={clearLongPress} onContextMenu={(event) => { event.preventDefault(); clearLongPress(); suppressClick.current = true; setOpenMenuId(row.id); }}><button type="button" className={`story-edit-row ${included.includes(row.id) ? 'included' : ''}`} onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } setOpenMenuId(null); setIncluded((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id]); }}><img src={row.image} alt=""/><span className="story-edit-row-copy"><strong>{row.title}</strong><small>{row.meta}</small></span><span className="story-edit-check" aria-hidden="true">{included.includes(row.id) ? '✓' : ''}</span></button>{openMenuId === row.id && <div className="story-row-action-bubble" role="menu"><button role="menuitem" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); clearLongPress(); setOpenMenuId(null); suppressClick.current = false; onEdit(row); }}>Edit</button><button role="menuitem" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); clearLongPress(); removeRow(row.id); suppressClick.current = false; }}>Delete</button></div>}</div>)}</div>
+    <section className="story-visibility-card"><strong>Story visibility</strong><p>Keep selected moments in Luna’s Story.<br/>Hidden moments remain in your records.</p><small>Sharing uses only moments you choose.</small></section>
+    <button className="story-add-another" onClick={onAdd}>+ Add another observation</button>
+    <div className="sticky-action"><button className="primary-button full" onClick={() => onSave(included)}>Save Story changes</button></div>
+  </section>;
+}
+
+function StoryDraftsPage({ drafts, onBack, onResume }: { drafts: StoryDraft[]; onBack: () => void; onResume: (draft: StoryDraft) => void }) {
+  return <section className="story-drafts-page">
+    <header className="story-edit-header"><button className="back-button" aria-label="Go back" onClick={onBack}>←</button><h1>Drafts</h1></header>
+    {drafts.length ? <div className="story-drafts-list">{drafts.map((draft) => <button className="story-draft-card" key={draft.id} onClick={() => onResume(draft)}><strong>{draft.note.trim() ? draft.note : 'Untitled observation'}</strong><span>{draft.privateRecord ? 'Private note' : `${draft.selectedMoments.length} selected ${draft.selectedMoments.length === 1 ? 'moment' : 'moments'}`}{draft.context ? ` · ${draft.context}` : ''}</span><small>Saved {formatObservationTime(draft.savedAt).replace('\n', ' · ')}</small></button>)}</div> : <div className="story-drafts-empty">No drafts yet.</div>}
+  </section>;
 }
 
 const momentChoices = [
@@ -260,7 +310,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   const selectedNotes = noteChoices.filter((entry) => selectedMoments.includes(entry.id));
   const image = latest?.image ?? selected[0]?.image ?? asset('story-window.png');
   const observationText = step === 'saved' ? latest?.note ?? note : note;
-  const observationTitle = latest?.title || 'A window rest after visitors';
+  const observationTitle = latest?.title || (selected.length ? 'A window rest after visitors' : 'A quiet moment after visitors');
   const cancel = <button className="add-cancel" onClick={onCancel}>Cancel</button>;
   const header = (title: string, eyebrow: string) => <header className="add-flow-header"><div className="add-flow-title"><button className="back-button" aria-label="Go back" onClick={onBack}>←</button><h1>{title}</h1>{cancel}</div><p className="eyebrow">{eyebrow}</p></header>;
 
@@ -277,7 +327,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
 
   if (step === 'compose') return <div className="add-flow-page">
     {header('Write a moment', '2 OF 3 · ADD YOUR WORDS')}
-    {selected.length > 0 || selectedNotes.length > 0 ? <><div className="compose-section-label"><strong>Selected moments</strong><button className="text-link" onClick={onBack}>Edit</button></div>{selected.length > 0 ? <div className="selected-moments-strip">{selected.map((moment) => <img key={moment.id} src={asset(moment.image)} alt={moment.title} />)}</div> : <div className="selected-note-strip">{selectedNotes.map((entry) => <div key={entry.id}><span>{entry.text}</span><small>{entry.label}</small></div>)}</div>}</> : <><div className="written-observation-mode"><strong>Written observation</strong><button className="text-link" onClick={onBack}>Edit</button></div><div className="written-observation-note"><strong>A note is enough</strong><span>You can describe a moment without a photo or camera clip.</span></div></>}
+    {selected.length > 0 || selectedNotes.length > 0 ? <><div className="compose-section-label"><strong>Selected moments</strong></div>{selected.length > 0 ? <div className="selected-moments-strip">{selected.map((moment) => <img key={moment.id} src={asset(moment.image)} alt={moment.title} />)}</div> : <div className="selected-note-strip">{selectedNotes.map((entry) => <div key={entry.id}><span>{entry.text}</span><small>{entry.label}</small></div>)}</div>}</> : <><div className="written-observation-mode"><strong>Written observation</strong></div><div className="written-observation-note"><strong>A note is enough</strong><span>You can describe a moment without a photo or camera clip.</span></div></>}
     <label className="observation-writing-card"><strong>What happened with Luna?</strong><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Describe what you noticed…" /></label>
     <section className="add-context-choices"><strong>Add context</strong><div>{['Visitors at home', 'Routine changed', 'Not sure yet'].map((item) => <button key={item} className={context === item ? 'active' : ''} onClick={() => setContext(context === item ? '' : item)}>{item}</button>)}</div></section>
     <div className="sticky-action"><button className="primary-button full" onClick={onEdit} disabled={!note.trim()}>Preview observation</button><p>Your note is shown as your own words.</p></div>
@@ -285,16 +335,16 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
 
   if (step === 'preview') return <div className="add-flow-page">
     {header('Preview', '3 OF 3 · CHECK BEFORE SAVING')}
-    <article className="observation-preview-card">{selected.length ? <img src={image} alt="Luna" /> : <div className="observation-note-visual"><small>A note from {ownerName}</small><p>{note || 'A moment with Luna.'}</p></div>}<div className="observation-preview-copy"><small>Luna · Today</small><strong>{observationTitle}</strong><p>{note || 'A moment with Luna.'}</p><div>{selectedMoments.length} selected {selectedMoments.length === 1 ? 'moment' : 'moments'} · {selected.length ? 'owner observation' : 'written observation'}</div><span>Owner-provided context{context ? ` · ${context}` : ''}</span></div></article>
-    <section className="observation-destination"><strong>Where this goes</strong><button className={!privateRecord ? 'selected' : ''} onClick={() => setPrivateRecord(false)}><span>{!privateRecord ? '✓' : '○'}</span>Add to Luna’s Story</button><button className={privateRecord ? 'selected' : ''} onClick={() => setPrivateRecord(true)}><span>{privateRecord ? '✓' : '○'}</span>Keep as a private record instead</button><small>You choose which sources and words are saved.</small></section>
-    <div className="sticky-action"><button className="primary-button full" onClick={onSave}>Save observation</button><p>Nothing updates Luna’s baseline automatically.</p></div>
+    <article className={`observation-preview-card ${selected.length === 0 ? 'note-observation-preview' : ''}`}>{selected.length ? <img src={image} alt="Luna" /> : <div className="observation-note-visual"><strong>A note from {ownerName}</strong><p>{note || 'A moment with Luna.'}</p></div>}<div className="observation-preview-copy"><small>Luna · Today</small><strong>{observationTitle}</strong><p>{note || 'A moment with Luna.'}</p><div>{selectedMoments.length} selected {selectedMoments.length === 1 ? 'moment' : 'moments'} · {selected.length ? 'owner observation' : `Written observation · ${ownerName}`}</div><span>Owner-provided context{context ? ` · ${context}` : ''}</span></div></article>
+    <section className="observation-destination"><strong>Where this goes</strong><button className={!privateRecord ? 'selected' : ''} onClick={() => setPrivateRecord(false)}><span className="destination-radio">{!privateRecord && <i />}</span>Add to Luna’s Story</button><button className={privateRecord ? 'selected' : ''} onClick={() => setPrivateRecord(true)}><span className="destination-radio">{privateRecord && <i />}</span>Keep as a private record</button><small>{privateRecord ? 'Only you can see this record until you choose to share it.' : 'You choose which sources and words are saved.'}</small></section>
+    <div className="sticky-action"><button className="primary-button full" onClick={onSave}>{privateRecord ? 'Save private note' : 'Save observation'}</button>{!privateRecord && <p>Nothing updates Luna’s baseline automatically.</p>}</div>
   </div>;
 
   return <div className="add-flow-page">
-    {header('Moment saved', `ADDED TO ${privateRecord ? 'PRIVATE RECORDS' : 'LUNA’S STORY'}`)}
-    <section className="observation-saved-banner"><strong>✓ &nbsp;{privateRecord ? 'Your private record is saved' : 'Your observation is saved'}</strong><span>{privateRecord ? `Visible only to you · Added by ${ownerName}` : `Added by ${ownerName}`} · Today</span></section>
-    <article className="observation-preview-card saved-observation-card">{selected.length ? <img src={image} alt="Luna" /> : <div className="observation-note-visual"><small>A note from {ownerName}</small><p>{observationText || 'A moment with Luna.'}</p></div>}<div className="observation-preview-copy"><strong>{observationTitle}</strong><p>{observationText || 'A moment with Luna.'}</p><div>{latest?.momentCount ?? selectedMoments.length} selected moments · owner observation</div><span>{privateRecord ? 'Private record · not in Luna’s Story' : 'Visible in Luna’s Story'}</span></div></article>
-    <div className="saved-observation-links"><button className="text-link" onClick={onEdit}>Edit observation</button><button className="text-link" onClick={onCancel}>Return to Story</button></div>
+    {header(privateRecord ? 'Saved privately' : 'Moment saved', privateRecord ? 'SAVED TO PRIVATE RECORDS' : 'ADDED TO LUNA’S STORY')}
+    <section className="observation-saved-banner"><strong>✓ &nbsp;{privateRecord ? 'Your private note is saved' : 'Your observation is saved'}</strong><span>{privateRecord ? `Visible only to you · Added by ${ownerName}` : `Added by ${ownerName}`} · Today</span></section>
+    <article className="observation-preview-card saved-observation-card">{selected.length ? <img src={image} alt="Luna" /> : <div className="observation-note-visual"><strong>A note from {ownerName}</strong><p>{observationText || 'A moment with Luna.'}</p></div>}<div className="observation-preview-copy"><strong>{observationTitle}</strong><p>{observationText || 'A moment with Luna.'}</p><div>{(latest?.momentCount ?? selectedMoments.length) === 0 ? `Written observation · ${ownerName}` : `${latest?.momentCount ?? selectedMoments.length} selected moments · owner observation`}</div><span>{privateRecord ? 'Private record · not in Luna’s Story' : `Owner-provided context${latest?.context ? ` · ${latest.context}` : ''}`}</span></div></article>
+    <div className="saved-observation-links"><button className="text-link" onClick={onEdit}>Edit observation</button></div>
     <div className="sticky-action"><button className="primary-button full" onClick={onCancel}>{privateRecord ? 'Return to Today' : 'View in Story'}</button><p>You can edit or remove this observation later.</p></div>
   </div>;
 }
@@ -723,6 +773,11 @@ export default function App() {
   const [profileSaveNotice, setProfileSaveNotice] = useState(false);
   const [saved, setSaved] = useState<OwnerContext | null>(readSavedContext);
   const [storyObservations, setStoryObservations] = useState<StoryObservation[]>(readStoryObservations);
+  const [storyDrafts, setStoryDrafts] = useState<StoryDraft[]>(readStoryDrafts);
+  const [includedStoryMoments, setIncludedStoryMoments] = useState<string[] | null>(null);
+  const [editingStoryObservationId, setEditingStoryObservationId] = useState<string | null>(null);
+  const [activeStoryDraftId, setActiveStoryDraftId] = useState<string | null>(null);
+  const [showStoryAddOptions, setShowStoryAddOptions] = useState(false);
   const [draftMoments, setDraftMoments] = useState<string[]>(['window', 'toy']);
   const [draftObservation, setDraftObservation] = useState('She rested by the window after our visitors left, then played with her rope toy in the afternoon.');
   const [draftObservationContext, setDraftObservationContext] = useState('Visitors at home');
@@ -782,6 +837,8 @@ export default function App() {
   }
 
   function startStoryObservation() {
+    setEditingStoryObservationId(null);
+    setActiveStoryDraftId(null);
     setDraftMoments(['window', 'toy']);
     setDraftObservation('She rested by the window after our visitors left, then played with her rope toy in the afternoon.');
     setDraftObservationContext('Visitors at home');
@@ -790,24 +847,50 @@ export default function App() {
   }
 
   function cancelStoryObservation() {
-    navigationHistory.current = navigationHistory.current.filter((previous) => !(['addMoments', 'addCompose', 'addPreview', 'addSaved'] as View[]).includes(previous));
-    setView('story');
+    const returnView: View = view === 'addSaved' && draftPrivateRecord ? 'today' : 'story';
+    if (view !== 'addSaved' && (draftObservation.trim() || draftMoments.length)) {
+      const draft: StoryDraft = { id: activeStoryDraftId ?? `story-draft-${Date.now()}`, selectedMoments: draftMoments, note: draftObservation, context: draftObservationContext, savedAt: new Date().toISOString(), privateRecord: draftPrivateRecord };
+      setStoryDrafts((current) => {
+        const next = [draft, ...current.filter((entry) => entry.id !== draft.id)];
+        try { localStorage.setItem(storyDraftsKey, JSON.stringify(next)); } catch { /* Keep the draft for this session. */ }
+        return next;
+      });
+    }
+    setActiveStoryDraftId(null);
+    setEditingStoryObservationId(null);
+    navigationHistory.current = navigationHistory.current.filter((previous) => !(['addMoments', 'addCompose', 'addPreview', 'addSaved', 'storyEdit'] as View[]).includes(previous));
+    setView(returnView);
   }
 
   function saveStoryObservation() {
     const selected = momentChoices.filter((moment) => draftMoments.includes(moment.id));
+    const existing = storyObservations.find((entry) => entry.id === editingStoryObservationId);
+    const title = selected[0]?.id === 'breakfast' ? 'Breakfast at her bowl' : selected[0]?.id === 'toy' ? 'Her favourite toy chase' : selected.length ? 'A window rest after visitors' : 'A quiet moment after visitors';
     const observation: StoryObservation = {
-      id: `story-observation-${Date.now()}`,
+      id: existing?.id ?? `story-observation-${Date.now()}`,
       note: draftObservation.trim(),
-      title: 'A window rest after visitors',
+      title,
       image: asset(selected[0]?.image ?? 'story-window.png'),
       momentCount: selected.length,
+      momentIds: draftMoments,
       context: draftObservationContext,
       privateRecord: draftPrivateRecord,
       savedAt: new Date().toISOString(),
     };
-    const next = [observation, ...storyObservations];
+    const next = [observation, ...storyObservations.filter((entry) => entry.id !== observation.id)];
     setStoryObservations(next);
+    if (draftPrivateRecord) {
+      const draft: StoryDraft = { id: activeStoryDraftId ?? `story-draft-${Date.now()}`, selectedMoments: draftMoments, note: draftObservation, context: draftObservationContext, savedAt: new Date().toISOString(), privateRecord: true };
+      const nextDrafts = [draft, ...storyDrafts.filter((entry) => entry.id !== draft.id)];
+      setStoryDrafts(nextDrafts);
+      try { localStorage.setItem(storyDraftsKey, JSON.stringify(nextDrafts)); } catch { /* Keep the private note in this session. */ }
+    } else if (activeStoryDraftId) {
+      const nextDrafts = storyDrafts.filter((entry) => entry.id !== activeStoryDraftId);
+      setStoryDrafts(nextDrafts);
+      try { localStorage.setItem(storyDraftsKey, JSON.stringify(nextDrafts)); } catch { /* Keep the in-memory draft list updated. */ }
+    }
+    setActiveStoryDraftId(null);
+    setIncludedStoryMoments((current) => current ? [observation.id, ...current] : null);
     try { localStorage.setItem('pawsona-story-observations-v1', JSON.stringify(next)); } catch { /* Keep this observation for the current session. */ }
     navigateTo('addSaved');
   }
@@ -831,6 +914,32 @@ export default function App() {
     try { localStorage.setItem('pawsona-owner-role', role); } catch { /* Keep this selection active for the current session. */ }
     setOwnerRole(role);
   }
+  function editStoryRow(row: StoryEditRow) {
+    const existing = storyObservations.find((entry) => entry.id === row.id);
+    setEditingStoryObservationId(existing?.id ?? null);
+    setDraftMoments(existing?.momentIds ?? (existing ? [] : [row.id]));
+    setDraftObservation(existing?.note ?? row.note ?? '');
+    setDraftObservationContext(existing?.context ?? '');
+    setDraftPrivateRecord(false);
+    navigateTo('addCompose');
+  }
+  function resumeStoryDraft(draft: StoryDraft) {
+    setActiveStoryDraftId(draft.id);
+    setEditingStoryObservationId(null);
+    setDraftMoments(draft.selectedMoments);
+    setDraftObservation(draft.note);
+    setDraftObservationContext(draft.context);
+    setDraftPrivateRecord(Boolean(draft.privateRecord));
+    navigateTo('addCompose');
+  }
+  function deleteStoryRow(id: string) {
+    if (!id.startsWith('story-observation-')) return;
+    setStoryObservations((current) => {
+      const next = current.filter((entry) => entry.id !== id);
+      try { localStorage.setItem('pawsona-story-observations-v1', JSON.stringify(next)); } catch { /* Keep the deletion active for this session. */ }
+      return next;
+    });
+  }
   function navigate(view: View) {
     navigateTo(view);
   }
@@ -842,7 +951,9 @@ export default function App() {
           <StatusBar />
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
             {view === 'today' && <TodayPage onStory={() => navigateTo('story')} onEvidence={() => navigateTo('overview')} onPetsNavigate={() => navigateTo('pets')} saved={saved} />}
-            {view === 'story' && <StoryPage onEvidence={() => navigateTo('overview')} onAdd={startStoryObservation} onPetsNavigate={() => navigateTo('pets')} saved={saved} observations={storyObservations} />}
+            {view === 'story' && <StoryPage onEvidence={() => navigateTo('overview')} onEditStory={() => navigateTo('storyEdit')} onPetsNavigate={() => navigateTo('pets')} saved={saved} observations={storyObservations} includedMoments={includedStoryMoments} />}
+            {view === 'storyEdit' && <StoryEditPage observations={storyObservations} onBack={() => goBack('story')} onAdd={startStoryObservation} onEdit={editStoryRow} onDelete={deleteStoryRow} onSave={(ids) => { setIncludedStoryMoments(ids); navigateTo('story'); }} />}
+            {view === 'drafts' && <StoryDraftsPage drafts={storyDrafts} onBack={() => goBack('story')} onResume={resumeStoryDraft} />}
             {view === 'addMoments' && <StoryAddPage step="moments" onBack={cancelStoryObservation} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} ownerName={ownerName} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
             {view === 'addCompose' && <StoryAddPage step="compose" onBack={() => goBack('addMoments')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} ownerName={ownerName} onSave={saveStoryObservation} onEdit={() => navigateTo('addPreview')} />}
             {view === 'addPreview' && <StoryAddPage step="preview" onBack={() => goBack('addCompose')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} ownerName={ownerName} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
@@ -861,7 +972,8 @@ export default function App() {
             {(view === 'careMembers' || view === 'patternHistory' || view === 'careEvent') && <PetSecondaryPage kind={view} petName={petName} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} careMembers={careMembers} primaryMemberId={primaryMemberId} isPrimaryCaregiver={isPrimaryCaregiver} onMemberClick={openCareMember} onRemoveMember={(id) => setCareMembers((members) => members.filter((member) => member.id !== id))} onAddMember={(name, role) => setCareMembers((members) => [...members, { id: `member-${Date.now()}`, name, role, detail: 'can add observations' }])} onBack={() => goBack('pets')} onReviewEvidence={() => navigateTo('overview')} onSaveEvent={(event) => { try { localStorage.setItem('pawsona-care-event-v1', JSON.stringify(event)); } catch { /* Keep the saved state in the current view. */ } }} />}
           </div>
         </main>
-        {view === 'story' && <button className="floating-add" onClick={startStoryObservation}>+ Add</button>}
+        {view === 'story' && <button className={`floating-add ${showStoryAddOptions ? 'is-open' : ''}`} aria-expanded={showStoryAddOptions} onClick={() => setShowStoryAddOptions((open) => !open)}><span className="add-icon" aria-hidden="true">+</span><span className="add-label">Add</span></button>}
+        {view === 'story' && showStoryAddOptions && <div className="story-add-menu-backdrop" role="presentation" onClick={() => setShowStoryAddOptions(false)}><div className="story-add-choices" role="menu" aria-label="Add to Story" onClick={(event) => event.stopPropagation()}><button className="story-add-choice story-add-choice-new" role="menuitem" onClick={() => { setShowStoryAddOptions(false); startStoryObservation(); }}>New moment</button><button className="story-add-choice story-add-choice-drafts" role="menuitem" onClick={() => { setShowStoryAddOptions(false); navigateTo('drafts'); }}>Drafts{storyDrafts.length > 0 ? ` (${storyDrafts.length})` : ''}</button></div></div>}
         {view === 'ask' && <AskComposer value={askInput} onValue={setAskInput} onSend={sendAskMessage} onQuickContext={(value) => setAskInput((current) => current ? `${current} ${value}` : value)} />}
         {profileAction && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setProfileAction(null)}><section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-dialog-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={() => setProfileAction(null)}>×</button><h2 id="profile-dialog-title">{profileAction.title}</h2><p>{profileAction.detail}</p><button className="primary-button" onClick={() => setProfileAction(null)}>Done</button></section></div>}
         {profileSaveNotice && <div className="profile-save-toast" role="status">Profile saved successfully</div>}
