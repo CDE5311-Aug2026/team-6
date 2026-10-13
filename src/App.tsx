@@ -34,6 +34,73 @@ type OwnerContext = {
 };
 
 type CareMember = { id: string; name: string; role: string; detail: string };
+
+type CareEvent = {
+  type: string;
+  when: string;
+  note: string;
+};
+
+const careEventKey = 'pawsona-care-event-v1';
+
+function readCareEvent(): CareEvent | null {
+  try {
+    const value = localStorage.getItem(careEventKey);
+    if (!value) return null;
+
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed !== 'object' || parsed === null) {
+      return null;
+    }
+
+    const event = parsed as Partial<CareEvent>;
+
+    return typeof event.type === 'string' &&
+      typeof event.when === 'string' &&
+      typeof event.note === 'string'
+      ? (event as CareEvent)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+const careMembersKey = 'pawsona-care-members-v1';
+
+function readCareMembers(): CareMember[] | null {
+  try {
+    const value = localStorage.getItem(careMembersKey);
+    if (!value) return null;
+
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return null;
+
+    const valid = parsed.every((entry) => {
+      if (typeof entry !== 'object' || entry === null) return false;
+
+      const member = entry as Partial<CareMember>;
+
+      return (
+        typeof member.id === 'string' &&
+        typeof member.name === 'string' &&
+        typeof member.role === 'string' &&
+        typeof member.detail === 'string'
+      );
+    });
+
+    return valid ? (parsed as CareMember[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCareMembersToStorage(members: CareMember[]) {
+  try {
+    localStorage.setItem(careMembersKey, JSON.stringify(members));
+  } catch {
+    /* Keep the members for this session. */
+  }
+}
 type StoryObservation = { id: string; note: string; title: string; image: string; momentCount: number; momentIds?: string[]; context: string; privateRecord: boolean; savedAt: string };
 type StoryDraft = { id: string; selectedMoments: string[]; note: string; context: string; savedAt: string; privateRecord?: boolean };
 
@@ -746,13 +813,14 @@ function RolePicker({ value, onChange }: { value: string; onChange: (value: stri
   </section>;
 }
 
-function PetSecondaryPage({ kind, petName, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', careMembers, primaryMemberId, isPrimaryCaregiver, onBack, onReviewEvidence, onSaveEvent, onMemberClick, onRemoveMember, onAddMember }: { kind: 'careMembers' | 'patternHistory' | 'careEvent'; petName: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; careMembers: CareMember[]; primaryMemberId: string; isPrimaryCaregiver: boolean; onBack: () => void; onReviewEvidence: () => void; onSaveEvent: (event: { type: string; when: string; note: string }) => void; onMemberClick: (id: string) => void; onRemoveMember: (id: string) => void; onAddMember: (name: string, role: string) => void }) {
+function PetSecondaryPage({ kind, petName, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', careMembers, primaryMemberId, isPrimaryCaregiver, onBack, onReviewEvidence, onSaveEvent, onMemberClick, onRemoveMember, onAddMember }: { kind: 'careMembers' | 'patternHistory' | 'careEvent'; petName: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; careMembers: CareMember[]; primaryMemberId: string; isPrimaryCaregiver: boolean; onBack: () => void; onReviewEvidence: () => void; onSaveEvent: (event: CareEvent) => void; onMemberClick: (id: string) => void; onRemoveMember: (id: string) => void; onAddMember: (name: string, role: string) => void }) {
   const [eventType, setEventType] = useState('Routine change');
   const [when, setWhen] = useState('Today');
   const [customDate, setCustomDate] = useState('');
   const [note, setNote] = useState('');
   const [openPicker, setOpenPicker] = useState<'type' | 'when' | null>(null);
   const [savedEvent, setSavedEvent] = useState(false);
+  const [lastSavedEvent, setLastSavedEvent] = useState<CareEvent | null>(readCareEvent);
   const [openMemberMenu, setOpenMemberMenu] = useState<string | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<CareMember | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
@@ -818,9 +886,18 @@ function PetSecondaryPage({ kind, petName, ownerName, ownerRole = 'Primary careg
           </label>
         )}
         <label className="settings-field event-note-field"><strong>What changed?</strong><textarea aria-label="What changed?" placeholder="Write what happened and why it may matter." value={note} onChange={(event) => { setNote(event.target.value); setSavedEvent(false); }} /></label>
+        {lastSavedEvent && (
+          <section className="settings-field saved-care-event">
+            <strong>Last saved event</strong>
+            <p>
+              {lastSavedEvent.type} · {lastSavedEvent.when}
+            </p>
+            <small>{lastSavedEvent.note}</small>
+          </section>
+        )}
       </div>}
       {!isCareMembers && <div className="settings-action">
-        <button className="primary-button full" disabled={!isPatternHistory && (!note.trim() || (when === 'Choose a date' && !customDate))} onClick={isPatternHistory ? onReviewEvidence : () => { onSaveEvent({ type: eventType, when: when === 'Choose a date' ? customDate : when, note: note.trim() }); setSavedEvent(true); }}>{isPatternHistory ? 'Review recent evidence' : savedEvent ? 'Event saved' : 'Save event'}</button>
+        <button className="primary-button full" disabled={!isPatternHistory && (!note.trim() || (when === 'Choose a date' && !customDate))} onClick={isPatternHistory ? onReviewEvidence : () => { const nextEvent: CareEvent = { type: eventType, when: when === 'Choose a date' ? customDate : when, note: note.trim(), }; onSaveEvent(nextEvent); setLastSavedEvent(nextEvent); setSavedEvent(true); }}>{isPatternHistory ? 'Review recent evidence' : savedEvent ? 'Event saved' : 'Save event'}</button>
         {savedEvent && <p role="status">Your care event has been saved.</p>}
       </div>}
       {pendingRemoval && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingRemoval(null)}><section className="profile-dialog member-removal-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-member-title" onClick={(event) => event.stopPropagation()}><h2 id="remove-member-title">Remove {pendingRemoval.name}?</h2><p>They will no longer be able to add observations or care context for {petName}.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingRemoval(null)}>Cancel</button><button className="danger-button" onClick={() => { onRemoveMember(pendingRemoval.id); setPendingRemoval(null); }}>Remove member</button></div></section></div>}
@@ -877,7 +954,8 @@ export default function App() {
   const [note, setNote] = useState(saved?.note ?? 'Visitors were at home today. ' + petName + ' often rests afterward.');
   const [interpretation, setInterpretation] = useState<Interpretation>(saved?.interpretation ?? 'normal');
   const [profileAction, setProfileAction] = useState<{ title: string; detail: string } | null>(null);
-  const [careMembers, setCareMembers] = useState<CareMember[]>([
+  const [careMembers, setCareMembers] = useState<CareMember[]>(() =>
+    readCareMembers() ?? [
     { id: 'emily', name: ownerName, role: 'Primary owner', detail: 'manages the profile' },
     { id: 'mom', name: 'Mom', role: 'Caregiver', detail: 'can add observations' },
     { id: 'dad', name: 'Dad', role: 'Caregiver', detail: 'can add observations' },
@@ -1083,7 +1161,59 @@ export default function App() {
             {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} onSaved={setPetName} onBack={() => goBack('pets')} />}
             {view === 'profile' && <SettingsPage kind="profile" initialName={ownerName} initialAvatar={ownerAvatar} initialPreference={ownerPreference} onSaved={setOwnerName} onProfileSaved={({ name, avatar, preference }) => { setOwnerName(name); setOwnerAvatar(avatar); setOwnerPreference(preference); setProfileSaveNotice(true); }} onBack={() => goBack('you')} />}
             {view === 'memberDetails' && selectedCareMember && <CareMemberDetailsPage member={selectedCareMember} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} onOwnerRoleChange={updateOwnerRole} primaryMemberId={primaryMemberId} petName={petName} onBack={() => goBack('careMembers')} />}
-            {(view === 'careMembers' || view === 'patternHistory' || view === 'careEvent') && <PetSecondaryPage kind={view} petName={petName} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} careMembers={careMembers} primaryMemberId={primaryMemberId} isPrimaryCaregiver={isPrimaryCaregiver} onMemberClick={openCareMember} onRemoveMember={(id) => setCareMembers((members) => members.filter((member) => member.id !== id))} onAddMember={(name, role) => setCareMembers((members) => [...members, { id: `member-${Date.now()}`, name, role, detail: 'can add observations' }])} onBack={() => goBack('pets')} onReviewEvidence={() => navigateTo('overview')} onSaveEvent={(event) => { try { localStorage.setItem('pawsona-care-event-v1', JSON.stringify(event)); } catch { /* Keep the saved state in the current view. */ } }} />}
+            {(view === 'careMembers' ||
+              view === 'patternHistory' ||
+              view === 'careEvent') && (
+              <PetSecondaryPage
+                kind={view}
+                petName={petName}
+                ownerName={ownerName}
+                ownerRole={ownerRole}
+                ownerAvatar={ownerAvatar}
+                careMembers={careMembers}
+                primaryMemberId={primaryMemberId}
+                isPrimaryCaregiver={isPrimaryCaregiver}
+                onMemberClick={openCareMember}
+                onRemoveMember={(id) => {
+                  setCareMembers((members) => {
+                    const next = members.filter(
+                      (member) => member.id !== id
+                    );
+
+                    saveCareMembersToStorage(next);
+                    return next;
+                  });
+                }}
+                onAddMember={(name, role) => {
+                  setCareMembers((members) => {
+                    const next = [
+                      ...members,
+                      {
+                        id: `member-${Date.now()}`,
+                        name,
+                        role,
+                        detail: 'can add observations',
+                      },
+                    ];
+
+                    saveCareMembersToStorage(next);
+                    return next;
+                  });
+                }}
+                onBack={() => goBack('pets')}
+                onReviewEvidence={() => navigateTo('overview')}
+                onSaveEvent={(event) => {
+                  try {
+                    localStorage.setItem(
+                      careEventKey,
+                      JSON.stringify(event)
+                    );
+                  } catch {
+                    /* Keep the saved state in the current view. */
+                  }
+                }}
+              />
+            )}
           </div>
         </main>
         {view === 'story' && <button className={`floating-add ${showStoryAddOptions ? 'is-open' : ''}`} aria-expanded={showStoryAddOptions} onClick={() => setShowStoryAddOptions((open) => !open)}><span className="add-icon" aria-hidden="true">+</span><span className="add-label">Add</span></button>}
