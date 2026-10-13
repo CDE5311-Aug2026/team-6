@@ -37,6 +37,24 @@ type CareMember = { id: string; name: string; role: string; detail: string };
 type StoryObservation = { id: string; note: string; title: string; image: string; momentCount: number; momentIds?: string[]; context: string; privateRecord: boolean; savedAt: string };
 type StoryDraft = { id: string; selectedMoments: string[]; note: string; context: string; savedAt: string; privateRecord?: boolean };
 
+const storyVisibilityKey = 'pawsona-story-visibility-v1';
+
+function readStoryVisibility(): string[] | null {
+  try {
+    const value = localStorage.getItem(storyVisibilityKey);
+    if (!value) return null;
+
+    const parsed: unknown = JSON.parse(value);
+
+    return Array.isArray(parsed) &&
+      parsed.every((item) => typeof item === 'string')
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 const storyDraftsKey = 'pawsona-story-drafts-v1';
 function readStoryDrafts(): StoryDraft[] {
   try {
@@ -214,10 +232,33 @@ function StoryPage({ onEvidence, onEditStory, onPetsNavigate, saved, observation
     { time: '4:20 PM', title: 'Her favourite toy chase', note: 'One of today’s highlights!', image: 'story-toy.png' },
   ];
   const visibleObservations = observations.filter((observation) => !observation.privateRecord && (!includedMoments || includedMoments.includes(observation.id)));
+  const visibleMoments = moments.filter(
+    (moment) =>
+      !includedMoments ||
+      includedMoments.includes(
+        moment.time === '8:10 AM'
+          ? 'breakfast'
+          : moment.time === '4:20 PM'
+            ? 'toy'
+            : 'window'
+      )
+  );
+
+  const totalMomentCount =
+    visibleObservations.length + visibleMoments.length;
   return (
     <>
       <MainHeader eyebrow="LUNA · DAILY STORY" title="Her moments" subtitle="Tuesday · 15 September" onPetsNavigate={onPetsNavigate} />
-      <div className="story-summary"><img src={asset('story-heart.png')} alt="" /><strong>3 moments, one lovely day</strong></div>
+      <div className="story-summary"><img src={asset('story-heart.png')} alt="" /><strong>
+        {totalMomentCount === 0 ? (
+          'No moments yet'
+        ) : (
+          <>
+            {totalMomentCount}{' '}
+            {totalMomentCount === 1 ? 'moment' : 'moments'}, one lovely day
+          </>
+        )}
+      </strong></div>
       <section className="timeline-section">
         <div className="section-heading"><h2>Today’s timeline</h2><button className="text-link" onClick={onEditStory}>Edit story ✎</button></div>
         <div className="timeline-list">
@@ -227,7 +268,7 @@ function StoryPage({ onEvidence, onEditStory, onPetsNavigate, saved, observation
               <span className="timeline-card"><img src={observation.image} alt="" /><span><strong>{observation.title}</strong><small>{observation.note}</small></span><span className="dots" aria-hidden="true">···</span></span>
             </button>
           ))}
-          {moments.filter((moment) => !includedMoments || includedMoments.includes(moment.time === '8:10 AM' ? 'breakfast' : moment.time === '4:20 PM' ? 'toy' : 'window')).map((moment) => (
+          {visibleMoments.map((moment) => (
             <button className="timeline-row" key={moment.time} onClick={onEvidence}>
               <span className="timeline-time">{moment.time.replace(' ', '\n')}</span>
               <span className="timeline-card">
@@ -246,8 +287,19 @@ function StoryPage({ onEvidence, onEditStory, onPetsNavigate, saved, observation
 
 type StoryEditRow = { id: string; image: string; title: string; meta: string; note?: string; context?: string };
 
-function StoryEditPage({ observations, onBack, onAdd, onSave, onEdit, onDelete }: { observations: StoryObservation[]; onBack: () => void; onAdd: () => void; onSave: (ids: string[]) => void; onEdit: (row: StoryEditRow) => void; onDelete: (id: string) => void }) {
-  const [included, setIncluded] = useState<string[]>(() => [...observations.filter((entry) => !entry.privateRecord).map((entry) => entry.id), 'breakfast', 'toy']);
+function StoryEditPage({ observations, includedMoments, onBack, onAdd, onSave, onEdit, onDelete }: { observations: StoryObservation[]; includedMoments: string[] | null; onBack: () => void; onAdd: () => void; onSave: (ids: string[]) => void; onEdit: (row: StoryEditRow) => void; onDelete: (id: string) => void }) {
+  const [included, setIncluded] = useState<string[]>(() =>
+    includedMoments
+      ? [...includedMoments]
+      : [
+          ...observations
+            .filter((entry) => !entry.privateRecord)
+            .map((entry) => entry.id),
+          'breakfast',
+          'window',
+          'toy',
+        ]
+  );
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const longPressTimer = useRef<number | null>(null);
@@ -255,6 +307,13 @@ function StoryEditPage({ observations, onBack, onAdd, onSave, onEdit, onDelete }
   const rows: StoryEditRow[] = [
     ...observations.filter((entry) => !entry.privateRecord).map((entry) => ({ id: entry.id, image: entry.image, title: entry.title, meta: `${formatObservationTime(entry.savedAt)} · written observation`, note: entry.note, context: entry.context })),
     { id: 'breakfast', image: asset('story-breakfast.png'), title: 'Breakfast at her bowl', meta: '08:10 · selected clip', note: 'Observed eating as usual' },
+    {
+      id: 'window',
+      image: asset('story-window.png'),
+      title: 'Rest by the window',
+      meta: '11:35 · selected clip',
+      note: 'A quiet moment to remember',
+    },
     { id: 'toy', image: asset('story-toy.png'), title: 'Her favourite toy chase', meta: '16:20 · selected clip', note: 'One of today’s highlights!' },
   ];
   const clearLongPress = () => { if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current); longPressTimer.current = null; };
@@ -308,7 +367,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
     { id: 'note-rest', text: 'Quiet rest by the window.', label: 'Routine note · last week' },
   ];
   const selectedNotes = noteChoices.filter((entry) => selectedMoments.includes(entry.id));
-  const image = latest?.image ?? selected[0]?.image ?? asset('story-window.png');
+  const image = latest?.image ?? asset(selected[0]?.image ?? 'story-window.png');
   const observationText = step === 'saved' ? latest?.note ?? note : note;
   const observationTitle = latest?.title || (selected.length ? 'A window rest after visitors' : 'A quiet moment after visitors');
   const cancel = <button className="add-cancel" onClick={onCancel}>Cancel</button>;
@@ -418,7 +477,7 @@ function ConfirmPage({ note, interpretation, onBack, onSave }: { note: string; i
   );
 }
 
-function SavedPage({ saved, onBack, onUndo, onEvidence, onEdit }: { saved: OwnerContext; onBack: () => void; onUndo: () => void; onEvidence: () => void; onEdit: () => void }) {
+function SavedPage({ saved, onBack, onReturnToday, onUndo, onEvidence, onEdit }: { saved: OwnerContext; onBack: () => void; onReturnToday: () => void; onUndo: () => void; onEvidence: () => void; onEdit: () => void }) {
   return (
     <>
       <DetailHeader title="Saved" eyebrow="OWNER CORRECTION SAVED" onBack={onBack} />
@@ -426,19 +485,19 @@ function SavedPage({ saved, onBack, onUndo, onEvidence, onEdit }: { saved: Owner
       <section className="saved-result"><small>EMILY’S CONTEXT</small><strong>{interpretationLabels[saved.interpretation]}</strong><p>{saved.note}</p><div>Linked to 2 selected clips · saved today</div><span>Owner-confirmed context</span></section>
       <section className="detail-card"><strong>What happens next?</strong><p>Future reviews can show this context alongside new observations.</p></section>
       <div className="saved-links"><button className="text-link" onClick={onUndo}>Undo correction</button><button className="text-link" onClick={onEvidence}>Review linked evidence</button><button className="text-link" onClick={onEdit}>Edit your context</button></div>
-      <StickyAction label="Return to Today" onClick={onBack} />
+      <StickyAction label="Return to Today" onClick={onReturnToday} />
     </>
   );
 }
 
-function UndonePage({ onBack, onReview }: { onBack: () => void; onReview: () => void }) {
+function UndonePage({ onBack, onReturnToday, onReview }: { onBack: () => void; onReturnToday: () => void; onReview: () => void }) {
   return (
     <>
       <DetailHeader title="Correction undone" eyebrow="OWNER CONTEXT REMOVED" onBack={onBack} />
       <section className="saved-banner"><h2>✓ &nbsp;Correction undone</h2><p>Your saved context has been removed from this pattern.</p></section>
       <section className="detail-card"><strong>Original observations remain</strong><p>The selected clips and Luna’s Story are still available for review.</p></section>
       <button className="text-link standalone" onClick={onReview}>Review the evidence again</button>
-      <StickyAction label="Return to Today" onClick={onBack} />
+      <StickyAction label="Return to Today" onClick={onReturnToday} />
     </>
   );
 }
@@ -508,11 +567,11 @@ function SimplePage({ kind, petName, ownerName, ownerRole = 'Primary caregiver',
       <section className="pet-profile-hero">
         <Avatar />
         <div className="profile-hero-copy"><strong>{petName}</strong><small>Golden Retriever · 3 years old</small><button className="mini-action" onClick={onPetEdit}><span>✎</span> Edit pet details</button></div>
-        <button className="sort-action" aria-label="Reorder pets" onClick={() => onAction('Reorder pets', 'Luna is your current pet profile. You can change the order as you add pets.')}>⇄</button>
+        <button className="sort-action" aria-label="Reorder pets" onClick={() => onAction('Reorder pets', '${petName} is your current pet profile. You can change the order as you add pets.')}>⇄</button>
       </section>
 
       <section className="profile-section care-section">
-        <h2>Who looks after Luna?</h2>
+        <h2>Who looks after {petName}?</h2>
         <div className="profile-card care-card">
           <div className="card-topline"><strong>Group Name</strong>{isPrimaryCaregiver && <button className="profile-link" onClick={onCareMembers}>Manage members →</button>}</div>
           {careMembers.map((member) => <button className="member-row" key={member.id} onClick={() => onMemberClick(member.id)}>{member.id === 'emily' ? <OwnerAvatar src={ownerAvatar} name={ownerName} /> : <span className={`member-avatar ${member.id}-avatar`}>{member.name.slice(0, 1)}</span>}<span><strong>{member.id === 'emily' ? ownerName : member.name}</strong>{member.id === primaryMemberId && <small>{member.id === 'emily' ? ownerRole : 'Primary caregiver'}</small>}</span><i>›</i></button>)}
@@ -548,7 +607,7 @@ function SimplePage({ kind, petName, ownerName, ownerRole = 'Primary caregiver',
       <section className="profile-section you-section">
         <div className="profile-section-heading"><h2>My pets</h2><button className="profile-link" onClick={() => onAction('Add Pets', 'Add a pet profile to your Pawsona space.')}>Add Pets +</button></div>
         <div className="profile-card you-list pets-list">
-          <button className="you-row" onClick={onPetEdit}><Avatar /><span><strong>Luna</strong><small>Golden Retriever · 3 years old</small></span><em>Family</em></button>
+          <button className="you-row" onClick={onPetEdit}><Avatar /><span><strong>petName</strong><small>Golden Retriever · 3 years old</small></span><em>Family</em></button>
           <button className="you-row" onClick={() => onAction('Cat', 'British Shorthair · 2 years old · Solo')}><span className="cat-avatar">🐈‍⬛</span><span><strong>Cat</strong><small>British Shorthair · 2 years old</small></span><em>Solo</em></button>
         </div>
       </section>
@@ -557,7 +616,22 @@ function SimplePage({ kind, petName, ownerName, ownerRole = 'Primary caregiver',
         <div className="profile-section-heading"><h2>Connected media</h2><button className="profile-link" onClick={() => onAction('Add source', 'Choose a photo album or connect a supported camera source.')}>Add source +</button></div>
         <div className="profile-card you-list media-list">
           <button className="media-row" onClick={() => onAction('Selected photo album', 'Only the album you chose is connected.')}><span className="media-icon">▦</span><span><strong>Selected photo album</strong><small>Only the album you chose</small></span><em className="connected">Connected</em></button>
-          <button className="media-row" onClick={() => onAction('Selected photo album', 'Only the album you chose is connected.')}><span className="media-icon">▦</span><span><strong>Selected photo album</strong><small>Only the album you chose</small></span><em className="connected">Connected</em></button>
+          <button
+            className="media-row"
+            onClick={() =>
+              onAction(
+                'Home camera',
+                'Only the living room camera you chose is connected.'
+              )
+            }
+          >
+            <span className="media-icon">◉</span>
+            <span>
+              <strong>Home camera</strong>
+              <small>Living room camera only</small>
+            </span>
+            <em className="connected">Connected</em>
+          </button>
           <button className="media-row" onClick={() => onAction('Smart feeder', 'Equipment can be added when you are ready to connect it.')}><span className="media-icon">◇</span><span><strong>Smart feeder</strong><small>Equipment can be added</small></span><em className="not-connected">Not linked</em></button>
         </div>
       </section>
@@ -578,6 +652,7 @@ function SettingsPage({ kind, initialName, initialAvatar = '', initialPreference
   const [name, setName] = useState(initialName);
   const [avatar, setAvatar] = useState(initialAvatar);
   const [preference, setPreference] = useState(initialPreference);
+  const nameIsEmpty = name.trim().length === 0;
   const [saved, setSaved] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
 
@@ -621,7 +696,7 @@ function SettingsPage({ kind, initialName, initialAvatar = '', initialPreference
     <section className="settings-page">
       <header className="settings-header">
         <button className="settings-back" aria-label="Back to Today" onClick={onBack}>←</button>
-        <h1>{pet ? 'Luna’s details' : 'My profile'}</h1>
+        <h1>{pet ? `${name || 'Luna'}’s details` : 'My profile'}</h1>
       </header>
       <p className="settings-eyebrow">{pet ? 'PET PROFILE' : 'YOUR SPACE'}</p>
       <section className={`settings-summary${pet ? '' : ' profile-summary'}`}>
@@ -651,7 +726,7 @@ function SettingsPage({ kind, initialName, initialAvatar = '', initialPreference
         </>}
       </div>
       <div className="settings-action">
-        <button className="primary-button full" onClick={save}>{pet ? 'Save details' : 'Save profile'}</button>
+        <button className="primary-button full" onClick={save} disabled={nameIsEmpty}>{pet ? 'Save details' : 'Save profile'}</button>
         {saved && <p role="status">Your changes have been saved.</p>}
       </div>
       {saveFailed && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setSaveFailed(false)}><section className="profile-dialog" role="alertdialog" aria-modal="true" aria-labelledby="profile-save-error-title" onClick={(event) => event.stopPropagation()}><h2 id="profile-save-error-title">Couldn’t save your profile</h2><p>Your changes could not be saved. Please try again.</p><button className="primary-button" onClick={() => setSaveFailed(false)}>OK</button></section></div>}
@@ -671,6 +746,7 @@ function RolePicker({ value, onChange }: { value: string; onChange: (value: stri
 function PetSecondaryPage({ kind, petName, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', careMembers, primaryMemberId, isPrimaryCaregiver, onBack, onReviewEvidence, onSaveEvent, onMemberClick, onRemoveMember, onAddMember }: { kind: 'careMembers' | 'patternHistory' | 'careEvent'; petName: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; careMembers: CareMember[]; primaryMemberId: string; isPrimaryCaregiver: boolean; onBack: () => void; onReviewEvidence: () => void; onSaveEvent: (event: { type: string; when: string; note: string }) => void; onMemberClick: (id: string) => void; onRemoveMember: (id: string) => void; onAddMember: (name: string, role: string) => void }) {
   const [eventType, setEventType] = useState('Routine change');
   const [when, setWhen] = useState('Today');
+  const [customDate, setCustomDate] = useState('');
   const [note, setNote] = useState('');
   const [openPicker, setOpenPicker] = useState<'type' | 'when' | null>(null);
   const [savedEvent, setSavedEvent] = useState(false);
@@ -725,10 +801,23 @@ function PetSecondaryPage({ kind, petName, ownerName, ownerRole = 'Primary careg
           <button className="settings-field event-picker" aria-expanded={openPicker === 'when'} onClick={() => setOpenPicker(openPicker === 'when' ? null : 'when')}><strong>When</strong><span>{when}</span></button>
           {openPicker === 'when' && <div className="event-picker-menu" role="listbox" aria-label="When">{['Today', 'Yesterday', 'This week', 'Choose a date'].map((option) => <button key={option} role="option" aria-selected={when === option} onClick={() => chooseField('when', option)}>{option}</button>)}</div>}
         </div>
+        {when === 'Choose a date' && (
+          <label className="settings-field event-date-field">
+            <strong>Date</strong>
+            <input
+              type="date"
+              value={customDate}
+              onChange={(event) => {
+                setCustomDate(event.target.value);
+                setSavedEvent(false);
+              }}
+            />
+          </label>
+        )}
         <label className="settings-field event-note-field"><strong>What changed?</strong><textarea aria-label="What changed?" placeholder="Write what happened and why it may matter." value={note} onChange={(event) => { setNote(event.target.value); setSavedEvent(false); }} /></label>
       </div>}
       {!isCareMembers && <div className="settings-action">
-        <button className="primary-button full" onClick={isPatternHistory ? onReviewEvidence : () => { onSaveEvent({ type: eventType, when, note: note.trim() }); setSavedEvent(true); }}>{isPatternHistory ? 'Review recent evidence' : savedEvent ? 'Event saved' : 'Save event'}</button>
+        <button className="primary-button full" disabled={!isPatternHistory && (!note.trim() || (when === 'Choose a date' && !customDate))} onClick={isPatternHistory ? onReviewEvidence : () => { onSaveEvent({ type: eventType, when: when === 'Choose a date' ? customDate : when, note: note.trim() }); setSavedEvent(true); }}>{isPatternHistory ? 'Review recent evidence' : savedEvent ? 'Event saved' : 'Save event'}</button>
         {savedEvent && <p role="status">Your care event has been saved.</p>}
       </div>}
       {pendingRemoval && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingRemoval(null)}><section className="profile-dialog member-removal-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-member-title" onClick={(event) => event.stopPropagation()}><h2 id="remove-member-title">Remove {pendingRemoval.name}?</h2><p>They will no longer be able to add observations or care context for {petName}.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingRemoval(null)}>Cancel</button><button className="danger-button" onClick={() => { onRemoveMember(pendingRemoval.id); setPendingRemoval(null); }}>Remove member</button></div></section></div>}
@@ -774,7 +863,7 @@ export default function App() {
   const [saved, setSaved] = useState<OwnerContext | null>(readSavedContext);
   const [storyObservations, setStoryObservations] = useState<StoryObservation[]>(readStoryObservations);
   const [storyDrafts, setStoryDrafts] = useState<StoryDraft[]>(readStoryDrafts);
-  const [includedStoryMoments, setIncludedStoryMoments] = useState<string[] | null>(null);
+  const [includedStoryMoments, setIncludedStoryMoments] = useState<string[] | null>(readStoryVisibility);
   const [editingStoryObservationId, setEditingStoryObservationId] = useState<string | null>(null);
   const [activeStoryDraftId, setActiveStoryDraftId] = useState<string | null>(null);
   const [showStoryAddOptions, setShowStoryAddOptions] = useState(false);
@@ -847,8 +936,23 @@ export default function App() {
   }
 
   function cancelStoryObservation() {
+    const isUntouchedNewObservation =
+      activeStoryDraftId === null &&
+      editingStoryObservationId === null &&
+      draftObservation ===
+        'She rested by the window after our visitors left, then played with her rope toy in the afternoon.' &&
+      draftObservationContext === 'Visitors at home' &&
+      !draftPrivateRecord &&
+      draftMoments.length === 2 &&
+      draftMoments.includes('window') &&
+      draftMoments.includes('toy');
+
     const returnView: View = view === 'addSaved' && draftPrivateRecord ? 'today' : 'story';
-    if (view !== 'addSaved' && (draftObservation.trim() || draftMoments.length)) {
+    if (
+      view !== 'addSaved' &&
+      !isUntouchedNewObservation &&
+      (draftObservation.trim() || draftMoments.length)
+    ) {
       const draft: StoryDraft = { id: activeStoryDraftId ?? `story-draft-${Date.now()}`, selectedMoments: draftMoments, note: draftObservation, context: draftObservationContext, savedAt: new Date().toISOString(), privateRecord: draftPrivateRecord };
       setStoryDrafts((current) => {
         const next = [draft, ...current.filter((entry) => entry.id !== draft.id)];
@@ -952,7 +1056,14 @@ export default function App() {
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
             {view === 'today' && <TodayPage onStory={() => navigateTo('story')} onEvidence={() => navigateTo('overview')} onPetsNavigate={() => navigateTo('pets')} saved={saved} />}
             {view === 'story' && <StoryPage onEvidence={() => navigateTo('overview')} onEditStory={() => navigateTo('storyEdit')} onPetsNavigate={() => navigateTo('pets')} saved={saved} observations={storyObservations} includedMoments={includedStoryMoments} />}
-            {view === 'storyEdit' && <StoryEditPage observations={storyObservations} onBack={() => goBack('story')} onAdd={startStoryObservation} onEdit={editStoryRow} onDelete={deleteStoryRow} onSave={(ids) => { setIncludedStoryMoments(ids); navigateTo('story'); }} />}
+            {view === 'storyEdit' && <StoryEditPage observations={storyObservations} includedMoments={includedStoryMoments} onBack={() => goBack('story')} onAdd={startStoryObservation} onEdit={editStoryRow} onDelete={deleteStoryRow} onSave={(ids) => { setIncludedStoryMoments(ids);try {
+              localStorage.setItem(
+                storyVisibilityKey,
+                JSON.stringify(ids)
+              );
+            } catch {
+              /* Keep the selection for this session. */
+            } navigateTo('story'); }} />}
             {view === 'drafts' && <StoryDraftsPage drafts={storyDrafts} onBack={() => goBack('story')} onResume={resumeStoryDraft} />}
             {view === 'addMoments' && <StoryAddPage step="moments" onBack={cancelStoryObservation} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} ownerName={ownerName} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
             {view === 'addCompose' && <StoryAddPage step="compose" onBack={() => goBack('addMoments')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} ownerName={ownerName} onSave={saveStoryObservation} onEdit={() => navigateTo('addPreview')} />}
@@ -962,8 +1073,8 @@ export default function App() {
             {view === 'clip' && <ClipPage onBack={() => goBack('overview')} onContext={() => navigateTo('context')} />}
             {view === 'context' && <ContextPage note={note} setNote={setNote} interpretation={interpretation} setInterpretation={setInterpretation} onBack={() => goBack('clip')} onReview={() => navigateTo('confirm')} />}
             {view === 'confirm' && <ConfirmPage note={note} interpretation={interpretation} onBack={() => goBack('context')} onSave={saveContext} />}
-            {view === 'saved' && saved && <SavedPage saved={saved} onBack={() => goBack('confirm')} onUndo={undoContext} onEvidence={() => navigateTo('clip')} onEdit={() => navigateTo('context')} />}
-            {view === 'undone' && <UndonePage onBack={() => goBack('saved')} onReview={() => navigateTo('overview')} />}
+            {view === 'saved' && saved && <SavedPage saved={saved} onBack={() => goBack('confirm')} onReturnToday={() => navigateTo('today')} onUndo={undoContext} onEvidence={() => navigateTo('clip')} onEdit={() => navigateTo('context')} />}
+            {view === 'undone' && <UndonePage onBack={() => goBack('saved')} onReturnToday={() => navigateTo('today')} onReview={() => navigateTo('overview')} />}
             {view === 'ask' && <AskPage onEvidence={() => navigateTo('overview')} onContext={() => navigateTo('context')} onPetsNavigate={() => navigateTo('pets')} messages={askMessages} messageEndRef={askEndRef} />}
             {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} onPetsNavigate={() => navigateTo('pets')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onAction={(title, detail) => setProfileAction({ title, detail })} careMembers={careMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} onPatternHistory={() => navigateTo('patternHistory')} onCareEvent={() => navigateTo('careEvent')} />}
             {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} onSaved={setPetName} onBack={() => goBack('pets')} />}
