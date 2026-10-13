@@ -8,6 +8,10 @@ type View =
   | 'you'
   | 'petDetails'
   | 'profile'
+  | 'memberDetails'
+  | 'careMembers'
+  | 'patternHistory'
+  | 'careEvent'
   | 'overview'
   | 'clip'
   | 'context'
@@ -22,6 +26,8 @@ type OwnerContext = {
   interpretation: Interpretation;
   savedAt: string;
 };
+
+type CareMember = { id: string; name: string; role: string; detail: string };
 
 const storageKey = 'pawsona-owner-context-v1';
 const asset = (name: string) => `${import.meta.env.BASE_URL}assets/${name}`;
@@ -67,7 +73,11 @@ function Avatar() {
   return <img className="avatar" src={asset('luna-avatar.png')} alt="Luna" />;
 }
 
-function MainHeader({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle?: string }) {
+function OwnerAvatar({ src, name, className = '' }: { src: string; name: string; className?: string }) {
+  return <span className={`member-avatar emily-avatar owner-avatar ${className}`}>{src ? <img src={src} alt="" /> : name.slice(0, 1).toUpperCase()}</span>;
+}
+
+function MainHeader({ eyebrow, title, subtitle, onPetsNavigate }: { eyebrow: string; title: string; subtitle?: string; onPetsNavigate?: () => void }) {
   return (
     <header className="main-header">
       <div>
@@ -75,7 +85,7 @@ function MainHeader({ eyebrow, title, subtitle }: { eyebrow: string; title: stri
         <h1>{title}</h1>
         {subtitle && <p className="main-subtitle">{subtitle}</p>}
       </div>
-      <Avatar />
+      <button className="header-avatar-button" type="button" aria-label="Open Pets" onClick={onPetsNavigate}><Avatar /></button>
     </header>
   );
 }
@@ -129,10 +139,10 @@ function StickyAction({ label, onClick, hint, disabled = false }: { label: strin
   );
 }
 
-function TodayPage({ onStory, onEvidence, saved }: { onStory: () => void; onEvidence: () => void; saved: OwnerContext | null }) {
+function TodayPage({ onStory, onEvidence, onPetsNavigate, saved }: { onStory: () => void; onEvidence: () => void; onPetsNavigate: () => void; saved: OwnerContext | null }) {
   return (
     <>
-      <MainHeader eyebrow="A little window into her day." title="Hello, Luna!" subtitle="Tuesday · 15 September" />
+      <MainHeader eyebrow="A little window into her day." title="Hello, Luna!" subtitle="Tuesday · 15 September" onPetsNavigate={onPetsNavigate} />
       <section className="today-hero">
         <span className="story-badge">✦ &nbsp; TODAY’S STORY</span>
         <img className="hero-sparkle" src={asset('sparkle.svg')} alt="" />
@@ -166,7 +176,7 @@ function TodayPage({ onStory, onEvidence, saved }: { onStory: () => void; onEvid
   );
 }
 
-function StoryPage({ onEvidence, onAdd, saved }: { onEvidence: () => void; onAdd: () => void; saved: OwnerContext | null }) {
+function StoryPage({ onEvidence, onAdd, onPetsNavigate, saved }: { onEvidence: () => void; onAdd: () => void; onPetsNavigate: () => void; saved: OwnerContext | null }) {
   const moments = [
     { time: '8:10 AM', title: 'Breakfast at her bowl', note: 'Observed eating as usual', image: 'story-breakfast.png' },
     { time: '11:35 AM', title: 'Rest by the window', note: saved ? 'Emily added context to this moment' : 'A quiet moment to remember', image: 'story-window.png' },
@@ -174,7 +184,7 @@ function StoryPage({ onEvidence, onAdd, saved }: { onEvidence: () => void; onAdd
   ];
   return (
     <>
-      <MainHeader eyebrow="LUNA · DAILY STORY" title="Her moments" subtitle="Tuesday · 15 September" />
+      <MainHeader eyebrow="LUNA · DAILY STORY" title="Her moments" subtitle="Tuesday · 15 September" onPetsNavigate={onPetsNavigate} />
       <div className="story-summary"><img src={asset('story-heart.png')} alt="" /><strong>3 moments, one lovely day</strong></div>
       <section className="timeline-section">
         <div className="section-heading"><h2>Today’s timeline</h2><button className="text-link" onClick={onAdd}>Edit story ✎</button></div>
@@ -294,10 +304,10 @@ function UndonePage({ onBack, onReview }: { onBack: () => void; onReview: () => 
 type AskAttachment = { url: string; name: string };
 type AskMessage = { role: 'user' | 'assistant'; text: string; attachment?: AskAttachment };
 
-function AskPage({ onEvidence, onContext, messages, messageEndRef }: { onEvidence: () => void; onContext: () => void; messages: AskMessage[]; messageEndRef: RefObject<HTMLDivElement | null> }) {
+function AskPage({ onEvidence, onContext, onPetsNavigate, messages, messageEndRef }: { onEvidence: () => void; onContext: () => void; onPetsNavigate: () => void; messages: AskMessage[]; messageEndRef: RefObject<HTMLDivElement | null> }) {
   return (
     <div className="ask-page">
-      <MainHeader eyebrow="ASK AI · OBSERVATION DIALOGUE" title="Ask Pawsona" />
+      <MainHeader eyebrow="ASK AI · OBSERVATION DIALOGUE" title="Ask Pawsona" onPetsNavigate={onPetsNavigate} />
       <div className="linked-evidence ask-status"><span className="loading-ring" /><span><strong>Reviewing afternoon rest</strong><small>Linked to Today’s Story · 2 clips + your note</small></span></div>
       <section className="ask-thread" aria-label="Conversation with Pawsona">
         <article className="chat-message ai">Luna rested longer this afternoon than in the recent clips available. I can’t tell why—or know exactly how she felt. Would you like to check the evidence or add what happened at home?<button className="text-link" onClick={onEvidence}>View evidence →</button></article>
@@ -315,38 +325,44 @@ function AskPage({ onEvidence, onContext, messages, messageEndRef }: { onEvidenc
 function AskComposer({ value, onValue, onSend, onQuickContext }: { value: string; onValue: (value: string) => void; onSend: (attachment?: AskAttachment) => void; onQuickContext: (value: string) => void }) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [attachment, setAttachment] = useState<AskAttachment | undefined>();
+  function removeAttachment() {
+    if (attachment) URL.revokeObjectURL(attachment.url);
+    setAttachment(undefined);
+    if (imageInputRef.current) imageInputRef.current.value = '';
+  }
   function send() {
     onSend(attachment);
     setAttachment(undefined);
     if (imageInputRef.current) imageInputRef.current.value = '';
   }
   return (
-    <section className="ask-dock" aria-label="Ask Pawsona a question">
+    <section className={`ask-dock${attachment ? ' has-attachment' : ''}`} aria-label="Ask Pawsona a question">
       <div className="quick-context-label">Quick context</div>
       <div className="quick-chips">
         <button onClick={() => onQuickContext('Food changed')}>Food changed</button>
         <button onClick={() => onQuickContext('Routine changed')}>Routine changed</button>
         <button onClick={() => onQuickContext('Not sure yet')}>Not sure yet</button>
       </div>
-      <div className="ask-input-box">
+      <div className={`ask-input-box${attachment ? ' has-attachment' : ''}`}>
+        {attachment && <div className="ask-attachment-preview"><div className="ask-attachment-tile"><img src={attachment.url} alt={attachment.name} /><button type="button" aria-label="Remove attached image" onClick={removeAttachment}>×</button></div></div>}
         <textarea aria-label="What would you like to ask Pawsona?" placeholder="What would you like to know?" value={value} onChange={(event) => onValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} />
         <div className="ask-input-tools">
           <button aria-label="Attach an image" onClick={() => imageInputRef.current?.click()}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" /><circle cx="9" cy="9" r="1.5" /><path d="m5 17 5-5 3 3 2-2 5 5" /></svg></button>
           <button aria-label="Add context" onClick={() => onQuickContext('Please include this context: ')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6M16 6l6 6-6 6" /></svg></button>
           <button aria-label="Voice note" onClick={() => onQuickContext('Voice note: ')}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8" /></svg></button>
-          <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={(event) => { const file = event.target.files?.[0]; setAttachment(file ? { url: URL.createObjectURL(file), name: file.name } : undefined); }} />
+          <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) { if (attachment) URL.revokeObjectURL(attachment.url); setAttachment({ url: URL.createObjectURL(file), name: file.name }); } }} />
           <button className="ask-send-button" aria-label="Send message" disabled={!value.trim() && !attachment} onClick={send}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button>
         </div>
-        {attachment && <span className="attachment-name">{attachment.name}</span>}
       </div>
     </section>
   );
 }
 
-function SimplePage({ kind, petName, ownerName, onPetEdit, onProfileEdit, onAction }: { kind: 'pets' | 'you'; petName: string; ownerName: string; onPetEdit: () => void; onProfileEdit: () => void; onAction: (title: string, detail: string) => void }) {
+function SimplePage({ kind, petName, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', ownerPreference = 'Manage your profile details here.', onPetsNavigate, onPetEdit, onProfileEdit, onAction, careMembers, primaryMemberId, onMemberClick, onCareMembers, onPatternHistory, onCareEvent }: { kind: 'pets' | 'you'; petName: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; ownerPreference?: string; onPetsNavigate: () => void; onPetEdit: () => void; onProfileEdit: () => void; onAction: (title: string, detail: string) => void; careMembers: CareMember[]; primaryMemberId: string; onMemberClick: (id: string) => void; onCareMembers: () => void; onPatternHistory: () => void; onCareEvent: () => void }) {
+  const isPrimaryCaregiver = primaryMemberId === 'emily';
   return kind === 'pets' ? (
     <div className="profile-page pets-page">
-      <MainHeader eyebrow="PET PROFILE" title={`${petName}, as she is`} />
+      <MainHeader eyebrow="PET PROFILE" title={`${petName}, as she is`} onPetsNavigate={onPetsNavigate} />
       <section className="pet-profile-hero">
         <Avatar />
         <div className="profile-hero-copy"><strong>{petName}</strong><small>Golden Retriever · 3 years old</small><button className="mini-action" onClick={onPetEdit}><span>✎</span> Edit pet details</button></div>
@@ -356,15 +372,13 @@ function SimplePage({ kind, petName, ownerName, onPetEdit, onProfileEdit, onActi
       <section className="profile-section care-section">
         <h2>Who looks after Luna?</h2>
         <div className="profile-card care-card">
-          <div className="card-topline"><strong>Group Name</strong><button className="profile-link" onClick={() => onAction('Manage members', 'Emily is the primary owner. Mom and Dad are members of Luna’s care circle.')}>Manage members →</button></div>
-          <button className="member-row" onClick={() => onAction('My account', 'Emily · Primary owner')}><span className="member-avatar emily-avatar">E</span><span><strong>My account</strong><small>Primary owner</small></span><i>›</i></button>
-          <button className="member-row" onClick={() => onAction('Mom', 'A member of Luna’s care circle.')}><span className="member-avatar mom-avatar">M</span><span><strong>Mom</strong></span><i>›</i></button>
-          <button className="member-row" onClick={() => onAction('Dad', 'A member of Luna’s care circle.')}><span className="member-avatar dad-avatar">D</span><span><strong>Dad</strong></span><i>›</i></button>
+          <div className="card-topline"><strong>Group Name</strong>{isPrimaryCaregiver && <button className="profile-link" onClick={onCareMembers}>Manage members →</button>}</div>
+          {careMembers.map((member) => <button className="member-row" key={member.id} onClick={() => onMemberClick(member.id)}>{member.id === 'emily' ? <OwnerAvatar src={ownerAvatar} name={ownerName} /> : <span className={`member-avatar ${member.id}-avatar`}>{member.name.slice(0, 1)}</span>}<span><strong>{member.id === 'emily' ? ownerName : member.name}</strong>{member.id === primaryMemberId && <small>{member.id === 'emily' ? ownerRole : 'Primary caregiver'}</small>}</span><i>›</i></button>)}
         </div>
       </section>
 
       <section className="profile-section">
-        <div className="profile-section-heading"><h2>Typical patterns</h2><button className="profile-link" onClick={() => onAction('Pattern history', 'Owner-confirmed patterns are based on notes and selected records.')}>View history →</button></div>
+        <div className="profile-section-heading"><h2>Typical patterns</h2><button className="profile-link" onClick={onPatternHistory}>View history →</button></div>
         <div className="profile-card pattern-card">
           <strong className="card-caption">Owner-confirmed knowledge</strong>
           <button className="knowledge-row" onClick={() => onAction('Active mornings', 'From your notes and selected records.')}><span className="knowledge-icon">☼</span><span><strong>Active mornings</strong><small>From your notes and selected records</small></span><i>›</i></button>
@@ -374,7 +388,7 @@ function SimplePage({ kind, petName, ownerName, onPetEdit, onProfileEdit, onActi
       </section>
 
       <section className="profile-section context-section">
-        <div className="profile-section-heading"><h2>Life &amp; care context</h2><button className="profile-link" onClick={() => onAction('Add care event', 'Add a life-stage note, health record, routine change, or care handover for Luna.')}>Add event +</button></div>
+        <div className="profile-section-heading"><h2>Life &amp; care context</h2><button className="profile-link" onClick={onCareEvent}>Add event +</button></div>
         <div className="profile-card context-card">
           <button className="knowledge-row" onClick={() => onAction('Life-stage notes', 'Moving, ageing, routine changes and care handover.')}><span className="knowledge-icon">≡</span><span><strong>Life-stage notes</strong><small>Moving, ageing, routine changes and<br />care handover</small></span><i>›</i></button>
           <button className="knowledge-row" onClick={() => onAction('Health & care notes', 'Owner records only · not an AI diagnosis.')}><span className="knowledge-icon">＋</span><span><strong>Health &amp; care notes</strong><small>Owner records only · not an AI diagnosis</small></span><i>›</i></button>
@@ -383,10 +397,10 @@ function SimplePage({ kind, petName, ownerName, onPetEdit, onProfileEdit, onActi
     </div>
   ) : (
     <div className="profile-page you-page">
-      <MainHeader eyebrow="YOUR SPACE" title="My Profile" />
+      <MainHeader eyebrow="YOUR SPACE" title="My Profile" onPetsNavigate={onPetsNavigate} />
       <button className="account-profile-hero" onClick={onProfileEdit}>
-        <span className="member-avatar emily-avatar account-avatar">{ownerName.slice(0, 1)}</span>
-        <span className="profile-hero-copy"><strong>My account</strong><small>Primary owner · Manage your details</small><span className="mini-action"><b>✎</b> Edit my profile</span></span>
+        <OwnerAvatar src={ownerAvatar} name={ownerName} className="account-avatar" />
+        <span className="profile-hero-copy"><strong>{ownerName}</strong><small>{ownerPreference}</small><span className="mini-action"><b>✎</b> Edit my profile</span></span>
       </button>
 
       <section className="profile-section you-section">
@@ -417,65 +431,239 @@ function SimplePage({ kind, petName, ownerName, onPetEdit, onProfileEdit, onActi
   );
 }
 
-function SettingsPage({ kind, initialName, onBack, onSaved }: { kind: 'petDetails' | 'profile'; initialName: string; onBack: () => void; onSaved: (name: string) => void }) {
+function SettingsPage({ kind, initialName, initialAvatar = '', initialPreference = 'Manage your profile details here.', onBack, onSaved, onProfileSaved }: { kind: 'petDetails' | 'profile'; initialName: string; initialAvatar?: string; initialPreference?: string; onBack: () => void; onSaved: (name: string) => void; onProfileSaved?: (profile: { name: string; avatar: string; preference: string }) => void }) {
   const pet = kind === 'petDetails';
   const [name, setName] = useState(initialName);
+  const [avatar, setAvatar] = useState(initialAvatar);
+  const [preference, setPreference] = useState(initialPreference);
   const [saved, setSaved] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
 
   function save() {
-    try { localStorage.setItem(pet ? 'pawsona-pet-name' : 'pawsona-owner-name', name.trim()); } catch { /* Keep the current value in this view. */ }
-    onSaved(name.trim());
-    setSaved(true);
+    const nextName = name.trim();
+    try {
+      localStorage.setItem(pet ? 'pawsona-pet-name' : 'pawsona-owner-name', nextName);
+      if (!pet) {
+        localStorage.setItem('pawsona-owner-avatar', avatar);
+        localStorage.setItem('pawsona-owner-preference', preference);
+      }
+    } catch { setSaveFailed(true); return; }
+    onSaved(nextName);
+    if (!pet) {
+      onProfileSaved?.({ name: nextName, avatar, preference });
+      onBack();
+    } else setSaved(true);
+  }
+
+  function readAvatar(file?: File) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') return;
+      const image = new Image();
+      image.onload = () => {
+        const scale = Math.min(1, 512 / Math.max(image.naturalWidth, image.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height);
+        setAvatar(canvas.toDataURL('image/jpeg', 0.82));
+        setSaved(false);
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
   }
 
   return (
     <section className="settings-page">
       <header className="settings-header">
         <button className="settings-back" aria-label="Back to Today" onClick={onBack}>←</button>
-        <h1>{pet ? 'Luna’s details' : 'My account'}</h1>
+        <h1>{pet ? 'Luna’s details' : 'My profile'}</h1>
       </header>
       <p className="settings-eyebrow">{pet ? 'PET PROFILE' : 'YOUR SPACE'}</p>
-      <section className="settings-summary">
+      <section className={`settings-summary${pet ? '' : ' profile-summary'}`}>
+        {!pet && <label className="profile-avatar-upload" aria-label="Upload profile photo">
+          <OwnerAvatar src={avatar} name={name} className="profile-edit-avatar" />
+          <span className="avatar-edit-badge" aria-hidden="true">✎</span>
+          <input type="file" accept="image/*" aria-label="Choose profile photo" onChange={(event) => readAvatar(event.target.files?.[0])} />
+        </label>}
+        <div className="profile-summary-copy">
         <strong>{pet ? name || 'Luna' : name || 'Emily'}</strong>
-        <p>{pet ? 'Keep the details that help carers recognise her.' : 'Your details stay separate from Luna’s records.'}</p>
+        <p>{pet ? 'Keep the details that help carers recognise her.' : preference}</p>
+        </div>
       </section>
-      <div className="settings-fields">
-        <label className="settings-field">
-          <strong>Name</strong>
-          <input value={name} onChange={(event) => { setName(event.target.value); setSaved(false); }} aria-label={pet ? 'Pet name' : 'Your name'} />
-        </label>
+      <div className={`settings-fields${pet ? '' : ' profile-settings-fields'}`}>
+        {pet ? <label className="settings-field">
+          <strong>Name</strong><input value={name} onChange={(event) => { setName(event.target.value); setSaved(false); }} aria-label="Pet name" />
+        </label> : <>
+          <section className="settings-field profile-edit-field">
+            <strong>Name</strong><div className="profile-field-control"><input value={name} onChange={(event) => { setName(event.target.value); setSaved(false); }} aria-label="Your name" /></div>
+          </section>
+        </>}
         {pet ? <>
           <div className="settings-field"><strong>Breed</strong><p>Golden Retriever</p></div>
           <div className="settings-field"><strong>Age</strong><p>3 years old</p></div>
         </> : <>
-          <div className="settings-field"><strong>Role</strong><p>Primary owner</p></div>
-          <div className="settings-field"><strong>Preferences</strong><p>Manage your account details here.</p></div>
+          <label className="settings-field profile-preference-field"><strong>Preferences</strong><input value={preference} onChange={(event) => { setPreference(event.target.value); setSaved(false); }} aria-label="Preferences" /></label>
         </>}
       </div>
       <div className="settings-action">
-        <button className="primary-button full" onClick={save}>{saved ? 'Saved' : pet ? 'Save details' : 'Save profile'}</button>
+        <button className="primary-button full" onClick={save}>{pet ? 'Save details' : 'Save profile'}</button>
         {saved && <p role="status">Your changes have been saved.</p>}
       </div>
+      {saveFailed && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setSaveFailed(false)}><section className="profile-dialog" role="alertdialog" aria-modal="true" aria-labelledby="profile-save-error-title" onClick={(event) => event.stopPropagation()}><h2 id="profile-save-error-title">Couldn’t save your profile</h2><p>Your changes could not be saved. Please try again.</p><button className="primary-button" onClick={() => setSaveFailed(false)}>OK</button></section></div>}
     </section>
   );
+}
+
+function RolePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const options = ['Primary caregiver', 'Caregiver', 'Temporary caregiver'];
+  return <section className={`settings-field profile-edit-field profile-role-field${open ? ' is-open' : ''}`}>
+    <strong>Role</strong><div className="profile-field-control"><button type="button" className="profile-role-trigger" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)}><span>{value}</span><i className={open ? 'is-open' : ''}>⌄</i></button></div>
+    {open && <div className="profile-role-options" role="listbox" aria-label="Choose your role">{options.map((option) => <button type="button" role="option" aria-selected={value === option} className={value === option ? 'selected' : ''} key={option} onClick={() => { onChange(option); setOpen(false); }}>{option}</button>)}</div>}
+  </section>;
+}
+
+function PetSecondaryPage({ kind, petName, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', careMembers, primaryMemberId, isPrimaryCaregiver, onBack, onReviewEvidence, onSaveEvent, onMemberClick, onRemoveMember, onAddMember }: { kind: 'careMembers' | 'patternHistory' | 'careEvent'; petName: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; careMembers: CareMember[]; primaryMemberId: string; isPrimaryCaregiver: boolean; onBack: () => void; onReviewEvidence: () => void; onSaveEvent: (event: { type: string; when: string; note: string }) => void; onMemberClick: (id: string) => void; onRemoveMember: (id: string) => void; onAddMember: (name: string, role: string) => void }) {
+  const [eventType, setEventType] = useState('Routine change');
+  const [when, setWhen] = useState('Today');
+  const [note, setNote] = useState('');
+  const [openPicker, setOpenPicker] = useState<'type' | 'when' | null>(null);
+  const [savedEvent, setSavedEvent] = useState(false);
+  const [openMemberMenu, setOpenMemberMenu] = useState<string | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<CareMember | null>(null);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberRole, setNewMemberRole] = useState('Caregiver');
+  const isCareMembers = kind === 'careMembers';
+  const isPatternHistory = kind === 'patternHistory';
+  const title = isCareMembers ? `Who cares for ${petName}?` : isPatternHistory ? 'Typical patterns' : 'Life & care event';
+  const eyebrow = isCareMembers ? 'SHARED CARE' : isPatternHistory ? 'OWNER-CONFIRMED KNOWLEDGE' : 'OWNER RECORD';
+  const summaryTitle = isCareMembers ? 'Care circle' : isPatternHistory ? 'Patterns over time' : `Add context to ${petName}’s life`;
+  const summaryNote = isCareMembers ? `Three people can add context to ${petName}’s day.` : isPatternHistory ? 'Compare observations by time period and source.' : 'Your note stays attributed to you.';
+
+  function chooseField(which: 'type' | 'when', value: string) {
+    if (which === 'type') setEventType(value); else setWhen(value);
+    setOpenPicker(null);
+    setSavedEvent(false);
+  }
+
+  return (
+    <section className="settings-page pet-subpage">
+      <header className="settings-header">
+        <button className="settings-back" aria-label="Back to pet profile" onClick={onBack}>←</button>
+        <h1>{title}</h1>
+      </header>
+      <div className="settings-eyebrow-row"><p className="settings-eyebrow">{eyebrow}</p>{isCareMembers && isPrimaryCaregiver && <button className="profile-link care-add-member" onClick={() => setShowAddMember(true)}>Add +</button>}</div>
+      <section className="settings-summary">
+        <strong>{summaryTitle}</strong>
+        <p>{summaryNote}</p>
+      </section>
+      {isCareMembers ? <div className="care-member-details">
+        {careMembers.map((member) => <div className="care-person-wrap" key={member.id}>
+          <button className="care-person-card" onClick={() => onMemberClick(member.id)}>
+            {member.id === 'emily' ? <OwnerAvatar src={ownerAvatar} name={ownerName} className="care-person-avatar" /> : <span className={`member-avatar care-person-avatar ${member.id}-avatar`}>{member.name.slice(0, 1)}</span>}
+            <span className="care-person-copy"><strong>{member.id === 'emily' ? ownerName : member.name}</strong><small>{member.id === 'emily' ? ownerRole : member.id === primaryMemberId ? 'Primary caregiver' : member.role}</small><span>{member.id === primaryMemberId ? 'Manages the profile' : 'Can add observations'}</span></span>
+          </button>
+          {isPrimaryCaregiver && member.id !== 'emily' && <button className="member-more care-person-more" aria-label={`Options for ${member.name}`} aria-expanded={openMemberMenu === member.id} onClick={() => setOpenMemberMenu(openMemberMenu === member.id ? null : member.id)}>⋯</button>}
+          {isPrimaryCaregiver && openMemberMenu === member.id && member.id !== 'emily' && <div className="member-menu care-person-menu" role="menu"><button role="menuitem" onClick={() => { setPendingRemoval(member); setOpenMemberMenu(null); }}>Remove member</button></div>}
+        </div>)}
+      </div> : isPatternHistory ? <div className="pattern-history-details">
+        <article className="settings-field"><strong>Active mornings</strong><p>Seen in selected records and owner notes</p></article>
+        <article className="settings-field"><strong>Quiet afternoon rest</strong><p>Review this pattern against recent clips</p></article>
+        <article className="settings-field"><strong>Rope toy play</strong><p>Added by her caregiver</p></article>
+      </div> : <div className="care-event-details">
+        <div className="event-picker-wrap">
+          <button className="settings-field event-picker" aria-expanded={openPicker === 'type'} onClick={() => setOpenPicker(openPicker === 'type' ? null : 'type')}><strong>Event type</strong><span>{eventType}</span></button>
+          {openPicker === 'type' && <div className="event-picker-menu" role="listbox" aria-label="Event type">{['Routine change', 'Life-stage change', 'Health & care', 'Care handover'].map((option) => <button key={option} role="option" aria-selected={eventType === option} onClick={() => chooseField('type', option)}>{option}</button>)}</div>}
+        </div>
+        <div className="event-picker-wrap">
+          <button className="settings-field event-picker" aria-expanded={openPicker === 'when'} onClick={() => setOpenPicker(openPicker === 'when' ? null : 'when')}><strong>When</strong><span>{when}</span></button>
+          {openPicker === 'when' && <div className="event-picker-menu" role="listbox" aria-label="When">{['Today', 'Yesterday', 'This week', 'Choose a date'].map((option) => <button key={option} role="option" aria-selected={when === option} onClick={() => chooseField('when', option)}>{option}</button>)}</div>}
+        </div>
+        <label className="settings-field event-note-field"><strong>What changed?</strong><textarea aria-label="What changed?" placeholder="Write what happened and why it may matter." value={note} onChange={(event) => { setNote(event.target.value); setSavedEvent(false); }} /></label>
+      </div>}
+      {!isCareMembers && <div className="settings-action">
+        <button className="primary-button full" onClick={isPatternHistory ? onReviewEvidence : () => { onSaveEvent({ type: eventType, when, note: note.trim() }); setSavedEvent(true); }}>{isPatternHistory ? 'Review recent evidence' : savedEvent ? 'Event saved' : 'Save event'}</button>
+        {savedEvent && <p role="status">Your care event has been saved.</p>}
+      </div>}
+      {pendingRemoval && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingRemoval(null)}><section className="profile-dialog member-removal-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-member-title" onClick={(event) => event.stopPropagation()}><h2 id="remove-member-title">Remove {pendingRemoval.name}?</h2><p>They will no longer be able to add observations or care context for {petName}.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingRemoval(null)}>Cancel</button><button className="danger-button" onClick={() => { onRemoveMember(pendingRemoval.id); setPendingRemoval(null); }}>Remove member</button></div></section></div>}
+      {showAddMember && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setShowAddMember(false)}><form className="profile-dialog add-member-dialog" role="dialog" aria-modal="true" aria-labelledby="add-member-title" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); const name = newMemberName.trim(); if (!name) return; onAddMember(name, newMemberRole); setNewMemberName(''); setNewMemberRole('Caregiver'); setShowAddMember(false); }}><h2 id="add-member-title">Add group member</h2><label className="settings-field"><strong>Name</strong><input autoFocus value={newMemberName} onChange={(event) => setNewMemberName(event.target.value)} placeholder="Enter name" /></label><label className="settings-field"><strong>Role</strong><select value={newMemberRole} onChange={(event) => setNewMemberRole(event.target.value)}><option>Caregiver</option><option>Temporary caregiver</option></select></label><div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => setShowAddMember(false)}>Cancel</button><button type="submit" className="primary-button" disabled={!newMemberName.trim()}>Add member</button></div></form></div>}
+    </section>
+  );
+}
+
+function CareMemberDetailsPage({ member, ownerName, ownerRole, ownerAvatar, ownerPreference, onOwnerRoleChange, primaryMemberId, petName, onBack }: { member: CareMember; ownerName: string; ownerRole: string; ownerAvatar: string; ownerPreference: string; onOwnerRoleChange: (role: string) => void; primaryMemberId: string; petName: string; onBack: () => void }) {
+  const name = member.id === 'emily' ? ownerName : member.name;
+  const primary = member.id === primaryMemberId;
+  if (member.id === 'emily') return <section className="settings-page pet-subpage">
+    <header className="settings-header"><button className="settings-back" aria-label="Back to pet profile" onClick={onBack}>←</button><h1>Account details</h1></header>
+    <p className="settings-eyebrow">CARE MEMBER</p>
+    <section className="settings-summary profile-summary"><OwnerAvatar src={ownerAvatar} name={ownerName} className="profile-edit-avatar" /><div className="profile-summary-copy"><strong>{ownerName}</strong><p>{ownerPreference}</p></div></section>
+    <div className="care-event-details member-account-details">
+      <div className="settings-field"><strong>Name</strong><p>{ownerName}</p></div>
+      <RolePicker value={ownerRole} onChange={onOwnerRoleChange} />
+      <div className="settings-field"><strong>Preferences</strong><p>{ownerPreference}</p></div>
+      <div className="settings-field"><strong>Care access</strong><p>{primary ? 'Manages the profile' : 'Can add observations'}</p></div>
+    </div>
+  </section>;
+  return <section className="settings-page pet-subpage">
+    <header className="settings-header"><button className="settings-back" aria-label="Back to pet profile" onClick={onBack}>←</button><h1>Account details</h1></header>
+    <p className="settings-eyebrow">CARE MEMBER</p>
+    <section className="settings-summary"><strong>{name}</strong><p>Care profile for {petName}’s care circle.</p></section>
+    <div className="care-event-details member-account-details">
+      <div className="settings-field"><strong>Name</strong><p>{name}</p></div>
+      <div className="settings-field"><strong>Role</strong><p>{primary ? 'Primary caregiver' : member.role}</p></div>
+      <div className="settings-field"><strong>Care access</strong><p>{primary ? 'Manages the profile' : 'Can add observations'}</p></div>
+    </div>
+  </section>;
 }
 
 export default function App() {
   const [view, setView] = useState<View>('today');
   const [petName, setPetName] = useState(() => localStorage.getItem('pawsona-pet-name') || 'Luna');
   const [ownerName, setOwnerName] = useState(() => localStorage.getItem('pawsona-owner-name') || 'Emily');
+  const [ownerRole, setOwnerRole] = useState(() => localStorage.getItem('pawsona-owner-role') || 'Primary caregiver');
+  const [ownerAvatar, setOwnerAvatar] = useState(() => localStorage.getItem('pawsona-owner-avatar') || '');
+  const [ownerPreference, setOwnerPreference] = useState(() => localStorage.getItem('pawsona-owner-preference') || 'Manage your profile details here.');
+  const [profileSaveNotice, setProfileSaveNotice] = useState(false);
   const [saved, setSaved] = useState<OwnerContext | null>(readSavedContext);
   const [note, setNote] = useState(saved?.note ?? 'Visitors were at home today. Luna often rests afterward.');
   const [interpretation, setInterpretation] = useState<Interpretation>(saved?.interpretation ?? 'normal');
   const [profileAction, setProfileAction] = useState<{ title: string; detail: string } | null>(null);
+  const [careMembers, setCareMembers] = useState<CareMember[]>([
+    { id: 'emily', name: ownerName, role: 'Primary owner', detail: 'manages the profile' },
+    { id: 'mom', name: 'Mom', role: 'Caregiver', detail: 'can add observations' },
+    { id: 'dad', name: 'Dad', role: 'Caregiver', detail: 'can add observations' },
+  ]);
+  const primaryMemberId = 'emily';
+  const [selectedCareMemberId, setSelectedCareMemberId] = useState('emily');
   const [askInput, setAskInput] = useState('');
   const [askMessages, setAskMessages] = useState<AskMessage[]>([]);
   const scrollRef = useRef<HTMLElement>(null);
   const askEndRef = useRef<HTMLDivElement>(null);
+  const navigationHistory = useRef<View[]>([]);
+
+  function navigateTo(nextView: View) {
+    if (nextView !== view) navigationHistory.current.push(view);
+    setView(nextView);
+  }
+
+  function goBack(fallback: View = 'today') {
+    setView(navigationHistory.current.pop() ?? fallback);
+  }
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
   }, [view]);
+
+  useEffect(() => {
+    if (!profileSaveNotice) return;
+    const timer = window.setTimeout(() => setProfileSaveNotice(false), 3000);
+    return () => window.clearTimeout(timer);
+  }, [profileSaveNotice]);
 
   useEffect(() => {
     if (view === 'ask' && askMessages.length && scrollRef.current) {
@@ -487,13 +675,13 @@ export default function App() {
     const next = { note: note.trim(), interpretation, savedAt: new Date().toISOString() };
     setSaved(next);
     try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* Local state still works. */ }
-    setView('saved');
+    navigateTo('saved');
   }
 
   function undoContext() {
     setSaved(null);
     try { localStorage.removeItem(storageKey); } catch { /* Local state still works. */ }
-    setView('undone');
+    navigateTo('undone');
   }
 
   function sendAskMessage(attachment?: AskAttachment) {
@@ -505,8 +693,18 @@ export default function App() {
 
   const mainView = (['today', 'story', 'ask', 'pets', 'you'] as View[]).includes(view);
   const activeNav: View = view === 'petDetails' ? 'pets' : view === 'profile' ? 'you' : mainView ? view : 'today';
+  const isPrimaryCaregiver = primaryMemberId === 'emily';
+  const selectedCareMember = careMembers.find((member) => member.id === selectedCareMemberId) ?? careMembers[0];
+  function openCareMember(id: string) {
+    setSelectedCareMemberId(id);
+    navigateTo('memberDetails');
+  }
+  function updateOwnerRole(role: string) {
+    try { localStorage.setItem('pawsona-owner-role', role); } catch { /* Keep this selection active for the current session. */ }
+    setOwnerRole(role);
+  }
   function navigate(view: View) {
-    setView(view);
+    navigateTo(view);
   }
 
   return (
@@ -515,22 +713,25 @@ export default function App() {
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''}`}>
           <StatusBar />
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''}`}>
-            {view === 'today' && <TodayPage onStory={() => setView('story')} onEvidence={() => setView('overview')} saved={saved} />}
-            {view === 'story' && <StoryPage onEvidence={() => setView('overview')} onAdd={() => setView('context')} saved={saved} />}
-            {view === 'overview' && <OverviewPage onBack={() => setView('today')} onClip={() => setView('clip')} saved={saved} onSaved={() => setView('saved')} />}
-            {view === 'clip' && <ClipPage onBack={() => setView('overview')} onContext={() => setView('context')} />}
-            {view === 'context' && <ContextPage note={note} setNote={setNote} interpretation={interpretation} setInterpretation={setInterpretation} onBack={() => setView('clip')} onReview={() => setView('confirm')} />}
-            {view === 'confirm' && <ConfirmPage note={note} interpretation={interpretation} onBack={() => setView('context')} onSave={saveContext} />}
-            {view === 'saved' && saved && <SavedPage saved={saved} onBack={() => setView('today')} onUndo={undoContext} onEvidence={() => setView('clip')} onEdit={() => setView('context')} />}
-            {view === 'undone' && <UndonePage onBack={() => setView('today')} onReview={() => setView('overview')} />}
-            {view === 'ask' && <AskPage onEvidence={() => setView('overview')} onContext={() => setView('context')} messages={askMessages} messageEndRef={askEndRef} />}
-            {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} ownerName={ownerName} onPetEdit={() => setView('petDetails')} onProfileEdit={() => setView('profile')} onAction={(title, detail) => setProfileAction({ title, detail })} />}
-            {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} onSaved={setPetName} onBack={() => setView('pets')} />}
-            {view === 'profile' && <SettingsPage kind="profile" initialName={ownerName} onSaved={setOwnerName} onBack={() => setView('you')} />}
+            {view === 'today' && <TodayPage onStory={() => navigateTo('story')} onEvidence={() => navigateTo('overview')} onPetsNavigate={() => navigateTo('pets')} saved={saved} />}
+            {view === 'story' && <StoryPage onEvidence={() => navigateTo('overview')} onAdd={() => navigateTo('context')} onPetsNavigate={() => navigateTo('pets')} saved={saved} />}
+            {view === 'overview' && <OverviewPage onBack={() => goBack('today')} onClip={() => navigateTo('clip')} saved={saved} onSaved={() => navigateTo('saved')} />}
+            {view === 'clip' && <ClipPage onBack={() => goBack('overview')} onContext={() => navigateTo('context')} />}
+            {view === 'context' && <ContextPage note={note} setNote={setNote} interpretation={interpretation} setInterpretation={setInterpretation} onBack={() => goBack('clip')} onReview={() => navigateTo('confirm')} />}
+            {view === 'confirm' && <ConfirmPage note={note} interpretation={interpretation} onBack={() => goBack('context')} onSave={saveContext} />}
+            {view === 'saved' && saved && <SavedPage saved={saved} onBack={() => goBack('confirm')} onUndo={undoContext} onEvidence={() => navigateTo('clip')} onEdit={() => navigateTo('context')} />}
+            {view === 'undone' && <UndonePage onBack={() => goBack('saved')} onReview={() => navigateTo('overview')} />}
+            {view === 'ask' && <AskPage onEvidence={() => navigateTo('overview')} onContext={() => navigateTo('context')} onPetsNavigate={() => navigateTo('pets')} messages={askMessages} messageEndRef={askEndRef} />}
+            {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} onPetsNavigate={() => navigateTo('pets')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onAction={(title, detail) => setProfileAction({ title, detail })} careMembers={careMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} onPatternHistory={() => navigateTo('patternHistory')} onCareEvent={() => navigateTo('careEvent')} />}
+            {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} onSaved={setPetName} onBack={() => goBack('pets')} />}
+            {view === 'profile' && <SettingsPage kind="profile" initialName={ownerName} initialAvatar={ownerAvatar} initialPreference={ownerPreference} onSaved={setOwnerName} onProfileSaved={({ name, avatar, preference }) => { setOwnerName(name); setOwnerAvatar(avatar); setOwnerPreference(preference); setProfileSaveNotice(true); }} onBack={() => goBack('you')} />}
+            {view === 'memberDetails' && selectedCareMember && <CareMemberDetailsPage member={selectedCareMember} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} onOwnerRoleChange={updateOwnerRole} primaryMemberId={primaryMemberId} petName={petName} onBack={() => goBack('careMembers')} />}
+            {(view === 'careMembers' || view === 'patternHistory' || view === 'careEvent') && <PetSecondaryPage kind={view} petName={petName} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} careMembers={careMembers} primaryMemberId={primaryMemberId} isPrimaryCaregiver={isPrimaryCaregiver} onMemberClick={openCareMember} onRemoveMember={(id) => setCareMembers((members) => members.filter((member) => member.id !== id))} onAddMember={(name, role) => setCareMembers((members) => [...members, { id: `member-${Date.now()}`, name, role, detail: 'can add observations' }])} onBack={() => goBack('pets')} onReviewEvidence={() => navigateTo('overview')} onSaveEvent={(event) => { try { localStorage.setItem('pawsona-care-event-v1', JSON.stringify(event)); } catch { /* Keep the saved state in the current view. */ } }} />}
           </div>
         </main>
         {view === 'ask' && <AskComposer value={askInput} onValue={setAskInput} onSend={sendAskMessage} onQuickContext={(value) => setAskInput((current) => current ? `${current} ${value}` : value)} />}
         {profileAction && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setProfileAction(null)}><section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-dialog-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={() => setProfileAction(null)}>×</button><h2 id="profile-dialog-title">{profileAction.title}</h2><p>{profileAction.detail}</p><button className="primary-button" onClick={() => setProfileAction(null)}>Done</button></section></div>}
+        {profileSaveNotice && <div className="profile-save-toast" role="status">Profile saved successfully</div>}
         {mainView && <BottomNav active={activeNav} onNavigate={navigate} />}
       </div>
     </div>
