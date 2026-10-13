@@ -17,6 +17,10 @@ type View =
   | 'context'
   | 'confirm'
   | 'saved'
+  | 'addMoments'
+  | 'addCompose'
+  | 'addPreview'
+  | 'addSaved'
   | 'undone';
 
 type Interpretation = 'normal' | 'one-time' | 'open';
@@ -28,6 +32,15 @@ type OwnerContext = {
 };
 
 type CareMember = { id: string; name: string; role: string; detail: string };
+type StoryObservation = { id: string; note: string; title: string; image: string; momentCount: number; context: string; privateRecord: boolean; savedAt: string };
+
+const readStoryObservations = (): StoryObservation[] => {
+  try {
+    const value = localStorage.getItem('pawsona-story-observations-v1');
+    const parsed: unknown = value ? JSON.parse(value) : [];
+    return Array.isArray(parsed) ? parsed as StoryObservation[] : [];
+  } catch { return []; }
+};
 
 const storageKey = 'pawsona-owner-context-v1';
 const asset = (name: string) => `${import.meta.env.BASE_URL}assets/${name}`;
@@ -176,12 +189,13 @@ function TodayPage({ onStory, onEvidence, onPetsNavigate, saved }: { onStory: ()
   );
 }
 
-function StoryPage({ onEvidence, onAdd, onPetsNavigate, saved }: { onEvidence: () => void; onAdd: () => void; onPetsNavigate: () => void; saved: OwnerContext | null }) {
+function StoryPage({ onEvidence, onAdd, onPetsNavigate, saved, observations }: { onEvidence: () => void; onAdd: () => void; onPetsNavigate: () => void; saved: OwnerContext | null; observations: StoryObservation[] }) {
   const moments = [
     { time: '8:10 AM', title: 'Breakfast at her bowl', note: 'Observed eating as usual', image: 'story-breakfast.png' },
     { time: '11:35 AM', title: 'Rest by the window', note: saved ? 'Emily added context to this moment' : 'A quiet moment to remember', image: 'story-window.png' },
     { time: '4:20 PM', title: 'Her favourite toy chase', note: 'One of today’s highlights!', image: 'story-toy.png' },
   ];
+  const visibleObservations = observations.filter((observation) => !observation.privateRecord);
   return (
     <>
       <MainHeader eyebrow="LUNA · DAILY STORY" title="Her moments" subtitle="Tuesday · 15 September" onPetsNavigate={onPetsNavigate} />
@@ -189,6 +203,12 @@ function StoryPage({ onEvidence, onAdd, onPetsNavigate, saved }: { onEvidence: (
       <section className="timeline-section">
         <div className="section-heading"><h2>Today’s timeline</h2><button className="text-link" onClick={onAdd}>Edit story ✎</button></div>
         <div className="timeline-list">
+          {visibleObservations.map((observation) => (
+            <button className="timeline-row" key={observation.id} onClick={onEvidence}>
+              <span className="timeline-time">Today</span>
+              <span className="timeline-card"><img src={observation.image} alt="" /><span><strong>{observation.title}</strong><small>{observation.note}</small></span><span className="dots" aria-hidden="true">···</span></span>
+            </button>
+          ))}
           {moments.map((moment) => (
             <button className="timeline-row" key={moment.time} onClick={onEvidence}>
               <span className="timeline-time">{moment.time.replace(' ', '\n')}</span>
@@ -202,9 +222,81 @@ function StoryPage({ onEvidence, onAdd, onPetsNavigate, saved }: { onEvidence: (
         </div>
       </section>
       {saved && <button className="story-owner-note" onClick={onEvidence}><strong>Emily’s context</strong><span>{saved.note}</span></button>}
-      <button className="floating-add" onClick={onAdd}>+ Add</button>
     </>
   );
+}
+
+const momentChoices = [
+  { id: 'window', time: '11:35', title: 'window rest', image: 'story-window.png' },
+  { id: 'toy', time: '16:20', title: 'toy chase', image: 'story-toy.png' },
+  { id: 'breakfast', time: '08:10', title: 'breakfast', image: 'story-breakfast.png' },
+];
+
+function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMoments, note, setNote, context, setContext, privateRecord, setPrivateRecord, observations, ownerName, onSave, onEdit }: {
+  step: 'moments' | 'compose' | 'preview' | 'saved';
+  onBack: () => void;
+  onCancel: () => void;
+  selectedMoments: string[];
+  setSelectedMoments: (ids: string[]) => void;
+  note: string;
+  setNote: (value: string) => void;
+  context: string;
+  setContext: (value: string) => void;
+  privateRecord: boolean;
+  setPrivateRecord: (value: boolean) => void;
+  observations: StoryObservation[];
+  ownerName: string;
+  onSave: () => void;
+  onEdit: () => void;
+}) {
+  const [sourceTab, setSourceTab] = useState<'Photos' | 'Clips' | 'Notes'>('Photos');
+  const latest = observations[0];
+  const selected = momentChoices.filter((moment) => selectedMoments.includes(moment.id));
+  const noteChoices = [
+    { id: 'note-visitors', text: 'Visitors came over today.', label: 'Owner note · today' },
+    { id: 'note-play', text: 'Luna played after lunch.', label: 'Care note · yesterday' },
+    { id: 'note-rest', text: 'Quiet rest by the window.', label: 'Routine note · last week' },
+  ];
+  const selectedNotes = noteChoices.filter((entry) => selectedMoments.includes(entry.id));
+  const image = latest?.image ?? selected[0]?.image ?? asset('story-window.png');
+  const observationText = step === 'saved' ? latest?.note ?? note : note;
+  const observationTitle = latest?.title || 'A window rest after visitors';
+  const cancel = <button className="add-cancel" onClick={onCancel}>Cancel</button>;
+  const header = (title: string, eyebrow: string) => <header className="add-flow-header"><div className="add-flow-title"><button className="back-button" aria-label="Go back" onClick={onBack}>←</button><h1>{title}</h1>{cancel}</div><p className="eyebrow">{eyebrow}</p></header>;
+
+  if (step === 'moments') return <div className="add-flow-page">
+    {header('Choose moments', '1 OF 3 · SELECT SOURCES')}
+    <div className="source-tabs" role="tablist" aria-label="Moment sources">{(['Photos', 'Clips', 'Notes'] as const).map((tab) => <button key={tab} className={sourceTab === tab ? 'active' : ''} role="tab" aria-selected={sourceTab === tab} onClick={() => { setSourceTab(tab); setSelectedMoments(tab === 'Notes' ? ['note-visitors'] : ['window', 'toy']); }}>{tab}</button>)}</div>
+    <div className={`moment-picker-grid ${sourceTab === 'Notes' ? 'notes-picker-grid' : ''}`}>
+      {sourceTab === 'Notes' ? noteChoices.map((entry) => { const chosen = selectedMoments.includes(entry.id); return <button className={`moment-choice note-moment-choice ${chosen ? 'selected' : ''}`} key={entry.id} onClick={() => setSelectedMoments(chosen ? selectedMoments.filter((id) => id !== entry.id) : [...selectedMoments, entry.id])}><span>{entry.text}</span>{chosen && <span className="moment-check">✓</span>}<small>{entry.label}</small></button>; }) : momentChoices.map((moment, index) => { const chosen = selectedMoments.includes(moment.id); const label = sourceTab === 'Clips' ? ['Clip · 0:12', 'Clip · 0:18', 'Clip · 0:08'][index] : `${moment.time} · ${moment.title}`; return <button className={`moment-choice ${chosen ? 'selected' : ''}`} key={moment.id} onClick={() => setSelectedMoments(chosen ? selectedMoments.filter((id) => id !== moment.id) : [...selectedMoments, moment.id])}><img src={asset(moment.image)} alt="" />{chosen && <span className="moment-check">✓</span>}<small>{label}</small></button>; })}
+      {sourceTab !== 'Notes' && <label className="moment-choice add-device-choice"><input type="file" accept="image/*,video/*" /><span className="add-device-plus">＋</span><span>Add photo or video</span></label>}
+    </div>
+    <button className="text-only-option" onClick={() => { setSelectedMoments([]); onEdit(); }}><strong>Start with a written observation</strong><span>No photo or clip needed to remember this moment.</span></button>
+    <div className="sticky-action"><button className="primary-button full" onClick={onEdit} disabled={!selectedMoments.length}>Continue with {selectedMoments.length} {sourceTab === 'Notes' ? (selectedMoments.length === 1 ? 'note' : 'notes') : sourceTab === 'Clips' ? (selectedMoments.length === 1 ? 'clip' : 'clips') : (selectedMoments.length === 1 ? 'moment' : 'moments')}</button><p>Only what you select will be added.</p></div>
+  </div>;
+
+  if (step === 'compose') return <div className="add-flow-page">
+    {header('Write a moment', '2 OF 3 · ADD YOUR WORDS')}
+    {selected.length > 0 || selectedNotes.length > 0 ? <><div className="compose-section-label"><strong>Selected moments</strong><button className="text-link" onClick={onBack}>Edit</button></div>{selected.length > 0 ? <div className="selected-moments-strip">{selected.map((moment) => <img key={moment.id} src={asset(moment.image)} alt={moment.title} />)}</div> : <div className="selected-note-strip">{selectedNotes.map((entry) => <div key={entry.id}><span>{entry.text}</span><small>{entry.label}</small></div>)}</div>}</> : <><div className="written-observation-mode"><strong>Written observation</strong><button className="text-link" onClick={onBack}>Edit</button></div><div className="written-observation-note"><strong>A note is enough</strong><span>You can describe a moment without a photo or camera clip.</span></div></>}
+    <label className="observation-writing-card"><strong>What happened with Luna?</strong><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Describe what you noticed…" /></label>
+    <section className="add-context-choices"><strong>Add context</strong><div>{['Visitors at home', 'Routine changed', 'Not sure yet'].map((item) => <button key={item} className={context === item ? 'active' : ''} onClick={() => setContext(context === item ? '' : item)}>{item}</button>)}</div></section>
+    <div className="sticky-action"><button className="primary-button full" onClick={onEdit} disabled={!note.trim()}>Preview observation</button><p>Your note is shown as your own words.</p></div>
+  </div>;
+
+  if (step === 'preview') return <div className="add-flow-page">
+    {header('Preview', '3 OF 3 · CHECK BEFORE SAVING')}
+    <article className="observation-preview-card">{selected.length ? <img src={image} alt="Luna" /> : <div className="observation-note-visual"><small>A note from {ownerName}</small><p>{note || 'A moment with Luna.'}</p></div>}<div className="observation-preview-copy"><small>Luna · Today</small><strong>{observationTitle}</strong><p>{note || 'A moment with Luna.'}</p><div>{selectedMoments.length} selected {selectedMoments.length === 1 ? 'moment' : 'moments'} · {selected.length ? 'owner observation' : 'written observation'}</div><span>Owner-provided context{context ? ` · ${context}` : ''}</span></div></article>
+    <section className="observation-destination"><strong>Where this goes</strong><button className={!privateRecord ? 'selected' : ''} onClick={() => setPrivateRecord(false)}><span>{!privateRecord ? '✓' : '○'}</span>Add to Luna’s Story</button><button className={privateRecord ? 'selected' : ''} onClick={() => setPrivateRecord(true)}><span>{privateRecord ? '✓' : '○'}</span>Keep as a private record instead</button><small>You choose which sources and words are saved.</small></section>
+    <div className="sticky-action"><button className="primary-button full" onClick={onSave}>Save observation</button><p>Nothing updates Luna’s baseline automatically.</p></div>
+  </div>;
+
+  return <div className="add-flow-page">
+    {header('Moment saved', `ADDED TO ${privateRecord ? 'PRIVATE RECORDS' : 'LUNA’S STORY'}`)}
+    <section className="observation-saved-banner"><strong>✓ &nbsp;{privateRecord ? 'Your private record is saved' : 'Your observation is saved'}</strong><span>{privateRecord ? `Visible only to you · Added by ${ownerName}` : `Added by ${ownerName}`} · Today</span></section>
+    <article className="observation-preview-card saved-observation-card">{selected.length ? <img src={image} alt="Luna" /> : <div className="observation-note-visual"><small>A note from {ownerName}</small><p>{observationText || 'A moment with Luna.'}</p></div>}<div className="observation-preview-copy"><strong>{observationTitle}</strong><p>{observationText || 'A moment with Luna.'}</p><div>{latest?.momentCount ?? selectedMoments.length} selected moments · owner observation</div><span>{privateRecord ? 'Private record · not in Luna’s Story' : 'Visible in Luna’s Story'}</span></div></article>
+    <div className="saved-observation-links"><button className="text-link" onClick={onEdit}>Edit observation</button><button className="text-link" onClick={onCancel}>Return to Story</button></div>
+    <div className="sticky-action"><button className="primary-button full" onClick={onCancel}>{privateRecord ? 'Return to Today' : 'View in Story'}</button><p>You can edit or remove this observation later.</p></div>
+  </div>;
 }
 
 function OverviewPage({ onBack, onClip, saved, onSaved }: { onBack: () => void; onClip: () => void; saved: OwnerContext | null; onSaved: () => void }) {
@@ -630,6 +722,11 @@ export default function App() {
   const [ownerPreference, setOwnerPreference] = useState(() => localStorage.getItem('pawsona-owner-preference') || 'Manage your profile details here.');
   const [profileSaveNotice, setProfileSaveNotice] = useState(false);
   const [saved, setSaved] = useState<OwnerContext | null>(readSavedContext);
+  const [storyObservations, setStoryObservations] = useState<StoryObservation[]>(readStoryObservations);
+  const [draftMoments, setDraftMoments] = useState<string[]>(['window', 'toy']);
+  const [draftObservation, setDraftObservation] = useState('She rested by the window after our visitors left, then played with her rope toy in the afternoon.');
+  const [draftObservationContext, setDraftObservationContext] = useState('Visitors at home');
+  const [draftPrivateRecord, setDraftPrivateRecord] = useState(false);
   const [note, setNote] = useState(saved?.note ?? 'Visitors were at home today. Luna often rests afterward.');
   const [interpretation, setInterpretation] = useState<Interpretation>(saved?.interpretation ?? 'normal');
   const [profileAction, setProfileAction] = useState<{ title: string; detail: string } | null>(null);
@@ -684,6 +781,37 @@ export default function App() {
     navigateTo('undone');
   }
 
+  function startStoryObservation() {
+    setDraftMoments(['window', 'toy']);
+    setDraftObservation('She rested by the window after our visitors left, then played with her rope toy in the afternoon.');
+    setDraftObservationContext('Visitors at home');
+    setDraftPrivateRecord(false);
+    navigateTo('addMoments');
+  }
+
+  function cancelStoryObservation() {
+    navigationHistory.current = navigationHistory.current.filter((previous) => !(['addMoments', 'addCompose', 'addPreview', 'addSaved'] as View[]).includes(previous));
+    setView('story');
+  }
+
+  function saveStoryObservation() {
+    const selected = momentChoices.filter((moment) => draftMoments.includes(moment.id));
+    const observation: StoryObservation = {
+      id: `story-observation-${Date.now()}`,
+      note: draftObservation.trim(),
+      title: 'A window rest after visitors',
+      image: asset(selected[0]?.image ?? 'story-window.png'),
+      momentCount: selected.length,
+      context: draftObservationContext,
+      privateRecord: draftPrivateRecord,
+      savedAt: new Date().toISOString(),
+    };
+    const next = [observation, ...storyObservations];
+    setStoryObservations(next);
+    try { localStorage.setItem('pawsona-story-observations-v1', JSON.stringify(next)); } catch { /* Keep this observation for the current session. */ }
+    navigateTo('addSaved');
+  }
+
   function sendAskMessage(attachment?: AskAttachment) {
     const text = askInput.trim();
     if (!text && !attachment) return;
@@ -710,11 +838,15 @@ export default function App() {
   return (
     <div className="app-stage">
       <div className="phone">
-        <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''}`}>
+        <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <StatusBar />
-          <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''}`}>
+          <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
             {view === 'today' && <TodayPage onStory={() => navigateTo('story')} onEvidence={() => navigateTo('overview')} onPetsNavigate={() => navigateTo('pets')} saved={saved} />}
-            {view === 'story' && <StoryPage onEvidence={() => navigateTo('overview')} onAdd={() => navigateTo('context')} onPetsNavigate={() => navigateTo('pets')} saved={saved} />}
+            {view === 'story' && <StoryPage onEvidence={() => navigateTo('overview')} onAdd={startStoryObservation} onPetsNavigate={() => navigateTo('pets')} saved={saved} observations={storyObservations} />}
+            {view === 'addMoments' && <StoryAddPage step="moments" onBack={cancelStoryObservation} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} ownerName={ownerName} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
+            {view === 'addCompose' && <StoryAddPage step="compose" onBack={() => goBack('addMoments')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} ownerName={ownerName} onSave={saveStoryObservation} onEdit={() => navigateTo('addPreview')} />}
+            {view === 'addPreview' && <StoryAddPage step="preview" onBack={() => goBack('addCompose')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} ownerName={ownerName} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
+            {view === 'addSaved' && <StoryAddPage step="saved" onBack={() => goBack('addPreview')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} ownerName={ownerName} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
             {view === 'overview' && <OverviewPage onBack={() => goBack('today')} onClip={() => navigateTo('clip')} saved={saved} onSaved={() => navigateTo('saved')} />}
             {view === 'clip' && <ClipPage onBack={() => goBack('overview')} onContext={() => navigateTo('context')} />}
             {view === 'context' && <ContextPage note={note} setNote={setNote} interpretation={interpretation} setInterpretation={setInterpretation} onBack={() => goBack('clip')} onReview={() => navigateTo('confirm')} />}
@@ -729,6 +861,7 @@ export default function App() {
             {(view === 'careMembers' || view === 'patternHistory' || view === 'careEvent') && <PetSecondaryPage kind={view} petName={petName} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} careMembers={careMembers} primaryMemberId={primaryMemberId} isPrimaryCaregiver={isPrimaryCaregiver} onMemberClick={openCareMember} onRemoveMember={(id) => setCareMembers((members) => members.filter((member) => member.id !== id))} onAddMember={(name, role) => setCareMembers((members) => [...members, { id: `member-${Date.now()}`, name, role, detail: 'can add observations' }])} onBack={() => goBack('pets')} onReviewEvidence={() => navigateTo('overview')} onSaveEvent={(event) => { try { localStorage.setItem('pawsona-care-event-v1', JSON.stringify(event)); } catch { /* Keep the saved state in the current view. */ } }} />}
           </div>
         </main>
+        {view === 'story' && <button className="floating-add" onClick={startStoryObservation}>+ Add</button>}
         {view === 'ask' && <AskComposer value={askInput} onValue={setAskInput} onSend={sendAskMessage} onQuickContext={(value) => setAskInput((current) => current ? `${current} ${value}` : value)} />}
         {profileAction && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setProfileAction(null)}><section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-dialog-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={() => setProfileAction(null)}>×</button><h2 id="profile-dialog-title">{profileAction.title}</h2><p>{profileAction.detail}</p><button className="primary-button" onClick={() => setProfileAction(null)}>Done</button></section></div>}
         {profileSaveNotice && <div className="profile-save-toast" role="status">Profile saved successfully</div>}
