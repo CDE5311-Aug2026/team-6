@@ -350,11 +350,28 @@ function TodayPage({ onStory, onEvidence, onPetsNavigate, petName, petAvatar, sa
   );
 }
 
-function StoryPage({ onEvidence, onEditStory, onPetsNavigate, petName, petAvatar, ownerName, saved, observations, includedMoments }: { onEvidence: () => void; onEditStory: () => void; onPetsNavigate: () => void; petName: string; petAvatar: string; ownerName: string; saved: OwnerContext | null; observations: StoryObservation[]; includedMoments: string[] | null }) {
+type StoryTimelineItem = { id: string; time: string; title: string; note: string; image: string; mediaType?: string };
+
+function StoryTimelineRow({ item, menuOpen, onMenuToggle, onView, onEdit, editLabel }: { item: StoryTimelineItem; menuOpen: boolean; onMenuToggle: () => void; onView: () => void; onEdit: () => void; editLabel: string }) {
+  return <div className="timeline-row">
+    <span className="timeline-time">{item.time.replace(' ', '\n')}</span>
+    <div className="timeline-card">
+      <button className="timeline-card-main" aria-label={`View details for ${item.title}`} onClick={onView}>
+        <StoryMediaView src={item.image} type={item.mediaType} alt="" />
+        <span><strong>{item.title}</strong><small>{item.note}</small></span>
+      </button>
+      <button className="timeline-more" aria-label={`More actions for ${item.title}`} aria-haspopup="menu" aria-expanded={menuOpen} onClick={onMenuToggle}>···</button>
+      {menuOpen && <div className="timeline-action-menu" role="menu"><button role="menuitem" onClick={onView}>View details</button><button role="menuitem" onClick={onEdit}>{editLabel}</button></div>}
+    </div>
+  </div>;
+}
+
+function StoryPage({ onEvidence, onEditStory, onEditObservation, onPetsNavigate, petName, petAvatar, ownerName, saved, observations, includedMoments }: { onEvidence: () => void; onEditStory: () => void; onEditObservation: (observation: StoryObservation) => void; onPetsNavigate: () => void; petName: string; petAvatar: string; ownerName: string; saved: OwnerContext | null; observations: StoryObservation[]; includedMoments: string[] | null }) {
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const moments = [
-    { time: '8:10 AM', title: 'Breakfast time', note: 'Observed eating as usual', image: 'story-breakfast.png' },
-    { time: '11:35 AM', title: 'Rest by the window', note: saved ? `${ownerName} added context to this moment` : 'A quiet moment to remember', image: 'story-window.png' },
-    { time: '4:20 PM', title: 'Favourite toy chase', note: 'One of today’s highlights!', image: 'story-toy.png' },
+    { id: 'breakfast', time: '8:10 AM', title: 'Breakfast time', note: 'Observed eating as usual', image: asset('story-breakfast.png') },
+    { id: 'window', time: '11:35 AM', title: 'Rest by the window', note: saved ? `${ownerName} added context to this moment` : 'A quiet moment to remember', image: asset('story-window.png') },
+    { id: 'toy', time: '4:20 PM', title: 'Favourite toy chase', note: 'One of today’s highlights!', image: asset('story-toy.png') },
   ];
   const visibleObservations = observations.filter((observation) => !observation.privateRecord && (!includedMoments || includedMoments.includes(observation.id)));
   const todayObservations = visibleObservations.filter((observation) => isSameLocalDay(observation.savedAt));
@@ -389,26 +406,13 @@ function StoryPage({ onEvidence, onEditStory, onPetsNavigate, petName, petAvatar
       <section className="timeline-section">
         <div className="section-heading"><h2>Today’s timeline</h2><button className="text-link" onClick={onEditStory}>Edit story ✎</button></div>
         <div className="timeline-list">
-          {todayObservations.map((observation) => (
-            <button className="timeline-row" key={observation.id} onClick={onEvidence}>
-              <span className="timeline-time">{formatObservationTime(observation.savedAt)}</span>
-              <span className="timeline-card"><StoryMediaView src={observation.image} type={observation.mediaType} alt="" /><span><strong>{observation.title}</strong><small>{observation.note}</small></span><span className="dots" aria-hidden="true">···</span></span>
-            </button>
-          ))}
-          {visibleMoments.map((moment) => (
-            <button className="timeline-row" key={moment.time} onClick={onEvidence}>
-              <span className="timeline-time">{moment.time.replace(' ', '\n')}</span>
-              <span className="timeline-card">
-                <img src={asset(moment.image)} alt="" />
-                <span><strong>{moment.title}</strong><small>{moment.note}</small></span>
-                <span className="dots" aria-hidden="true">···</span>
-              </span>
-            </button>
-          ))}
+          {todayObservations.map((observation) => <StoryTimelineRow key={observation.id} item={{ id: observation.id, time: formatObservationTime(observation.savedAt), title: observation.title, note: observation.note, image: observation.image, mediaType: observation.mediaType }} menuOpen={openMenuId === observation.id} onMenuToggle={() => setOpenMenuId(openMenuId === observation.id ? null : observation.id)} onView={() => { setOpenMenuId(null); onEvidence(); }} onEdit={() => { setOpenMenuId(null); onEditObservation(observation); }} editLabel="Edit observation" />)}
+          {visibleMoments.map((moment) => <StoryTimelineRow key={moment.id} item={moment} menuOpen={openMenuId === moment.id} onMenuToggle={() => setOpenMenuId(openMenuId === moment.id ? null : moment.id)} onView={() => { setOpenMenuId(null); onEvidence(); }} onEdit={() => { setOpenMenuId(null); onEditStory(); }} editLabel="Edit Story selection" />)}
         </div>
       </section>
-      {earlierObservations.length > 0 && <section className="timeline-section earlier-timeline-section"><div className="section-heading"><h2>Earlier moments</h2></div><div className="timeline-list">{earlierObservations.map((observation) => <button className="timeline-row" key={observation.id} onClick={onEvidence}><span className="timeline-time">{formatObservationTime(observation.savedAt)}</span><span className="timeline-card"><StoryMediaView src={observation.image} type={observation.mediaType} alt="" /><span><strong>{observation.title}</strong><small>{observation.note}</small></span><span className="dots" aria-hidden="true">···</span></span></button>)}</div></section>}
+      {earlierObservations.length > 0 && <section className="timeline-section earlier-timeline-section"><div className="section-heading"><h2>Earlier moments</h2></div><div className="timeline-list">{earlierObservations.map((observation) => <StoryTimelineRow key={observation.id} item={{ id: observation.id, time: formatObservationTime(observation.savedAt), title: observation.title, note: observation.note, image: observation.image, mediaType: observation.mediaType }} menuOpen={openMenuId === observation.id} onMenuToggle={() => setOpenMenuId(openMenuId === observation.id ? null : observation.id)} onView={() => { setOpenMenuId(null); onEvidence(); }} onEdit={() => { setOpenMenuId(null); onEditObservation(observation); }} editLabel="Edit observation" />)}</div></section>}
       {saved && <button className="story-owner-note" onClick={onEvidence}><strong>{ownerName}’s context · {formatRelativeDate(saved.savedAt)}</strong><span>{saved.note}</span></button>}
+      {openMenuId && <button className="timeline-menu-dismiss" aria-label="Close moment actions" onClick={() => setOpenMenuId(null)} />}
     </>
   );
 }
@@ -1520,7 +1524,7 @@ export default function App() {
           <StatusBar />
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
             {view === 'today' && <TodayPage petName={petName} petAvatar={petAvatar} onStory={() => navigateTo('story')} onEvidence={() => navigateTo('overview')} onPetsNavigate={() => navigateTo('pets')} saved={saved} />}
-            {view === 'story' && <StoryPage onEvidence={() => navigateTo('overview')} onEditStory={() => navigateTo('storyEdit')} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} ownerName={ownerName} saved={saved} observations={storyObservations} includedMoments={includedStoryMoments} />}
+            {view === 'story' && <StoryPage onEvidence={() => navigateTo('overview')} onEditStory={() => navigateTo('storyEdit')} onEditObservation={(observation) => editStoryRow({ id: observation.id, image: observation.image, mediaType: observation.mediaType, title: observation.title, meta: formatObservationTime(observation.savedAt), note: observation.note, context: observation.context })} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} ownerName={ownerName} saved={saved} observations={storyObservations} includedMoments={includedStoryMoments} />}
             {view === 'storyEdit' && <StoryEditPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} onBack={() => goBack('story')} onAdd={startStoryObservation} onEdit={editStoryRow} onDelete={deleteStoryRow} onSave={(ids) => { setIncludedStoryMoments(ids);try {
               localStorage.setItem(
                 storyVisibilityKey,
