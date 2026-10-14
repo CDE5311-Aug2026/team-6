@@ -1,6 +1,7 @@
 ### Live Demo
 
-**[test prototype](https://team-6-main-3-1.vercel.app/)**
+**[test prototype](https://team-6-main-4-1.vercel.app/)**
+
 **[Click here to explore our interactive prototype](https://pawsona-team-6.vercel.app/)**
 
 The prototype is deployed on Vercel and can be accessed
