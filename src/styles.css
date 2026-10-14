@@ -468,7 +468,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .ask-page .ask-status span:not(.loading-ring) { gap: 2px; }
 .ask-page .ask-status strong { font: 600 14px/20px 'Poppins', sans-serif; }
 .ask-page .ask-status small { font: 400 12px/18px 'Roboto', sans-serif; }
-.ask-prototype-notice { margin: 4px 0 8px; padding: 8px 12px; border-radius: 12px; background: #edf5ef; color: #326e53; font: 500 11px/17px 'Roboto', sans-serif; }
 
 .moment-detail-media { height: 250px; margin: 0; overflow: hidden; border-radius: 0; background: #eee9df; }
 .moment-detail-media img, .moment-detail-media video { width: 100%; height: 100%; display: block; object-fit: cover; }
