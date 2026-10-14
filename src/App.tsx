@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react';
 
 type View =
   | 'today'
@@ -12,6 +12,7 @@ type View =
   | 'careMembers'
   | 'patternHistory'
   | 'careEvent'
+  | 'momentDetail'
   | 'overview'
   | 'clip'
   | 'context'
@@ -35,6 +36,10 @@ type ContextAttachment = {
 };
 
 type OwnerContext = {
+  id: string;
+  momentId: string;
+  momentTitle: string;
+  momentImage: string;
   note: string;
   interpretation: Interpretation;
   savedAt: string;
@@ -113,6 +118,51 @@ type StoryMedia = { name: string; type: string; url: string };
 type StorySourceNote = { id: string; text: string; label: string };
 type StoryObservation = { id: string; note: string; title: string; image: string; mediaType?: string; momentCount: number; momentIds?: string[]; sourceNotes?: StorySourceNote[]; context: string; privateRecord: boolean; savedAt: string };
 type StoryDraft = { id: string; selectedMoments: string[]; note: string; context: string; savedAt: string; privateRecord?: boolean; uploadedMedia?: StoryMedia };
+type AskAttachment = { url: string; name: string; kind: 'image' | 'audio'; type: string };
+type AskMessage = { role: 'user' | 'assistant'; text: string; attachment?: AskAttachment };
+type PetWorkspace = {
+  contexts: OwnerContext[];
+  observations: StoryObservation[];
+  drafts: StoryDraft[];
+  visibility: string[] | null;
+  askMessages: AskMessage[];
+  careMembers: CareMember[];
+  careEvent: CareEvent | null;
+};
+type PrototypePet = {
+  id: string;
+  name: string;
+  breed: string;
+  age: string;
+  avatar: string;
+  hasDemoMoments: boolean;
+  workspace: PetWorkspace;
+};
+type PrototypeAccount = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  avatar: string;
+  preference: string;
+  pets: PrototypePet[];
+  activePetId: string;
+};
+type PrototypeSession = {
+  activeAccountId: string | null;
+  accounts: PrototypeAccount[];
+};
+type MomentRecord = {
+  id: string;
+  time: string;
+  title: string;
+  summary: string;
+  description: string;
+  image: string;
+  mediaType?: string;
+  source: string;
+  observationContext?: string;
+};
 
 const storyVisibilityKey = 'pawsona-story-visibility-v1';
 
@@ -205,27 +255,37 @@ const interpretationLabels: Record<Interpretation, string> = {
   open: 'Leave the pattern open',
 };
 
-function readSavedContext(): OwnerContext | null {
+function readSavedContexts(): OwnerContext[] {
   try {
     const value = localStorage.getItem(storageKey);
-    if (!value) return null;
+    if (!value) return [];
     const parsed: unknown = JSON.parse(value);
-    if (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      'note' in parsed &&
-      'interpretation' in parsed &&
-      typeof parsed.note === 'string' &&
-      (parsed.interpretation === 'normal' ||
-        parsed.interpretation === 'one-time' ||
-        parsed.interpretation === 'open')
-    ) {
-      return parsed as OwnerContext;
-    }
+    const entries = Array.isArray(parsed) ? parsed : [parsed];
+    return entries.flatMap((entry, index) => {
+      if (
+        typeof entry !== 'object' ||
+        entry === null ||
+        !('note' in entry) ||
+        !('interpretation' in entry) ||
+        typeof entry.note !== 'string' ||
+        (entry.interpretation !== 'normal' && entry.interpretation !== 'one-time' && entry.interpretation !== 'open')
+      ) return [];
+      const saved = entry as Partial<OwnerContext>;
+      return [{
+        id: typeof saved.id === 'string' ? saved.id : `legacy-context-${index}`,
+        momentId: typeof saved.momentId === 'string' ? saved.momentId : 'window',
+        momentTitle: typeof saved.momentTitle === 'string' ? saved.momentTitle : 'Rest by the window',
+        momentImage: typeof saved.momentImage === 'string' ? saved.momentImage : asset('story-window.png'),
+        note: entry.note,
+        interpretation: entry.interpretation,
+        savedAt: typeof saved.savedAt === 'string' ? saved.savedAt : new Date().toISOString(),
+        attachments: Array.isArray(saved.attachments) ? saved.attachments : [],
+      }];
+    });
   } catch {
     // The demo can still run if browser storage is unavailable.
   }
-  return null;
+  return [];
 }
 
 function StatusBar() {
@@ -313,10 +373,34 @@ function StickyAction({ label, onClick, hint, disabled = false }: { label: strin
   );
 }
 
-function TodayPage({ onStory, onEvidence, onPetsNavigate, petName, petAvatar, saved }: { onStory: () => void; onEvidence: () => void; onPetsNavigate: () => void; petName: string; petAvatar: string; saved: OwnerContext | null }) {
+const baseMomentDefinitions: MomentRecord[] = [
+  { id: 'breakfast', time: '8:10 AM', title: 'Breakfast time', summary: 'Observed eating as usual', description: 'Breakfast was recorded at the usual time, with no change noted in appetite or routine.', image: 'story-breakfast.png', source: 'Home camera · 8:10 AM' },
+  { id: 'window', time: '11:35 AM', title: 'Rest by the window', summary: 'A quiet moment to remember', description: 'A calm rest beside the window was recorded after visitors had been at home.', image: 'story-window.png', source: 'Home camera · 11:35 AM' },
+  { id: 'toy', time: '4:20 PM', title: 'Favourite toy chase', summary: 'One of today’s highlights!', description: 'An afternoon play session with a favourite toy was captured as an active, playful moment.', image: 'story-toy.png', source: 'Selected video · 4:20 PM' },
+];
+
+function resolveMoment(momentId: string, observations: StoryObservation[]): MomentRecord {
+  const observation = observations.find((entry) => entry.id === momentId);
+  if (observation) return {
+    id: observation.id,
+    time: formatObservationTime(observation.savedAt).replace('\n', ' · '),
+    title: observation.title,
+    summary: observation.note || 'Owner observation',
+    description: observation.note || 'This moment was added as an owner observation.',
+    image: observation.image,
+    mediaType: observation.mediaType,
+    source: `Owner observation · ${formatRelativeDate(observation.savedAt)}`,
+    observationContext: observation.context,
+  };
+  const base = baseMomentDefinitions.find((entry) => entry.id === momentId) ?? baseMomentDefinitions[1];
+  return { ...base, image: asset(base.image) };
+}
+
+function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, petName, petAvatar, saved, hasDemoMoments }: { onStory: () => void; onMoment: (momentId: string) => void; onEvidence: () => void; onPetsNavigate: () => void; petName: string; petAvatar: string; saved: OwnerContext | null; hasDemoMoments: boolean }) {
   return (
     <>
       <MainHeader eyebrow={`A little window into ${petName}’s day.`} title={`Hello, ${petName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} />
+      {!hasDemoMoments ? <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section> : <>
       <section className="today-hero">
         <span className="story-badge">✦ &nbsp; TODAY’S STORY</span>
         <img className="hero-sparkle" src={asset('sparkle.svg')} alt="" />
@@ -328,11 +412,11 @@ function TodayPage({ onStory, onEvidence, onPetsNavigate, petName, petAvatar, sa
       <section className="today-section">
         <h2>Moments you might love</h2>
         <div className="moment-grid">
-          <button className="moment-card" onClick={onStory}>
+          <button className="moment-card" onClick={() => onMoment('toy')}>
             <img src={asset('toy-chase.png')} alt={`${petName} with a toy on a blue background`} />
             <span className="moment-card-copy"><strong>The toy chase</strong><small>Video · 0:18 · 4:20 PM</small></span>
           </button>
-          <button className="moment-card" onClick={onStory}>
+          <button className="moment-card" onClick={() => onMoment('window')}>
             <img src={asset('sunny-nap.png')} alt={`${petName} resting on a yellow background`} />
             <span className="moment-card-copy"><strong>A sunny window nap</strong><small>Photo · 11:35 AM</small></span>
           </button>
@@ -346,13 +430,14 @@ function TodayPage({ onStory, onEvidence, onPetsNavigate, petName, petAvatar, sa
           <span><strong>{saved ? 'Your context is now linked' : 'Afternoon rest looked a little longer'}</strong><small>{saved ? 'Review the clips and your note.' : 'It may be ordinary. Review the clips.'}</small></span>
         </button>
       </section>
+      </>}
     </>
   );
 }
 
 type StoryTimelineItem = { id: string; time: string; title: string; note: string; image: string; mediaType?: string };
 
-function StoryTimelineRow({ item, menuOpen, onMenuToggle, onView, onEdit, editLabel }: { item: StoryTimelineItem; menuOpen: boolean; onMenuToggle: () => void; onView: () => void; onEdit: () => void; editLabel: string }) {
+function StoryTimelineRow({ item, menuOpen, onMenuToggle, onView, onDelete }: { item: StoryTimelineItem; menuOpen: boolean; onMenuToggle: () => void; onView: () => void; onDelete: () => void }) {
   return <div className="timeline-row">
     <span className="timeline-time">{item.time.replace(' ', '\n')}</span>
     <div className="timeline-card">
@@ -361,18 +446,27 @@ function StoryTimelineRow({ item, menuOpen, onMenuToggle, onView, onEdit, editLa
         <span><strong>{item.title}</strong><small>{item.note}</small></span>
       </button>
       <button className="timeline-more" aria-label={`More actions for ${item.title}`} aria-haspopup="menu" aria-expanded={menuOpen} onClick={onMenuToggle}>···</button>
-      {menuOpen && <div className="timeline-action-menu" role="menu"><button role="menuitem" onClick={onView}>View details</button><button role="menuitem" onClick={onEdit}>{editLabel}</button></div>}
+      {menuOpen && <div className="timeline-action-menu" role="menu"><button role="menuitem" onClick={onView}>View details</button><button className="danger-menu-item" role="menuitem" onClick={onDelete}>Delete</button></div>}
     </div>
   </div>;
 }
 
-function StoryPage({ onEvidence, onEditStory, onEditObservation, onPetsNavigate, petName, petAvatar, ownerName, saved, observations, includedMoments }: { onEvidence: () => void; onEditStory: () => void; onEditObservation: (observation: StoryObservation) => void; onPetsNavigate: () => void; petName: string; petAvatar: string; ownerName: string; saved: OwnerContext | null; observations: StoryObservation[]; includedMoments: string[] | null }) {
+function StoryPage({ onMoment, onEditStory, onDeleteMoment, onPetsNavigate, petName, petAvatar, ownerName, contexts, observations, includedMoments, hasDemoMoments }: { onMoment: (momentId: string) => void; onEditStory: () => void; onDeleteMoment: (momentId: string) => string; onPetsNavigate: () => void; petName: string; petAvatar: string; ownerName: string; contexts: OwnerContext[]; observations: StoryObservation[]; includedMoments: string[] | null; hasDemoMoments: boolean }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const moments = [
-    { id: 'breakfast', time: '8:10 AM', title: 'Breakfast time', note: 'Observed eating as usual', image: asset('story-breakfast.png') },
-    { id: 'window', time: '11:35 AM', title: 'Rest by the window', note: saved ? `${ownerName} added context to this moment` : 'A quiet moment to remember', image: asset('story-window.png') },
-    { id: 'toy', time: '4:20 PM', title: 'Favourite toy chase', note: 'One of today’s highlights!', image: asset('story-toy.png') },
-  ];
+  const [pendingDelete, setPendingDelete] = useState<StoryTimelineItem | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+  const contextNote = (momentId: string, fallback: string) => {
+    const linked = contexts.filter((entry) => entry.momentId === momentId);
+    if (!linked.length) return fallback;
+    return `${ownerName}: ${linked[0].note}${linked.length > 1 ? ` · ${linked.length} context notes` : ''}`;
+  };
+  const moments = (hasDemoMoments ? baseMomentDefinitions : []).map((moment) => ({
+    id: moment.id,
+    time: moment.time,
+    title: moment.title,
+    note: contextNote(moment.id, moment.summary),
+    image: asset(moment.image),
+  }));
   const visibleObservations = observations.filter((observation) => !observation.privateRecord && (!includedMoments || includedMoments.includes(observation.id)));
   const todayObservations = visibleObservations.filter((observation) => isSameLocalDay(observation.savedAt));
   const earlierObservations = visibleObservations.filter((observation) => !isSameLocalDay(observation.savedAt));
@@ -390,6 +484,12 @@ function StoryPage({ onEvidence, onEditStory, onEditObservation, onPetsNavigate,
 
   const totalMomentCount =
     todayObservations.length + visibleMoments.length;
+  function confirmDelete() {
+    if (!pendingDelete) return;
+    const nextError = onDeleteMoment(pendingDelete.id);
+    setDeleteError(nextError);
+    if (!nextError) setPendingDelete(null);
+  }
   return (
     <>
       <MainHeader eyebrow={`${petName.toUpperCase()} · DAILY STORY`} title="Daily moments" subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} />
@@ -406,20 +506,20 @@ function StoryPage({ onEvidence, onEditStory, onEditObservation, onPetsNavigate,
       <section className="timeline-section">
         <div className="section-heading"><h2>Today’s timeline</h2><button className="text-link" onClick={onEditStory}>Edit story ✎</button></div>
         <div className="timeline-list">
-          {todayObservations.map((observation) => <StoryTimelineRow key={observation.id} item={{ id: observation.id, time: formatObservationTime(observation.savedAt), title: observation.title, note: observation.note, image: observation.image, mediaType: observation.mediaType }} menuOpen={openMenuId === observation.id} onMenuToggle={() => setOpenMenuId(openMenuId === observation.id ? null : observation.id)} onView={() => { setOpenMenuId(null); onEvidence(); }} onEdit={() => { setOpenMenuId(null); onEditObservation(observation); }} editLabel="Edit observation" />)}
-          {visibleMoments.map((moment) => <StoryTimelineRow key={moment.id} item={moment} menuOpen={openMenuId === moment.id} onMenuToggle={() => setOpenMenuId(openMenuId === moment.id ? null : moment.id)} onView={() => { setOpenMenuId(null); onEvidence(); }} onEdit={() => { setOpenMenuId(null); onEditStory(); }} editLabel="Edit Story selection" />)}
+          {todayObservations.map((observation) => { const item = { id: observation.id, time: formatObservationTime(observation.savedAt), title: observation.title, note: contextNote(observation.id, observation.note), image: observation.image, mediaType: observation.mediaType }; return <StoryTimelineRow key={observation.id} item={item} menuOpen={openMenuId === observation.id} onMenuToggle={() => setOpenMenuId(openMenuId === observation.id ? null : observation.id)} onView={() => { setOpenMenuId(null); onMoment(observation.id); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(item); }} />; })}
+          {visibleMoments.map((moment) => <StoryTimelineRow key={moment.id} item={moment} menuOpen={openMenuId === moment.id} onMenuToggle={() => setOpenMenuId(openMenuId === moment.id ? null : moment.id)} onView={() => { setOpenMenuId(null); onMoment(moment.id); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(moment); }} />)}
         </div>
       </section>
-      {earlierObservations.length > 0 && <section className="timeline-section earlier-timeline-section"><div className="section-heading"><h2>Earlier moments</h2></div><div className="timeline-list">{earlierObservations.map((observation) => <StoryTimelineRow key={observation.id} item={{ id: observation.id, time: formatObservationTime(observation.savedAt), title: observation.title, note: observation.note, image: observation.image, mediaType: observation.mediaType }} menuOpen={openMenuId === observation.id} onMenuToggle={() => setOpenMenuId(openMenuId === observation.id ? null : observation.id)} onView={() => { setOpenMenuId(null); onEvidence(); }} onEdit={() => { setOpenMenuId(null); onEditObservation(observation); }} editLabel="Edit observation" />)}</div></section>}
-      {saved && <button className="story-owner-note" onClick={onEvidence}><strong>{ownerName}’s context · {formatRelativeDate(saved.savedAt)}</strong><span>{saved.note}</span></button>}
+      {earlierObservations.length > 0 && <section className="timeline-section earlier-timeline-section"><div className="section-heading"><h2>Earlier moments</h2></div><div className="timeline-list">{earlierObservations.map((observation) => { const item = { id: observation.id, time: formatObservationTime(observation.savedAt), title: observation.title, note: contextNote(observation.id, observation.note), image: observation.image, mediaType: observation.mediaType }; return <StoryTimelineRow key={observation.id} item={item} menuOpen={openMenuId === observation.id} onMenuToggle={() => setOpenMenuId(openMenuId === observation.id ? null : observation.id)} onView={() => { setOpenMenuId(null); onMoment(observation.id); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(item); }} />; })}</div></section>}
       {openMenuId && <button className="timeline-menu-dismiss" aria-label="Close moment actions" onClick={() => setOpenMenuId(null)} />}
+      {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-story-moment-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-story-moment-title">Delete “{pendingDelete.title}”?</h2><p>{observations.some((entry) => entry.id === pendingDelete.id) ? 'This permanently removes this moment and its linked owner context from this pet’s Story.' : 'This removes this moment from the current Story. You can add it again later from Edit story.'}</p>{deleteError && <p className="inline-save-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete</button></div></section></div>}
     </>
   );
 }
 
 type StoryEditRow = { id: string; image: string; mediaType?: string; title: string; meta: string; note?: string; context?: string };
 
-function StoryEditPage({ observations, includedMoments, petName, onBack, onAdd, onSave, onEdit, onDelete }: { observations: StoryObservation[]; includedMoments: string[] | null; petName: string; onBack: () => void; onAdd: () => void; onSave: (ids: string[]) => void; onEdit: (row: StoryEditRow) => void; onDelete: (id: string) => void }) {
+function StoryEditPage({ observations, includedMoments, petName, hasDemoMoments, onBack, onAdd, onSave, onEdit, onDelete }: { observations: StoryObservation[]; includedMoments: string[] | null; petName: string; hasDemoMoments: boolean; onBack: () => void; onAdd: () => void; onSave: (ids: string[]) => void; onEdit: (row: StoryEditRow) => void; onDelete: (id: string) => void }) {
   const [included, setIncluded] = useState<string[]>(() =>
     includedMoments
       ? [...includedMoments]
@@ -427,9 +527,7 @@ function StoryEditPage({ observations, includedMoments, petName, onBack, onAdd, 
           ...observations
             .filter((entry) => !entry.privateRecord)
             .map((entry) => entry.id),
-          'breakfast',
-          'window',
-          'toy',
+          ...(hasDemoMoments ? ['breakfast', 'window', 'toy'] : []),
         ]
   );
   const [removedIds, setRemovedIds] = useState<string[]>([]);
@@ -438,7 +536,7 @@ function StoryEditPage({ observations, includedMoments, petName, onBack, onAdd, 
   const suppressClick = useRef(false);
   const rows: StoryEditRow[] = [
     ...observations.filter((entry) => !entry.privateRecord).map((entry) => ({ id: entry.id, image: entry.image, mediaType: entry.mediaType, title: entry.title, meta: `${formatObservationTime(entry.savedAt)} · written observation`, note: entry.note, context: entry.context })),
-    { id: 'breakfast', image: asset('story-breakfast.png'), title: 'Breakfast time', meta: '08:10 · selected clip', note: 'Observed eating as usual' },
+    ...(hasDemoMoments ? [{ id: 'breakfast', image: asset('story-breakfast.png'), title: 'Breakfast time', meta: '08:10 · selected clip', note: 'Observed eating as usual' },
     {
       id: 'window',
       image: asset('story-window.png'),
@@ -446,7 +544,7 @@ function StoryEditPage({ observations, includedMoments, petName, onBack, onAdd, 
       meta: '11:35 · selected clip',
       note: 'A quiet moment to remember',
     },
-    { id: 'toy', image: asset('story-toy.png'), title: 'Favourite toy chase', meta: '16:20 · selected clip', note: 'One of today’s highlights!' },
+    { id: 'toy', image: asset('story-toy.png'), title: 'Favourite toy chase', meta: '16:20 · selected clip', note: 'One of today’s highlights!' }] : []),
   ];
   const clearLongPress = () => { if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current); longPressTimer.current = null; };
   const beginLongPress = (id: string) => { clearLongPress(); longPressTimer.current = window.setTimeout(() => { suppressClick.current = true; setOpenMenuId(id); }, 520); };
@@ -499,7 +597,21 @@ function getNoteChoices(petName: string): StorySourceNote[] {
   ];
 }
 
-function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMoments, uploadedMedia, setUploadedMedia, note, setNote, context, setContext, privateRecord, setPrivateRecord, observations, petName, ownerName, saveError, onSave, onEdit }: {
+function defaultObservationForSource(sourceId: string, petName: string) {
+  if (sourceId === 'breakfast') return `${petName} ate breakfast at the usual time.`;
+  if (sourceId === 'toy') return `${petName} chased a favourite toy in the afternoon.`;
+  if (sourceId === 'window') return `${petName} rested by the window after our visitors left.`;
+  if (sourceId === 'uploaded') return `A new moment with ${petName}.`;
+  return '';
+}
+
+function titleFromObservation(value: string) {
+  const cleaned = value.trim().replace(/[.!?]+$/, '');
+  if (!cleaned) return 'A written moment';
+  return cleaned.length <= 42 ? cleaned : `${cleaned.slice(0, 39).trimEnd()}…`;
+}
+
+function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMoments, uploadedMedia, setUploadedMedia, note, setNote, context, setContext, privateRecord, setPrivateRecord, observations, petName, ownerName, hasDemoMoments, saveError, onSave, onEdit }: {
   step: 'moments' | 'compose' | 'preview' | 'saved';
   onBack: () => void;
   onCancel: () => void;
@@ -516,6 +628,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   observations: StoryObservation[];
   petName: string;
   ownerName: string;
+  hasDemoMoments: boolean;
   saveError: string;
   onSave: () => void;
   onEdit: () => void;
@@ -523,8 +636,9 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   const [sourceTab, setSourceTab] = useState<'Photos' | 'Clips' | 'Notes'>('Photos');
   const [uploadError, setUploadError] = useState('');
   const latest = observations[0];
-  const selected = momentChoices.filter((moment) => selectedMoments.includes(moment.id));
-  const noteChoices = getNoteChoices(petName);
+  const availableMomentChoices = hasDemoMoments ? momentChoices : [];
+  const selected = availableMomentChoices.filter((moment) => selectedMoments.includes(moment.id));
+  const noteChoices = hasDemoMoments ? getNoteChoices(petName) : [];
   const selectedNotes = noteChoices.filter((entry) => selectedMoments.includes(entry.id));
   const savedSourceNotes = latest?.sourceNotes ?? selectedNotes;
   const uploadedSelected = Boolean(uploadedMedia && selectedMoments.includes('uploaded'));
@@ -539,7 +653,8 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
       : asset(selected[0]?.image ?? 'story-window.png');
   const mediaType = step === 'saved' ? latest?.mediaType : uploadedSelected ? uploadedMedia?.type : undefined;
   const observationText = step === 'saved' ? latest?.note ?? note : note;
-  const observationTitle = latest?.title || (selected.length ? 'A window rest after visitors' : uploadedSelected ? `A new moment with ${petName}` : 'A quiet moment after visitors');
+  const selectedTitle = selected[0]?.id === 'breakfast' ? 'Breakfast time' : selected[0]?.id === 'toy' ? 'Favourite toy chase' : selected[0]?.id === 'window' ? 'Rest by the window' : uploadedSelected ? `A new moment with ${petName}` : titleFromObservation(selectedNotes[0]?.text ?? note);
+  const observationTitle = step === 'saved' ? latest?.title ?? selectedTitle : selectedTitle;
   const cancel = <button className="add-cancel" onClick={onCancel}>Cancel</button>;
   const header = (title: string, eyebrow: string) => <header className="add-flow-header"><div className="add-flow-title"><button className="back-button" aria-label="Go back" onClick={onBack}>←</button><h1>{title}</h1>{cancel}</div><p className="eyebrow">{eyebrow}</p></header>;
 
@@ -547,7 +662,8 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
     setSourceTab(tab);
     setUploadedMedia(null);
     setUploadError('');
-    setSelectedMoments(tab === 'Notes' ? ['note-visitors'] : ['window', 'toy']);
+    setSelectedMoments([]);
+    setNote('');
   }
 
   function uploadMedia(file: File | undefined) {
@@ -568,7 +684,8 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
         return;
       }
       setUploadedMedia({ name: file.name, type: file.type, url: reader.result });
-      setSelectedMoments([...selectedMoments.filter((id) => id !== 'uploaded'), 'uploaded']);
+      setSelectedMoments(['uploaded']);
+      setNote(defaultObservationForSource('uploaded', petName));
       setUploadError('');
     };
     reader.onerror = () => setUploadError('This file could not be read. Please try another one.');
@@ -576,21 +693,22 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   }
 
   if (step === 'moments') return <div className="add-flow-page">
-    {header('Choose moments', '1 OF 3 · SELECT SOURCES')}
+    {header('Choose a moment', '1 OF 3 · SELECT ONE SOURCE')}
     <div className="source-tabs" role="tablist" aria-label="Moment sources">{(['Photos', 'Clips', 'Notes'] as const).map((tab) => <button key={tab} className={sourceTab === tab ? 'active' : ''} role="tab" aria-selected={sourceTab === tab} onClick={() => chooseSourceTab(tab)}>{tab}</button>)}</div>
     <div className={`moment-picker-grid ${sourceTab === 'Notes' ? 'notes-picker-grid' : ''}`}>
-      {sourceTab === 'Notes' ? noteChoices.map((entry) => { const chosen = selectedMoments.includes(entry.id); return <button className={`moment-choice note-moment-choice ${chosen ? 'selected' : ''}`} key={entry.id} onClick={() => setSelectedMoments(chosen ? selectedMoments.filter((id) => id !== entry.id) : [...selectedMoments, entry.id])}><span>{entry.text}</span>{chosen && <span className="moment-check">✓</span>}<small>{entry.label}</small></button>; }) : momentChoices.map((moment, index) => { const chosen = selectedMoments.includes(moment.id); const label = sourceTab === 'Clips' ? ['Clip · 0:12', 'Clip · 0:18', 'Clip · 0:08'][index] : `${moment.time} · ${moment.title}`; return <button className={`moment-choice ${chosen ? 'selected' : ''}`} key={moment.id} onClick={() => setSelectedMoments(chosen ? selectedMoments.filter((id) => id !== moment.id) : [...selectedMoments, moment.id])}><img src={asset(moment.image)} alt="" />{chosen && <span className="moment-check">✓</span>}<small>{label}</small></button>; })}
+      {sourceTab === 'Notes' ? noteChoices.map((entry) => { const chosen = selectedMoments.includes(entry.id); return <button className={`moment-choice note-moment-choice ${chosen ? 'selected' : ''}`} key={entry.id} onClick={() => { setSelectedMoments(chosen ? [] : [entry.id]); setNote(chosen ? '' : entry.text); }}><span>{entry.text}</span>{chosen && <span className="moment-check">✓</span>}<small>{entry.label}</small></button>; }) : availableMomentChoices.map((moment, index) => { const chosen = selectedMoments.includes(moment.id); const label = sourceTab === 'Clips' ? ['Clip · 0:12', 'Clip · 0:18', 'Clip · 0:08'][index] : `${moment.time} · ${moment.title}`; return <button className={`moment-choice ${chosen ? 'selected' : ''}`} key={moment.id} onClick={() => { setSelectedMoments(chosen ? [] : [moment.id]); setNote(chosen ? '' : defaultObservationForSource(moment.id, petName)); }}><img src={asset(moment.image)} alt="" />{chosen && <span className="moment-check">✓</span>}<small>{label}</small></button>; })}
+      {!hasDemoMoments && <p className="empty-source-message">No saved {sourceTab.toLowerCase()} yet. Add one from this device or start with a written observation.</p>}
       {sourceTab !== 'Notes' && uploadedSelected && uploadedMedia && <div className="moment-choice uploaded-device-choice selected"><StoryMediaView src={uploadedMedia.url} type={uploadedMedia.type} alt={uploadedMedia.name} /><span className="moment-check">✓</span><button type="button" className="remove-uploaded-media" aria-label={`Remove ${uploadedMedia.name}`} onClick={() => { setUploadedMedia(null); setSelectedMoments(selectedMoments.filter((id) => id !== 'uploaded')); }}>×</button><small>{uploadedMedia.name}</small></div>}
       {sourceTab !== 'Notes' && <label className="moment-choice add-device-choice"><input type="file" accept="image/*,video/*" onChange={(event) => { uploadMedia(event.target.files?.[0]); event.currentTarget.value = ''; }} /><span className="add-device-plus">＋</span><span>{uploadedSelected ? 'Replace photo or video' : 'Add photo or video'}</span></label>}
       {uploadError && <p className="upload-error" role="alert">{uploadError}</p>}
     </div>
-    <button className="text-only-option" onClick={() => { setUploadedMedia(null); setSelectedMoments([]); onEdit(); }}><strong>Start with a written observation</strong><span>No photo or clip needed to remember this moment.</span></button>
-    <div className="sticky-action"><button className="primary-button full" onClick={onEdit} disabled={!selectedMoments.length}>Continue with {selectedMoments.length} {sourceTab === 'Notes' ? (selectedMoments.length === 1 ? 'note' : 'notes') : sourceTab === 'Clips' ? (selectedMoments.length === 1 ? 'clip' : 'clips') : (selectedMoments.length === 1 ? 'moment' : 'moments')}</button><p>Only what you select will be added.</p></div>
+    <button className="text-only-option" onClick={() => { setUploadedMedia(null); setSelectedMoments([]); setNote(''); onEdit(); }}><strong>Start with a written observation</strong><span>No photo or clip needed to remember this moment.</span></button>
+    <div className="sticky-action"><button className="primary-button full" onClick={onEdit} disabled={!selectedMoments.length}>Continue with this {sourceTab === 'Notes' ? 'note' : sourceTab === 'Clips' ? 'clip' : 'moment'}</button><p>Each Story entry represents one distinct moment.</p></div>
   </div>;
 
   if (step === 'compose') return <div className="add-flow-page">
     {header('Write a moment', '2 OF 3 · ADD YOUR WORDS')}
-    {hasVisual || selectedNotes.length > 0 ? <><div className="compose-section-label"><strong>Selected moments</strong></div>{hasVisual ? <div className="selected-moments-strip">{selected.map((moment) => <img key={moment.id} src={asset(moment.image)} alt={moment.title} />)}{uploadedSelected && uploadedMedia && <StoryMediaView src={uploadedMedia.url} type={uploadedMedia.type} alt={uploadedMedia.name} />}</div> : <div className="selected-note-strip">{selectedNotes.map((entry) => <div key={entry.id}><span>{entry.text}</span><small>{entry.label}</small></div>)}</div>}</> : <><div className="written-observation-mode"><strong>Written observation</strong></div><div className="written-observation-note"><strong>A note is enough</strong><span>You can describe a moment without a photo or camera clip.</span></div></>}
+    {hasVisual || selectedNotes.length > 0 ? <><div className="compose-section-label"><strong>Selected moment</strong></div>{hasVisual ? <div className="selected-moments-strip">{selected.map((moment) => <img key={moment.id} src={asset(moment.image)} alt={moment.title} />)}{uploadedSelected && uploadedMedia && <StoryMediaView src={uploadedMedia.url} type={uploadedMedia.type} alt={uploadedMedia.name} />}</div> : <div className="selected-note-strip">{selectedNotes.map((entry) => <div key={entry.id}><span>{entry.text}</span><small>{entry.label}</small></div>)}</div>}</> : <><div className="written-observation-mode"><strong>Written observation</strong></div><div className="written-observation-note"><strong>A note is enough</strong><span>You can describe a moment without a photo or camera clip.</span></div></>}
     <label className="observation-writing-card"><strong>What happened with {petName}?</strong><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Describe what you noticed…" /></label>
     <section className="add-context-choices"><strong>Add context</strong><div>{['Visitors at home', 'Routine changed', 'Not sure yet'].map((item) => <button key={item} className={context === item ? 'active' : ''} onClick={() => setContext(context === item ? '' : item)}>{item}</button>)}</div></section>
     <div className="sticky-action"><button className="primary-button full" onClick={onEdit} disabled={!note.trim()}>Preview observation</button><p>Your note is shown as your own words.</p></div>
@@ -611,6 +729,43 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
     <div className="saved-observation-links"><button className="text-link" onClick={onEdit}>Edit observation</button></div>
     <div className="sticky-action"><button className="primary-button full" onClick={onCancel}>{privateRecord ? 'Return to Today' : 'View in Story'}</button><p>You can edit or remove this observation later.</p></div>
   </div>;
+}
+
+function MomentDetailPage({ moment, contexts, ownerName, petName, onBack, onAddContext, onEditContext, onDeleteContext }: { moment: MomentRecord; contexts: OwnerContext[]; ownerName: string; petName: string; onBack: () => void; onAddContext: () => void; onEditContext: (context: OwnerContext) => void; onDeleteContext: (id: string) => boolean }) {
+  const [pendingDelete, setPendingDelete] = useState<OwnerContext | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+
+  function closeDeleteDialog() {
+    setPendingDelete(null);
+    setDeleteError('');
+  }
+
+  function confirmDelete() {
+    if (!pendingDelete) return;
+    if (!onDeleteContext(pendingDelete.id)) {
+      setDeleteError('This context could not be deleted on this device. Please try again.');
+      return;
+    }
+    closeDeleteDialog();
+  }
+
+  return (
+    <>
+      <DetailHeader title={moment.title} eyebrow="MOMENT DETAILS" onBack={onBack} />
+      <section className="moment-detail-media">
+        <StoryMediaView src={moment.image} type={moment.mediaType} alt={`${petName} · ${moment.title}`} controls={moment.mediaType?.startsWith('video/')} />
+      </section>
+      <section className="detail-card"><strong>{moment.source}</strong><p>{moment.time}</p></section>
+      <section className="detail-card warm"><strong>What this moment shows</strong><p>{moment.description}</p></section>
+      {moment.observationContext && <section className="detail-card"><strong>Context saved with this observation</strong><p>{moment.observationContext}</p></section>}
+      <section className="moment-context-section">
+        <div className="section-heading"><h2>Owner context</h2><span>{contexts.length ? `${contexts.length} saved` : 'None yet'}</span></div>
+        {contexts.length ? <div className="moment-context-list">{contexts.map((context) => <article className="detail-card moment-context-card" key={context.id}><small>{ownerName} · {formatRelativeDate(context.savedAt)}</small><strong>{interpretationLabels[context.interpretation]}</strong><p>{context.note}</p><ContextAttachmentList attachments={context.attachments ?? []} /><div className="moment-context-actions"><button className="text-link" onClick={() => onEditContext(context)}>Edit this context</button><button className="moment-context-delete" onClick={() => { setDeleteError(''); setPendingDelete(context); }}>Delete</button></div></article>)}</div> : <section className="detail-card empty-context-card"><strong>No context has been added</strong><p>Add what was happening around this specific moment. It will stay attached here.</p></section>}
+      </section>
+      <StickyAction label="Add context to this moment" onClick={onAddContext} hint={`Context will be linked only to “${moment.title}”.`} />
+      {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={closeDeleteDialog}><section className="profile-dialog context-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-context-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-context-title">Delete this context?</h2><p>This removes the owner context from “{moment.title}”. This action cannot be undone.</p>{deleteError && <p className="inline-save-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={closeDeleteDialog}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete context</button></div></section></div>}
+    </>
+  );
 }
 
 function OverviewPage({ onBack, onClip, petName, saved, onSaved }: { onBack: () => void; onClip: () => void; petName: string; saved: OwnerContext | null; onSaved: () => void }) {
@@ -654,7 +809,8 @@ function ContextAttachmentList({ attachments, onRemove }: { attachments: Context
   return <div className="context-attachments">{attachments.map((attachment) => <div className={`context-attachment ${attachment.kind}`} key={attachment.kind}>{attachment.kind === 'photo' ? <img src={attachment.url} alt={attachment.name} /> : <audio src={attachment.url} controls aria-label={attachment.name} />}<span>{attachment.name}</span>{onRemove && <button type="button" aria-label={`Remove ${attachment.name}`} onClick={() => onRemove(attachment.kind)}>×</button>}</div>)}</div>;
 }
 
-function ContextPage({ note, setNote, interpretation, setInterpretation, attachments, setAttachments, petName, onBack, onReview }: {
+function ContextPage({ moment, note, setNote, interpretation, setInterpretation, attachments, setAttachments, petName, onBack, onReview }: {
+  moment: MomentRecord;
   note: string;
   setNote: (value: string) => void;
   interpretation: Interpretation;
@@ -695,21 +851,21 @@ function ContextPage({ note, setNote, interpretation, setInterpretation, attachm
   return (
     <>
       <DetailHeader title="Add context" eyebrow="YOUR WORDS · OWNER INPUT" onBack={onBack} />
-      <div className="linked-evidence"><img src={asset('context-clip.png')} alt={`Selected clip of ${petName}`} /><span><strong>Afternoon rest</strong><small>2 clips · selected sources</small></span></div>
+      <div className="linked-evidence"><StoryMediaView src={moment.image} type={moment.mediaType} alt={`${petName} · ${moment.title}`} /><span><strong>{moment.title}</strong><small>{moment.time} · one moment</small></span></div>
       <h2 className="question-heading">What else was happening?</h2>
-      <div className={`writing-field ${attachments.length ? 'has-attachments' : ''}`}><textarea aria-label={`Your context for ${petName}’s afternoon rest`} value={note} onChange={(event) => setNote(event.target.value)} placeholder="What did you notice at home?" maxLength={500} /><ContextAttachmentList attachments={attachments} onRemove={(kind) => setAttachments(attachments.filter((attachment) => attachment.kind !== kind))} /><div className="context-attachment-tools"><label><input type="file" accept="image/*" onChange={(event) => { attachFile(event.target.files?.[0], 'photo'); event.currentTarget.value = ''; }} /><span>＋ Photo</span></label><label><input type="file" accept="audio/*" capture onChange={(event) => { attachFile(event.target.files?.[0], 'voice'); event.currentTarget.value = ''; }} /><span>◉ Voice note</span></label></div>{attachmentError && <p className="context-attachment-error" role="alert">{attachmentError}</p>}</div>
+      <div className={`writing-field ${attachments.length ? 'has-attachments' : ''}`}><textarea aria-label={`Your context for ${petName}’s ${moment.title}`} value={note} onChange={(event) => setNote(event.target.value)} placeholder={`What was happening around ${moment.title.toLowerCase()}?`} maxLength={500} /><ContextAttachmentList attachments={attachments} onRemove={(kind) => setAttachments(attachments.filter((attachment) => attachment.kind !== kind))} /><div className="context-attachment-tools"><label><input type="file" accept="image/*" onChange={(event) => { attachFile(event.target.files?.[0], 'photo'); event.currentTarget.value = ''; }} /><span>＋ Photo</span></label><label><input type="file" accept="audio/*" capture onChange={(event) => { attachFile(event.target.files?.[0], 'voice'); event.currentTarget.value = ''; }} /><span>◉ Voice note</span></label></div>{attachmentError && <p className="context-attachment-error" role="alert">{attachmentError}</p>}</div>
       <fieldset className="choice-card"><legend>How should Pawsona treat this?</legend>{(Object.keys(interpretationLabels) as Interpretation[]).map((value) => <label key={value}><input type="radio" name="interpretation" value={value} checked={interpretation === value} onChange={() => setInterpretation(value)} />{interpretationLabels[value]}</label>)}</fieldset>
       <StickyAction label="Review what will be saved" onClick={onReview} disabled={!note.trim()} hint="You can leave this pattern open." />
     </>
   );
 }
 
-function ConfirmPage({ note, interpretation, attachments, petName, ownerName, ownerRole, saveError, onBack, onSave }: { note: string; interpretation: Interpretation; attachments: ContextAttachment[]; petName: string; ownerName: string; ownerRole: string; saveError: string; onBack: () => void; onSave: () => void }) {
+function ConfirmPage({ moment, note, interpretation, attachments, petName, ownerName, ownerRole, saveError, onBack, onSave }: { moment: MomentRecord; note: string; interpretation: Interpretation; attachments: ContextAttachment[]; petName: string; ownerName: string; ownerRole: string; saveError: string; onBack: () => void; onSave: () => void }) {
   return (
     <>
       <DetailHeader title="Confirm" eyebrow="REVIEW BEFORE SAVING" onBack={onBack} />
       <section className="confirm-card"><small>OWNER CORRECTION</small><h2>{interpretationLabels[interpretation]}</h2><p>“{note}”</p><span>{ownerName} · {ownerRole} · Today</span></section>
-      <div className="linked-evidence"><img src={asset('context-clip.png')} alt={`Selected clip of ${petName}`} /><span><strong>Linked evidence</strong><small>2 selected clips + owner note{attachments.length ? ` + ${attachments.length} ${attachments.length === 1 ? 'attachment' : 'attachments'}` : ''}</small></span></div>
+      <div className="linked-evidence"><StoryMediaView src={moment.image} type={moment.mediaType} alt={`${petName} · ${moment.title}`} /><span><strong>{moment.title}</strong><small>1 linked moment{attachments.length ? ` + ${attachments.length} ${attachments.length === 1 ? 'attachment' : 'attachments'}` : ''}</small></span></div>
       <ContextAttachmentList attachments={attachments} />
       <section className="detail-card effects-card"><strong>After you save</strong><p>✓ &nbsp;Your context stays attributed to you</p><p>✓ &nbsp;The original observations stay available</p><p>○ &nbsp;Baseline is not changed automatically</p></section>
       <button className="text-link standalone" onClick={onBack}>Edit words or choice</button>
@@ -719,15 +875,15 @@ function ConfirmPage({ note, interpretation, attachments, petName, ownerName, ow
   );
 }
 
-function SavedPage({ saved, onBack, onReturnToday, onUndo, onEvidence, onEdit, petName, ownerName}: { saved: OwnerContext; onBack: () => void; onReturnToday: () => void; onUndo: () => void; onEvidence: () => void; onEdit: () => void; petName: string; ownerName: string}) {
+function SavedPage({ saved, onBack, onReturnStory, onUndo, onEvidence, onEdit, petName, ownerName}: { saved: OwnerContext; onBack: () => void; onReturnStory: () => void; onUndo: () => void; onEvidence: () => void; onEdit: () => void; petName: string; ownerName: string}) {
   return (
     <>
       <DetailHeader title="Saved" eyebrow="OWNER CORRECTION SAVED" onBack={onBack} />
       <section className="saved-banner"><h2>✓ &nbsp;Context saved</h2><p>{petName}’s baseline was not changed automatically.</p></section>
-      <section className="saved-result"><small>{ownerName.toUpperCase()}’S CONTEXT</small><strong>{interpretationLabels[saved.interpretation]}</strong><p>{saved.note}</p><ContextAttachmentList attachments={saved.attachments ?? []} /><div className="saved-result-meta">Linked to 2 selected clips{saved.attachments?.length ? ` + ${saved.attachments.length} ${saved.attachments.length === 1 ? 'attachment' : 'attachments'}` : ''} · saved {formatRelativeDate(saved.savedAt).toLowerCase()}</div><span>Owner-confirmed context</span></section>
+      <section className="saved-result"><small>{ownerName.toUpperCase()}’S CONTEXT</small><strong>{interpretationLabels[saved.interpretation]}</strong><p>{saved.note}</p><ContextAttachmentList attachments={saved.attachments ?? []} /><div className="saved-result-meta">Linked to {saved.momentTitle}{saved.attachments?.length ? ` + ${saved.attachments.length} ${saved.attachments.length === 1 ? 'attachment' : 'attachments'}` : ''} · saved {formatRelativeDate(saved.savedAt).toLowerCase()}</div><span>Owner-confirmed context</span></section>
       <section className="detail-card"><strong>What happens next?</strong><p>Future reviews can show this context alongside new observations.</p></section>
       <div className="saved-links"><button className="text-link" onClick={onUndo}>Undo correction</button><button className="text-link" onClick={onEvidence}>Review linked evidence</button><button className="text-link" onClick={onEdit}>Edit your context</button></div>
-      <StickyAction label="Return to Today" onClick={onReturnToday} />
+      <StickyAction label="Return to Story" onClick={onReturnStory} />
     </>
   );
 }
@@ -743,9 +899,6 @@ function UndonePage({ petName, onBack, onReturnToday, onReview }: {petName: stri
     </>
   );
 }
-
-type AskAttachment = { url: string; name: string; kind: 'image' | 'audio'; type: string };
-type AskMessage = { role: 'user' | 'assistant'; text: string; attachment?: AskAttachment };
 
 const askMessagesKey = 'pawsona-ask-messages-v1';
 
@@ -771,18 +924,167 @@ function readAskMessages(): AskMessage[] {
   }
 }
 
-function AskPage({ onEvidence, onContext, onPetsNavigate, petName, petAvatar, messages, messageEndRef }: { onEvidence: () => void; onContext: () => void; onPetsNavigate: () => void; petName: string; petAvatar: string; messages: AskMessage[]; messageEndRef: RefObject<HTMLDivElement | null> }) {
+const prototypeSessionKey = 'pawsona-prototype-session-v1';
+
+function defaultCareMembers(ownerName: string): CareMember[] {
+  return [
+    { id: 'emily', name: ownerName, role: 'Primary owner', detail: 'manages the profile' },
+    { id: 'mom', name: 'Mom', role: 'Caregiver', detail: 'can add observations' },
+    { id: 'dad', name: 'Dad', role: 'Caregiver', detail: 'can add observations' },
+  ];
+}
+
+function emptyPetWorkspace(ownerName: string): PetWorkspace {
+  return {
+    contexts: [],
+    observations: [],
+    drafts: [],
+    visibility: null,
+    askMessages: [],
+    careMembers: defaultCareMembers(ownerName),
+    careEvent: null,
+  };
+}
+
+function currentLegacyWorkspace(ownerName: string): PetWorkspace {
+  return {
+    contexts: readSavedContexts(),
+    observations: readStoryObservations(),
+    drafts: readStoryDrafts(),
+    visibility: readStoryVisibility(),
+    askMessages: readAskMessages(),
+    careMembers: readCareMembers() ?? defaultCareMembers(ownerName),
+    careEvent: readCareEvent(),
+  };
+}
+
+function normalizeWorkspace(value: unknown, ownerName: string): PetWorkspace {
+  const fallback = emptyPetWorkspace(ownerName);
+  if (typeof value !== 'object' || value === null) return fallback;
+  const workspace = value as Partial<PetWorkspace>;
+  return {
+    contexts: Array.isArray(workspace.contexts) ? workspace.contexts : [],
+    observations: Array.isArray(workspace.observations) ? workspace.observations : [],
+    drafts: Array.isArray(workspace.drafts) ? workspace.drafts : [],
+    visibility: workspace.visibility === null || (Array.isArray(workspace.visibility) && workspace.visibility.every((id) => typeof id === 'string')) ? workspace.visibility : null,
+    askMessages: Array.isArray(workspace.askMessages) ? workspace.askMessages : [],
+    careMembers: Array.isArray(workspace.careMembers) ? workspace.careMembers : fallback.careMembers,
+    careEvent: typeof workspace.careEvent === 'object' ? workspace.careEvent ?? null : null,
+  };
+}
+
+function createInitialPrototypeSession(): PrototypeSession {
+  const ownerName = readStorageString('pawsona-owner-name', 'Emily');
+  const petName = readStorageString('pawsona-pet-name', 'Luna');
+  const accountId = 'account-primary';
+  const petId = 'pet-primary';
+  return {
+    activeAccountId: accountId,
+    accounts: [{
+      id: accountId,
+      name: ownerName,
+      email: `${ownerName.toLowerCase().replace(/[^a-z0-9]+/g, '.') || 'owner'}@pawsona.local`,
+      role: readStorageString('pawsona-owner-role', 'Primary caregiver'),
+      avatar: readStorageString('pawsona-owner-avatar', ''),
+      preference: readStorageString('pawsona-owner-preference', 'Manage your profile details here.'),
+      activePetId: petId,
+      pets: [{
+        id: petId,
+        name: petName,
+        breed: readStorageString('pawsona-pet-breed', 'Golden Retriever'),
+        age: readStorageString('pawsona-pet-age', '3'),
+        avatar: readStorageString('pawsona-pet-avatar', ''),
+        hasDemoMoments: true,
+        workspace: currentLegacyWorkspace(ownerName),
+      }],
+    }],
+  };
+}
+
+function readPrototypeSession(): PrototypeSession {
+  try {
+    const value = localStorage.getItem(prototypeSessionKey);
+    if (!value) return createInitialPrototypeSession();
+    const parsed = JSON.parse(value) as Partial<PrototypeSession>;
+    if (!Array.isArray(parsed.accounts)) return createInitialPrototypeSession();
+    const accounts = parsed.accounts.flatMap((entry) => {
+      if (typeof entry !== 'object' || entry === null) return [];
+      const account = entry as Partial<PrototypeAccount>;
+      if (typeof account.id !== 'string' || typeof account.name !== 'string' || typeof account.email !== 'string' || !Array.isArray(account.pets)) return [];
+      const accountName = account.name;
+      const pets = account.pets.flatMap((petEntry) => {
+        if (typeof petEntry !== 'object' || petEntry === null) return [];
+        const pet = petEntry as Partial<PrototypePet>;
+        if (typeof pet.id !== 'string' || typeof pet.name !== 'string') return [];
+        return [{
+          id: pet.id,
+          name: pet.name,
+          breed: typeof pet.breed === 'string' ? pet.breed : 'Mixed breed',
+          age: typeof pet.age === 'string' ? pet.age : '1',
+          avatar: typeof pet.avatar === 'string' ? pet.avatar : '',
+          hasDemoMoments: typeof pet.hasDemoMoments === 'boolean' ? pet.hasDemoMoments : pet.id === 'pet-primary',
+          workspace: normalizeWorkspace(pet.workspace, accountName),
+        }];
+      });
+      if (!pets.length) return [];
+      return [{
+        id: account.id,
+        name: account.name,
+        email: account.email,
+        role: typeof account.role === 'string' ? account.role : 'Primary caregiver',
+        avatar: typeof account.avatar === 'string' ? account.avatar : '',
+        preference: typeof account.preference === 'string' ? account.preference : 'Manage your profile details here.',
+        pets,
+        activePetId: pets.some((pet) => pet.id === account.activePetId) ? account.activePetId as string : pets[0].id,
+      }];
+    });
+    return {
+      accounts,
+      activeAccountId: accounts.some((account) => account.id === parsed.activeAccountId) ? parsed.activeAccountId as string : null,
+    };
+  } catch {
+    return createInitialPrototypeSession();
+  }
+}
+
+function persistPrototypeSession(session: PrototypeSession) {
+  localStorage.setItem(prototypeSessionKey, JSON.stringify(session));
+}
+
+function writeLegacyWorkspace(workspace: PetWorkspace) {
+  localStorage.setItem(storageKey, JSON.stringify(workspace.contexts));
+  localStorage.setItem('pawsona-story-observations-v1', JSON.stringify(workspace.observations));
+  localStorage.setItem(storyDraftsKey, JSON.stringify(workspace.drafts));
+  localStorage.setItem(askMessagesKey, JSON.stringify(workspace.askMessages));
+  localStorage.setItem(careMembersKey, JSON.stringify(workspace.careMembers));
+  if (workspace.visibility === null) localStorage.removeItem(storyVisibilityKey);
+  else localStorage.setItem(storyVisibilityKey, JSON.stringify(workspace.visibility));
+  if (workspace.careEvent === null) localStorage.removeItem(careEventKey);
+  else localStorage.setItem(careEventKey, JSON.stringify(workspace.careEvent));
+}
+
+function writeLegacyProfiles(account: PrototypeAccount, pet: PrototypePet) {
+  localStorage.setItem('pawsona-owner-name', account.name);
+  localStorage.setItem('pawsona-owner-role', account.role);
+  localStorage.setItem('pawsona-owner-avatar', account.avatar);
+  localStorage.setItem('pawsona-owner-preference', account.preference);
+  localStorage.setItem('pawsona-pet-name', pet.name);
+  localStorage.setItem('pawsona-pet-breed', pet.breed);
+  localStorage.setItem('pawsona-pet-age', pet.age);
+  localStorage.setItem('pawsona-pet-avatar', pet.avatar);
+}
+
+function AskPage({ onEvidence, onContext, onPetsNavigate, petName, petAvatar, messages, messageEndRef, hasDemoMoments }: { onEvidence: () => void; onContext: () => void; onPetsNavigate: () => void; petName: string; petAvatar: string; messages: AskMessage[]; messageEndRef: RefObject<HTMLDivElement | null>; hasDemoMoments: boolean }) {
   return (
     <div className="ask-page">
       <MainHeader eyebrow="ASK AI · OBSERVATION DIALOGUE" title="Ask Pawsona" onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} />
-      <div className="linked-evidence ask-status"><span className="loading-ring" /><span><strong>Reviewing afternoon rest</strong><small>Linked to Today’s Story · 2 clips + your note</small></span></div>
+      <p className="ask-prototype-notice" role="note">Prototype mode · replies are simulated. No AI backend is connected yet.</p>
+      {hasDemoMoments && <div className="linked-evidence ask-status"><span className="loading-ring" /><span><strong>Reviewing afternoon rest</strong><small>Linked to Today’s Story · 2 clips + your note</small></span></div>}
       <section className="ask-thread" aria-label="Conversation with Pawsona">
-        <article className="chat-message ai">{petName} rested longer this afternoon than in the recent clips available. I can’t tell why—or know exactly how {petName} felt. Would you like to check the evidence or add what happened at home?<button className="text-link" onClick={onEvidence}>View evidence →</button></article>
-        <article className="chat-message owner">My family had visitors today. {petName} often settles down after that.</article>
-        <article className="chat-message ai">Would you like to add this as owner context? You can review the clips before anything is saved.<div className="chat-choices"><button onClick={onContext}>Yes</button><button onClick={onEvidence}>No</button></div></article>
+        {hasDemoMoments ? <><article className="chat-message ai">{petName} rested longer this afternoon than in the recent clips available. I can’t tell why—or know exactly how {petName} felt. Would you like to check the evidence or add what happened at home?<button className="text-link" onClick={onEvidence}>View evidence →</button></article><article className="chat-message owner">My family had visitors today. {petName} often settles down after that.</article><article className="chat-message ai">Would you like to add this as owner context? You can review the clips before anything is saved.<div className="chat-choices"><button onClick={onContext}>Yes</button><button onClick={onEvidence}>No</button></div></article></> : messages.length === 0 && <article className="chat-message ai">Ask a question or share context after you add moments for {petName}. Prototype replies are simulated and saved only in this pet profile.</article>}
         {messages.map((message, index) => message.role === 'user'
           ? <article className="chat-message owner" key={`user-${index}`}>{message.attachment && (message.attachment.kind === 'audio' ? <audio className="chat-attachment-audio" src={message.attachment.url} controls aria-label={message.attachment.name} /> : <img className="chat-attachment" src={message.attachment.url} alt={message.attachment.name} />)}{message.text && <span>{message.text}</span>}</article>
-          : <article className="chat-message ai dynamic-answer" key={`assistant-${index}`}>{message.text}<button className="text-link" onClick={onEvidence}>View linked evidence →</button></article>)}
+          : <article className="chat-message ai dynamic-answer" key={`assistant-${index}`}>{message.text}{hasDemoMoments && <button className="text-link" onClick={onEvidence}>View linked evidence →</button>}</article>)}
         <div ref={messageEndRef} />
       </section>
     </div>
@@ -943,7 +1245,83 @@ function AskComposer({ value, onValue, onSend, onQuickContext, saveError }: { va
   );
 }
 
-function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', ownerPreference = 'Manage your profile details here.', onPetsNavigate, onPetEdit, onProfileEdit, onAction, careMembers, primaryMemberId, onMemberClick, onCareMembers, onPatternHistory, onCareEvent }: { kind: 'pets' | 'you'; petName: string; petAvatar: string; petBreed: string; petAge: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; ownerPreference?: string; onPetsNavigate: () => void; onPetEdit: () => void; onProfileEdit: () => void; onAction: (title: string, detail: string) => void; careMembers: CareMember[]; primaryMemberId: string; onMemberClick: (id: string) => void; onCareMembers: () => void; onPatternHistory: () => void; onCareEvent: () => void }) {
+function AccountAccessPage({ accounts, error, onSignIn, onRegister, onDelete }: { accounts: PrototypeAccount[]; error: string; onSignIn: (id: string) => void; onRegister: (name: string, email: string, petName: string) => string; onDelete: (id: string) => string }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [petName, setPetName] = useState('');
+  const [formError, setFormError] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<PrototypeAccount | null>(null);
+
+  function register(event: FormEvent) {
+    event.preventDefault();
+    setFormError(onRegister(name.trim(), email.trim(), petName.trim()));
+  }
+
+  function confirmDelete() {
+    if (!pendingDelete) return;
+    setFormError(onDelete(pendingDelete.id));
+    setPendingDelete(null);
+  }
+
+  return <section className="account-access-page">
+    <div className="account-brand"><span className="account-brand-mark">♥</span><p className="eyebrow">PAWSONA PROTOTYPE</p><h1>Welcome back</h1><p>Your locally saved accounts and pet spaces stay on this device.</p></div>
+    {accounts.length > 0 && <section className="account-access-section"><h2>Continue with a saved account</h2><div className="account-choice-list">{accounts.map((account) => <div className="account-choice-row" key={account.id}><button className="account-choice-button" onClick={() => onSignIn(account.id)}><OwnerAvatar src={account.avatar} name={account.name} /><span><strong>{account.name}</strong><small>{account.email}</small></span><i>›</i></button><button className="account-delete-button" aria-label={`Delete ${account.name} account`} onClick={() => { setFormError(''); setPendingDelete(account); }}>Delete</button></div>)}</div></section>}
+    <form className="account-register-card" onSubmit={register}>
+      <div><h2>Create an account</h2><small>Prototype only · no password or cloud account is created.</small></div>
+      <label><span>Your name</span><input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" placeholder="e.g. Anna" /></label>
+      <label><span>Email</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" placeholder="anna@example.com" /></label>
+      <label><span>First pet</span><input value={petName} onChange={(event) => setPetName(event.target.value)} placeholder="e.g. Coco" /></label>
+      {(formError || error) && <p className="account-form-error" role="alert">{formError || error}</p>}
+      <button className="primary-button full" disabled={!name.trim() || !email.trim() || !petName.trim()}>Create local account</button>
+    </form>
+    {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-account-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-account-title">Delete {pendingDelete.name}?</h2><p>This permanently removes this local account and every pet, timeline, Story, context and Ask AI conversation saved inside it. Other accounts will not be changed.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete account</button></div></section></div>}
+  </section>;
+}
+
+function AccountSwitcher({ accounts, activeAccountId, onClose, onSwitch, onRegister, onRequestSignOut }: { accounts: PrototypeAccount[]; activeAccountId: string; onClose: () => void; onSwitch: (id: string) => void; onRegister: (name: string, email: string, petName: string) => string; onRequestSignOut: () => void }) {
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [petName, setPetName] = useState('');
+  const [error, setError] = useState('');
+
+  function register(event: FormEvent) {
+    event.preventDefault();
+    const nextError = onRegister(name.trim(), email.trim(), petName.trim());
+    setError(nextError);
+    if (!nextError) onClose();
+  }
+
+  return <div className="profile-dialog-backdrop" role="presentation" onClick={onClose}><section className="profile-dialog switcher-dialog" role="dialog" aria-modal="true" aria-labelledby="account-switcher-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={onClose}>×</button><h2 id="account-switcher-title">Accounts</h2><p>Switching accounts also switches its saved pet spaces.</p><div className="switcher-list">{accounts.map((account) => <button key={account.id} className={account.id === activeAccountId ? 'selected' : ''} onClick={() => { if (account.id !== activeAccountId) onSwitch(account.id); onClose(); }}><OwnerAvatar src={account.avatar} name={account.name} /><span><strong>{account.name}</strong><small>{account.email}</small></span><em>{account.id === activeAccountId ? 'Current' : 'Switch'}</em></button>)}</div>{creating ? <form className="switcher-form" onSubmit={register}><label><span>Your name</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label><label><span>Email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label><label><span>First pet</span><input value={petName} onChange={(event) => setPetName(event.target.value)} /></label>{error && <p className="account-form-error" role="alert">{error}</p>}<div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => { setCreating(false); setError(''); }}>Cancel</button><button className="primary-button" disabled={!name.trim() || !email.trim() || !petName.trim()}>Create</button></div></form> : <><button className="cancel-button full" onClick={() => setCreating(true)}>Create another account</button><button className="account-signout-link" onClick={onRequestSignOut}>Sign out of this account</button></>}</section></div>;
+}
+
+function PetSwitcher({ pets, activePetId, onClose, onSwitch, onAdd, onDelete }: { pets: PrototypePet[]; activePetId: string; onClose: () => void; onSwitch: (id: string) => void; onAdd: (name: string, breed: string, age: string) => string; onDelete: (id: string) => string }) {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState('');
+  const [breed, setBreed] = useState('');
+  const [age, setAge] = useState('1');
+  const [error, setError] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<PrototypePet | null>(null);
+
+  function add(event: FormEvent) {
+    event.preventDefault();
+    const nextError = onAdd(name.trim(), breed.trim(), age.trim());
+    setError(nextError);
+    if (!nextError) onClose();
+  }
+
+  function confirmDelete() {
+    if (!pendingDelete) return;
+    const nextError = onDelete(pendingDelete.id);
+    setError(nextError);
+    if (!nextError) onClose();
+    setPendingDelete(null);
+  }
+
+  return <div className="profile-dialog-backdrop" role="presentation" onClick={onClose}><section className="profile-dialog switcher-dialog" role="dialog" aria-modal="true" aria-labelledby="pet-switcher-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={onClose}>×</button><h2 id="pet-switcher-title">Pet profiles</h2><p>Choose which pet’s Today, Story and context you want to view.</p><div className="switcher-list pet-switcher-list">{pets.map((pet) => <div key={pet.id} className={`pet-switcher-row ${pet.id === activePetId ? 'selected' : ''}`}><button className="pet-switcher-choice" onClick={() => { if (pet.id !== activePetId) onSwitch(pet.id); onClose(); }}><Avatar name={pet.name} src={pet.avatar} /><span><strong>{pet.name}</strong><small>{pet.breed} · {formatPetAge(pet.age)}</small></span><em>{pet.id === activePetId ? 'Current' : 'Switch'}</em></button><button className="pet-profile-delete" disabled={pets.length === 1} aria-label={pets.length === 1 ? `${pet.name} is the only pet and cannot be deleted` : `Delete ${pet.name}`} title={pets.length === 1 ? 'Add another pet before deleting this one' : `Delete ${pet.name}`} onClick={() => { setError(''); setPendingDelete(pet); }}>Delete</button></div>)}</div>{pets.length === 1 && <p className="pet-delete-help">Add another pet before deleting this profile.</p>}{error && !adding && <p className="account-form-error" role="alert">{error}</p>}{adding ? <form className="switcher-form" onSubmit={add}><label><span>Pet name</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label><label><span>Breed</span><input value={breed} onChange={(event) => setBreed(event.target.value)} placeholder="Mixed breed" /></label><label><span>Age</span><input type="number" min="0" max="40" value={age} onChange={(event) => setAge(event.target.value)} /></label>{error && <p className="account-form-error" role="alert">{error}</p>}<div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => { setAdding(false); setError(''); }}>Cancel</button><button className="primary-button" disabled={!name.trim() || !breed.trim() || !age.trim()}>Add pet</button></div></form> : <button className="cancel-button full" onClick={() => setAdding(true)}>Add another pet</button>}{pendingDelete && <div className="nested-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog pet-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-pet-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-pet-title">Delete {pendingDelete.name}?</h2><p>This permanently removes this pet profile and its timeline, Story, context and Ask AI history from this device. Other pets will not be changed.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete pet</button></div></section></div>}</section></div>;
+}
+
+function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, ownerEmail, ownerRole = 'Primary caregiver', ownerAvatar = '', ownerPreference = 'Manage your profile details here.', pets, activePetId, onPetsNavigate, onPetEdit, onProfileEdit, onPetSwitcher, onAccountSwitcher, onSignOut, onAction, careMembers, primaryMemberId, onMemberClick, onCareMembers, onPatternHistory, onCareEvent }: { kind: 'pets' | 'you'; petName: string; petAvatar: string; petBreed: string; petAge: string; ownerName: string; ownerEmail: string; ownerRole?: string; ownerAvatar?: string; ownerPreference?: string; pets: PrototypePet[]; activePetId: string; onPetsNavigate: () => void; onPetEdit: () => void; onProfileEdit: () => void; onPetSwitcher: () => void; onAccountSwitcher: () => void; onSignOut: () => void; onAction: (title: string, detail: string) => void; careMembers: CareMember[]; primaryMemberId: string; onMemberClick: (id: string) => void; onCareMembers: () => void; onPatternHistory: () => void; onCareEvent: () => void }) {
   const isPrimaryCaregiver = primaryMemberId === 'emily';
   const petDetailsLabel = `${petBreed} · ${formatPetAge(petAge)}`;
   return kind === 'pets' ? (
@@ -951,9 +1329,7 @@ function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, own
       <MainHeader eyebrow="PET PROFILE" title="Pet profile" onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} />
       <section className="pet-profile-hero">
         <Avatar name={petName} src={petAvatar} />
-        <div className="profile-hero-copy"><strong>{petName}</strong><small>{petDetailsLabel}</small><button className="mini-action" onClick={onPetEdit}><span>✎</span> Edit pet details</button></div>
-        <button className="sort-action" aria-label="Reorder pets" onClick={() => onAction('Reorder pets', petName +
-      ' is your current pet profile. You can change the order as you add pets.')}>⇄</button>
+        <div className="profile-hero-copy"><strong>{petName}</strong><small>{petDetailsLabel}</small><div className="pet-hero-actions"><button className="mini-action" onClick={onPetEdit}><span>✎</span> Edit details</button><button className="mini-action" onClick={onPetSwitcher}>⇄ Switch pet</button></div></div>
       </section>
 
       <section className="profile-section care-section">
@@ -991,10 +1367,17 @@ function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, own
       </button>
 
       <section className="profile-section you-section">
-        <div className="profile-section-heading"><h2>My pets</h2><button className="profile-link" onClick={() => onAction('Add Pets', 'Add a pet profile to your Pawsona space.')}>Add Pets +</button></div>
+        <div className="profile-section-heading"><h2>My pets</h2><button className="profile-link" onClick={onPetSwitcher}>Switch or add →</button></div>
         <div className="profile-card you-list pets-list">
-          <button className="you-row" onClick={onPetEdit}><Avatar name={petName} src={petAvatar} /><span><strong>{petName}</strong><small>{petDetailsLabel}</small></span><em>Family</em></button>
-          <button className="you-row" onClick={() => onAction('Cat', 'British Shorthair · 2 years old · Solo')}><span className="cat-avatar">🐈‍⬛</span><span><strong>Cat</strong><small>British Shorthair · 2 years old</small></span><em>Solo</em></button>
+          {pets.map((pet) => <button className="you-row" key={pet.id} onClick={() => pet.id === activePetId ? onPetEdit() : onPetSwitcher()}><Avatar name={pet.name} src={pet.avatar} /><span><strong>{pet.name}</strong><small>{pet.breed} · {formatPetAge(pet.age)}</small></span><em>{pet.id === activePetId ? 'Active' : 'Switch'}</em></button>)}
+        </div>
+      </section>
+
+      <section className="profile-section you-section account-section">
+        <div className="profile-section-heading"><h2>Account</h2></div>
+        <div className="profile-card you-list account-list">
+          <button className="media-row" onClick={onAccountSwitcher}><span className="media-icon">◎</span><span><strong>{ownerName}</strong><small>{ownerEmail}</small></span><i>›</i></button>
+          <button className="media-row account-signout-row" onClick={onSignOut}><span className="media-icon">↪</span><span><strong>Sign out</strong><small>Your local data will stay on this device</small></span><i>›</i></button>
         </div>
       </section>
 
@@ -1269,6 +1652,7 @@ function CareMemberDetailsPage({ member, ownerName, ownerRole, ownerAvatar, owne
 }
 
 export default function App() {
+  const [prototypeSession, setPrototypeSession] = useState<PrototypeSession>(readPrototypeSession);
   const [view, setView] = useState<View>('today');
   const [petName, setPetName] = useState(() => readStorageString('pawsona-pet-name', 'Luna'));
   const [petAvatar, setPetAvatar] = useState(() => readStorageString('pawsona-pet-avatar', ''));
@@ -1283,21 +1667,24 @@ export default function App() {
   const [ownerAvatar, setOwnerAvatar] = useState(() => readStorageString('pawsona-owner-avatar', ''));
   const [ownerPreference, setOwnerPreference] = useState(() => readStorageString('pawsona-owner-preference', 'Manage your profile details here.'));
   const [profileSaveNotice, setProfileSaveNotice] = useState('');
-  const [saved, setSaved] = useState<OwnerContext | null>(readSavedContext);
+  const [savedContexts, setSavedContexts] = useState<OwnerContext[]>(readSavedContexts);
   const [storyObservations, setStoryObservations] = useState<StoryObservation[]>(readStoryObservations);
   const [storyDrafts, setStoryDrafts] = useState<StoryDraft[]>(readStoryDrafts);
   const [includedStoryMoments, setIncludedStoryMoments] = useState<string[] | null>(readStoryVisibility);
   const [editingStoryObservationId, setEditingStoryObservationId] = useState<string | null>(null);
   const [activeStoryDraftId, setActiveStoryDraftId] = useState<string | null>(null);
   const [showStoryAddOptions, setShowStoryAddOptions] = useState(false);
-  const [draftMoments, setDraftMoments] = useState<string[]>(['window', 'toy']);
+  const [draftMoments, setDraftMoments] = useState<string[]>([]);
   const [draftUploadedMedia, setDraftUploadedMedia] = useState<StoryMedia | null>(null);
-  const [draftObservation, setDraftObservation] = useState(`${petName} rested by the window after our visitors left, then played with a rope toy in the afternoon.`);
-  const [draftObservationContext, setDraftObservationContext] = useState('Visitors at home');
+  const [draftObservation, setDraftObservation] = useState('');
+  const [draftObservationContext, setDraftObservationContext] = useState('');
   const [draftPrivateRecord, setDraftPrivateRecord] = useState(false);
-  const [note, setNote] = useState(saved?.note ?? 'Visitors were at home today. ' + petName + ' often rests afterward.');
-  const [interpretation, setInterpretation] = useState<Interpretation>(saved?.interpretation ?? 'normal');
-  const [contextAttachments, setContextAttachments] = useState<ContextAttachment[]>(saved?.attachments ?? []);
+  const [selectedMomentId, setSelectedMomentId] = useState('window');
+  const [editingContextId, setEditingContextId] = useState<string | null>(null);
+  const [lastSavedContextId, setLastSavedContextId] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+  const [interpretation, setInterpretation] = useState<Interpretation>('normal');
+  const [contextAttachments, setContextAttachments] = useState<ContextAttachment[]>([]);
   const [contextSaveError, setContextSaveError] = useState('');
   const [storySaveError, setStorySaveError] = useState('');
   const [profileAction, setProfileAction] = useState<{ title: string; detail: string } | null>(null);
@@ -1312,9 +1699,244 @@ export default function App() {
   const [askInput, setAskInput] = useState('');
   const [askMessages, setAskMessages] = useState<AskMessage[]>(readAskMessages);
   const [askSaveError, setAskSaveError] = useState('');
+  const [accountActionError, setAccountActionError] = useState('');
+  const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
+  const [showPetSwitcher, setShowPetSwitcher] = useState(false);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const scrollRef = useRef<HTMLElement>(null);
   const askEndRef = useRef<HTMLDivElement>(null);
   const navigationHistory = useRef<View[]>([]);
+  const activeAccount = prototypeSession.accounts.find((account) => account.id === prototypeSession.activeAccountId) ?? null;
+  const activePetRecord = activeAccount?.pets.find((pet) => pet.id === activeAccount.activePetId) ?? activeAccount?.pets[0] ?? null;
+
+  function workspaceFromState(): PetWorkspace {
+    return {
+      contexts: savedContexts,
+      observations: storyObservations,
+      drafts: storyDrafts,
+      visibility: includedStoryMoments,
+      askMessages,
+      careMembers,
+      careEvent: readCareEvent(),
+    };
+  }
+
+  function captureCurrentSpace(session: PrototypeSession): PrototypeSession {
+    if (!session.activeAccountId) return session;
+    return {
+      ...session,
+      accounts: session.accounts.map((account) => {
+        if (account.id !== session.activeAccountId) return account;
+        return {
+          ...account,
+          name: ownerName,
+          role: ownerRole,
+          avatar: ownerAvatar,
+          preference: ownerPreference,
+          pets: account.pets.map((pet) => pet.id === account.activePetId ? {
+            ...pet,
+            name: petName,
+            breed: petBreed,
+            age: petAge,
+            avatar: petAvatar,
+            workspace: workspaceFromState(),
+          } : pet),
+        };
+      }),
+    };
+  }
+
+  function applyAccountSpace(session: PrototypeSession, accountId: string, petId: string): string {
+    const account = session.accounts.find((entry) => entry.id === accountId);
+    const pet = account?.pets.find((entry) => entry.id === petId);
+    if (!account || !pet) return 'That saved profile is no longer available.';
+    const nextSession: PrototypeSession = {
+      ...session,
+      activeAccountId: account.id,
+      accounts: session.accounts.map((entry) => entry.id === account.id ? { ...entry, activePetId: pet.id } : entry),
+    };
+    try {
+      writeLegacyProfiles(account, pet);
+      writeLegacyWorkspace(pet.workspace);
+      persistPrototypeSession(nextSession);
+    } catch {
+      const previousAccount = session.accounts.find((entry) => entry.id === session.activeAccountId);
+      const previousPet = previousAccount?.pets.find((entry) => entry.id === previousAccount.activePetId);
+      if (previousAccount && previousPet) {
+        try {
+          writeLegacyProfiles(previousAccount, previousPet);
+          writeLegacyWorkspace(previousPet.workspace);
+        } catch {
+          /* The caller will keep the current in-memory space active. */
+        }
+      }
+      return 'This profile could not be opened because browser storage is unavailable.';
+    }
+    setPrototypeSession(nextSession);
+    setOwnerName(account.name);
+    setOwnerRole(account.role);
+    setOwnerAvatar(account.avatar);
+    setOwnerPreference(account.preference);
+    setPetName(pet.name);
+    setPetBreed(pet.breed);
+    setPetAge(pet.age);
+    setPetAvatar(pet.avatar);
+    setSavedContexts(pet.workspace.contexts);
+    setStoryObservations(pet.workspace.observations);
+    setStoryDrafts(pet.workspace.drafts);
+    setIncludedStoryMoments(pet.workspace.visibility);
+    setAskMessages(pet.workspace.askMessages);
+    setCareMembers(pet.workspace.careMembers);
+    setEditingStoryObservationId(null);
+    setActiveStoryDraftId(null);
+    setEditingContextId(null);
+    setLastSavedContextId(null);
+    setSelectedMomentId('window');
+    setAskInput('');
+    setAccountActionError('');
+    navigationHistory.current = [];
+    setView('today');
+    return '';
+  }
+
+  function switchAccount(accountId: string) {
+    const captured = captureCurrentSpace(prototypeSession);
+    const account = captured.accounts.find((entry) => entry.id === accountId);
+    const error = account ? applyAccountSpace(captured, account.id, account.activePetId) : 'That saved account is no longer available.';
+    setAccountActionError(error);
+  }
+
+  function registerAccount(name: string, email: string, firstPetName: string): string {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!name || !firstPetName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) return 'Enter a name, a valid email and your pet’s name.';
+    const captured = captureCurrentSpace(prototypeSession);
+    if (captured.accounts.some((account) => account.email.toLowerCase() === normalizedEmail)) return 'An account with this email is already saved on this device.';
+    const stamp = Date.now();
+    const accountId = `account-${stamp}`;
+    const petId = `pet-${stamp}`;
+    const account: PrototypeAccount = {
+      id: accountId,
+      name,
+      email: normalizedEmail,
+      role: 'Primary caregiver',
+      avatar: '',
+      preference: 'Manage your profile details here.',
+      activePetId: petId,
+      pets: [{ id: petId, name: firstPetName, breed: 'Mixed breed', age: '1', avatar: '', hasDemoMoments: false, workspace: emptyPetWorkspace(name) }],
+    };
+    return applyAccountSpace({ ...captured, accounts: [...captured.accounts, account] }, accountId, petId);
+  }
+
+  function deleteSavedAccount(accountId: string): string {
+    if (!prototypeSession.accounts.some((account) => account.id === accountId)) return 'That saved account is no longer available.';
+    const next: PrototypeSession = {
+      ...prototypeSession,
+      activeAccountId: prototypeSession.activeAccountId === accountId ? null : prototypeSession.activeAccountId,
+      accounts: prototypeSession.accounts.filter((account) => account.id !== accountId),
+    };
+    try {
+      persistPrototypeSession(next);
+    } catch {
+      return 'This account could not be deleted because browser storage is unavailable.';
+    }
+    setPrototypeSession(next);
+    setAccountActionError('');
+    return '';
+  }
+
+  function switchPet(petId: string) {
+    if (!activeAccount) return;
+    const captured = captureCurrentSpace(prototypeSession);
+    const error = applyAccountSpace(captured, activeAccount.id, petId);
+    setAccountActionError(error);
+  }
+
+  function addPet(name: string, breed: string, age: string): string {
+    if (!activeAccount) return 'Sign in before adding a pet.';
+    const numericAge = Number(age);
+    if (!name || !breed || !Number.isInteger(numericAge) || numericAge < 0 || numericAge > 40) return 'Enter a name, breed and an age from 0 to 40.';
+    const captured = captureCurrentSpace(prototypeSession);
+    const petId = `pet-${Date.now()}`;
+    const next = {
+      ...captured,
+      accounts: captured.accounts.map((account) => account.id === activeAccount.id ? {
+        ...account,
+        activePetId: petId,
+        pets: [...account.pets, { id: petId, name, breed, age, avatar: '', hasDemoMoments: false, workspace: emptyPetWorkspace(account.name) }],
+      } : account),
+    };
+    return applyAccountSpace(next, activeAccount.id, petId);
+  }
+
+  function deletePet(petId: string): string {
+    if (!activeAccount) return 'Sign in before deleting a pet.';
+    const captured = captureCurrentSpace(prototypeSession);
+    const account = captured.accounts.find((entry) => entry.id === activeAccount.id);
+    if (!account) return 'That account is no longer available.';
+    if (account.pets.length <= 1) return 'Add another pet before deleting this profile.';
+    if (!account.pets.some((pet) => pet.id === petId)) return 'That pet profile is no longer available.';
+    const remainingPets = account.pets.filter((pet) => pet.id !== petId);
+    const nextPetId = account.activePetId === petId ? remainingPets[0].id : account.activePetId;
+    const next: PrototypeSession = {
+      ...captured,
+      accounts: captured.accounts.map((entry) => entry.id === account.id ? {
+        ...entry,
+        pets: remainingPets,
+        activePetId: nextPetId,
+      } : entry),
+    };
+    if (account.activePetId === petId) return applyAccountSpace(next, account.id, nextPetId);
+    try {
+      persistPrototypeSession(next);
+    } catch {
+      return 'This pet could not be deleted because browser storage is unavailable.';
+    }
+    setPrototypeSession(next);
+    return '';
+  }
+
+  function signOut() {
+    const captured = captureCurrentSpace(prototypeSession);
+    const next = { ...captured, activeAccountId: null };
+    try {
+      persistPrototypeSession(next);
+    } catch {
+      setAccountActionError('Could not sign out because browser storage is unavailable.');
+      return;
+    }
+    setPrototypeSession(next);
+    setShowAccountSwitcher(false);
+    setShowSignOutConfirm(false);
+    navigationHistory.current = [];
+    setView('today');
+  }
+
+  function updateActivePetRecord(profile: { name: string; breed: string; age: string; avatar: string }) {
+    setPrototypeSession((current) => {
+      if (!current.activeAccountId) return current;
+      const next = {
+        ...current,
+        accounts: current.accounts.map((account) => account.id === current.activeAccountId ? {
+          ...account,
+          pets: account.pets.map((pet) => pet.id === account.activePetId ? { ...pet, ...profile } : pet),
+        } : account),
+      };
+      try { persistPrototypeSession(next); } catch { setAccountActionError('Pet details were saved, but the account index could not be updated.'); }
+      return next;
+    });
+  }
+
+  function updateActiveAccountRecord(profile: { name: string; avatar: string; preference: string }) {
+    setPrototypeSession((current) => {
+      if (!current.activeAccountId) return current;
+      const next = {
+        ...current,
+        accounts: current.accounts.map((account) => account.id === current.activeAccountId ? { ...account, ...profile } : account),
+      };
+      try { persistPrototypeSession(next); } catch { setAccountActionError('Profile details were saved, but the account index could not be updated.'); }
+      return next;
+    });
+  }
 
   function navigateTo(nextView: View) {
     if (nextView !== view) navigationHistory.current.push(view);
@@ -1330,6 +1952,14 @@ export default function App() {
   }, [view]);
 
   useEffect(() => {
+    try {
+      persistPrototypeSession(prototypeSession);
+    } catch {
+      setAccountActionError('Account changes could not be saved on this device.');
+    }
+  }, [prototypeSession]);
+
+  useEffect(() => {
     if (!profileSaveNotice) return;
     const timer = window.setTimeout(() => setProfileSaveNotice(''), 3000);
     return () => window.clearTimeout(timer);
@@ -1341,8 +1971,29 @@ export default function App() {
     }
   }, [askMessages, view]);
 
+  const selectedMoment = resolveMoment(selectedMomentId, storyObservations);
+  const selectedMomentContexts = savedContexts.filter((context) => context.momentId === selectedMomentId);
+  const lastSavedContext = savedContexts.find((context) => context.id === lastSavedContextId) ?? null;
+
+  function startContextForMoment(momentId: string, existing?: OwnerContext) {
+    const target = resolveMoment(momentId, storyObservations);
+    setSelectedMomentId(target.id);
+    setEditingContextId(existing?.id ?? null);
+    setNote(existing?.note ?? '');
+    setInterpretation(existing?.interpretation ?? 'normal');
+    setContextAttachments(existing?.attachments ?? []);
+    setContextSaveError('');
+    navigateTo('context');
+  }
+
+  function openMomentDetail(momentId: string) {
+    setSelectedMomentId(momentId);
+    navigateTo('momentDetail');
+  }
+
   function saveContext() {
-    const next: OwnerContext = { note: note.trim(), interpretation, savedAt: new Date().toISOString(), attachments: contextAttachments };
+    const nextContext: OwnerContext = { id: editingContextId ?? `owner-context-${Date.now()}`, momentId: selectedMoment.id, momentTitle: selectedMoment.title, momentImage: selectedMoment.image, note: note.trim(), interpretation, savedAt: new Date().toISOString(), attachments: contextAttachments };
+    const next = [nextContext, ...savedContexts.filter((entry) => entry.id !== nextContext.id)];
     setContextSaveError('');
     try {
       localStorage.setItem(storageKey, JSON.stringify(next));
@@ -1350,24 +2001,40 @@ export default function App() {
       setContextSaveError('Your correction could not be saved on this device. Remove a large attachment or free some browser storage, then try again.');
       return;
     }
-    setSaved(next);
+    setSavedContexts(next);
+    setEditingContextId(null);
+    setLastSavedContextId(nextContext.id);
     navigateTo('saved');
   }
 
-  function undoContext() {
-    setSaved(null);
-    try { localStorage.removeItem(storageKey); } catch { /* Local state still works. */ }
+  function undoContext(contextId: string) {
+    const next = savedContexts.filter((context) => context.id !== contextId);
+    setSavedContexts(next);
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* Local state still works. */ }
+    setLastSavedContextId(null);
     navigateTo('undone');
+  }
+
+  function deleteOwnerContext(contextId: string): boolean {
+    const next = savedContexts.filter((context) => context.id !== contextId);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(next));
+    } catch {
+      return false;
+    }
+    setSavedContexts(next);
+    if (lastSavedContextId === contextId) setLastSavedContextId(null);
+    return true;
   }
 
   function startStoryObservation() {
     setStorySaveError('');
     setEditingStoryObservationId(null);
     setActiveStoryDraftId(null);
-    setDraftMoments(['window', 'toy']);
+    setDraftMoments([]);
     setDraftUploadedMedia(null);
-    setDraftObservation(`${petName} rested by the window after our visitors left, then played with a rope toy in the afternoon.`);
-    setDraftObservationContext('Visitors at home');
+    setDraftObservation('');
+    setDraftObservationContext('');
     setDraftPrivateRecord(false);
     navigateTo('addMoments');
   }
@@ -1376,14 +2043,11 @@ export default function App() {
     const isUntouchedNewObservation =
       activeStoryDraftId === null &&
       editingStoryObservationId === null &&
-      draftObservation ===
-        `${petName} rested by the window after our visitors left, then played with a rope toy in the afternoon.` &&
-      draftObservationContext === 'Visitors at home' &&
+      draftObservation === '' &&
+      draftObservationContext === '' &&
       !draftPrivateRecord &&
       draftUploadedMedia === null &&
-      draftMoments.length === 2 &&
-      draftMoments.includes('window') &&
-      draftMoments.includes('toy');
+      draftMoments.length === 0;
 
     const returnView: View = view === 'addSaved' && draftPrivateRecord ? 'today' : 'story';
     if (
@@ -1410,7 +2074,7 @@ export default function App() {
     const selectedNotes = getNoteChoices(petName).filter((entry) => draftMoments.includes(entry.id));
     const uploadedSelected = Boolean(draftUploadedMedia && draftMoments.includes('uploaded'));
     const existing = storyObservations.find((entry) => entry.id === editingStoryObservationId);
-    const title = selected[0]?.id === 'breakfast' ? 'Breakfast time' : selected[0]?.id === 'toy' ? 'Favourite toy chase' : selected.length ? 'A window rest after visitors' : uploadedSelected ? `A new moment with ${petName}` : 'A quiet moment after visitors';
+    const title = selected[0]?.id === 'breakfast' ? 'Breakfast time' : selected[0]?.id === 'toy' ? 'Favourite toy chase' : selected[0]?.id === 'window' ? 'Rest by the window' : uploadedSelected ? `A new moment with ${petName}` : titleFromObservation(selectedNotes[0]?.text ?? draftObservation);
     const observation: StoryObservation = {
       id: existing?.id ?? `story-observation-${Date.now()}`,
       note: draftObservation.trim(),
@@ -1473,6 +2137,12 @@ export default function App() {
   function updateOwnerRole(role: string) {
     try { localStorage.setItem('pawsona-owner-role', role); } catch { /* Keep this selection active for the current session. */ }
     setOwnerRole(role);
+    setPrototypeSession((current) => {
+      if (!current.activeAccountId) return current;
+      const next = { ...current, accounts: current.accounts.map((account) => account.id === current.activeAccountId ? { ...account, role } : account) };
+      try { persistPrototypeSession(next); } catch { setAccountActionError('The role changed for this session, but could not be saved.'); }
+      return next;
+    });
   }
   function editStoryRow(row: StoryEditRow) {
     const existing = storyObservations.find((entry) => entry.id === row.id);
@@ -1487,7 +2157,7 @@ export default function App() {
   function resumeStoryDraft(draft: StoryDraft) {
     setActiveStoryDraftId(draft.id);
     setEditingStoryObservationId(null);
-    setDraftMoments(draft.selectedMoments);
+    setDraftMoments(draft.selectedMoments.slice(0, 1));
     setDraftUploadedMedia(draft.uploadedMedia ?? null);
     setDraftObservation(draft.note);
     setDraftObservationContext(draft.context);
@@ -1513,8 +2183,37 @@ export default function App() {
       return next;
     });
   }
+  function deleteStoryMoment(id: string): string {
+    const isObservation = storyObservations.some((entry) => entry.id === id);
+    const defaultVisibleIds = [
+      ...storyObservations.filter((entry) => !entry.privateRecord).map((entry) => entry.id),
+      ...(activePetRecord?.hasDemoMoments ? ['breakfast', 'window', 'toy'] : []),
+    ];
+    const nextVisibility = (includedStoryMoments ?? defaultVisibleIds).filter((momentId) => momentId !== id);
+    const nextObservations = isObservation ? storyObservations.filter((entry) => entry.id !== id) : storyObservations;
+    const nextContexts = isObservation ? savedContexts.filter((entry) => entry.momentId !== id) : savedContexts;
+    try {
+      localStorage.setItem(storyVisibilityKey, JSON.stringify(nextVisibility));
+      if (isObservation) {
+        localStorage.setItem('pawsona-story-observations-v1', JSON.stringify(nextObservations));
+        localStorage.setItem(storageKey, JSON.stringify(nextContexts));
+      }
+    } catch {
+      return 'This moment could not be deleted from this device. Please try again.';
+    }
+    setIncludedStoryMoments(nextVisibility);
+    if (isObservation) {
+      setStoryObservations(nextObservations);
+      setSavedContexts(nextContexts);
+    }
+    return '';
+  }
   function navigate(view: View) {
     navigateTo(view);
+  }
+
+  if (!activeAccount || !activePetRecord) {
+    return <div className="app-stage"><div className="phone"><main className="screen-scroll account-access-scroll"><StatusBar /><AccountAccessPage accounts={prototypeSession.accounts} error={accountActionError} onSignIn={switchAccount} onRegister={registerAccount} onDelete={deleteSavedAccount} /></main></div></div>;
   }
 
   return (
@@ -1523,9 +2222,9 @@ export default function App() {
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <StatusBar />
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
-            {view === 'today' && <TodayPage petName={petName} petAvatar={petAvatar} onStory={() => navigateTo('story')} onEvidence={() => navigateTo('overview')} onPetsNavigate={() => navigateTo('pets')} saved={saved} />}
-            {view === 'story' && <StoryPage onEvidence={() => navigateTo('overview')} onEditStory={() => navigateTo('storyEdit')} onEditObservation={(observation) => editStoryRow({ id: observation.id, image: observation.image, mediaType: observation.mediaType, title: observation.title, meta: formatObservationTime(observation.savedAt), note: observation.note, context: observation.context })} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} ownerName={ownerName} saved={saved} observations={storyObservations} includedMoments={includedStoryMoments} />}
-            {view === 'storyEdit' && <StoryEditPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} onBack={() => goBack('story')} onAdd={startStoryObservation} onEdit={editStoryRow} onDelete={deleteStoryRow} onSave={(ids) => { setIncludedStoryMoments(ids);try {
+            {view === 'today' && <TodayPage petName={petName} petAvatar={petAvatar} hasDemoMoments={activePetRecord.hasDemoMoments} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onEvidence={() => navigateTo('overview')} onPetsNavigate={() => navigateTo('pets')} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} />}
+            {view === 'story' && <StoryPage onMoment={openMomentDetail} onEditStory={() => navigateTo('storyEdit')} onDeleteMoment={deleteStoryMoment} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} ownerName={ownerName} contexts={savedContexts} observations={storyObservations} includedMoments={includedStoryMoments} hasDemoMoments={activePetRecord.hasDemoMoments} />}
+            {view === 'storyEdit' && <StoryEditPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} hasDemoMoments={activePetRecord.hasDemoMoments} onBack={() => goBack('story')} onAdd={startStoryObservation} onEdit={editStoryRow} onDelete={deleteStoryRow} onSave={(ids) => { setIncludedStoryMoments(ids);try {
               localStorage.setItem(
                 storyVisibilityKey,
                 JSON.stringify(ids)
@@ -1534,20 +2233,21 @@ export default function App() {
               /* Keep the selection for this session. */
             } navigateTo('story'); }} />}
             {view === 'drafts' && <StoryDraftsPage drafts={storyDrafts} onBack={() => goBack('story')} onResume={resumeStoryDraft} onDelete={deleteStoryDraft} />}
-            {view === 'addMoments' && <StoryAddPage step="moments" saveError={storySaveError} onBack={cancelStoryObservation} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
-            {view === 'addCompose' && <StoryAddPage step="compose" saveError={storySaveError} onBack={() => goBack('addMoments')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} onSave={saveStoryObservation} onEdit={() => navigateTo('addPreview')} />}
-            {view === 'addPreview' && <StoryAddPage step="preview" saveError={storySaveError} onBack={() => goBack('addCompose')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
-            {view === 'addSaved' && <StoryAddPage step="saved" saveError={storySaveError} onBack={() => goBack('addPreview')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
-            {view === 'overview' && <OverviewPage onBack={() => goBack('today')} onClip={() => navigateTo('clip')} saved={saved} onSaved={() => navigateTo('saved')} petName={petName}/>}
-            {view === 'clip' && <ClipPage onBack={() => goBack('overview')} onContext={() => navigateTo('context')}  petName={petName} ownerName={ownerName} />}
-            {view === 'context' && <ContextPage petName={petName} note={note} setNote={setNote} interpretation={interpretation} setInterpretation={setInterpretation} attachments={contextAttachments} setAttachments={setContextAttachments} onBack={() => goBack('clip')} onReview={() => navigateTo('confirm')} />}
-            {view === 'confirm' && <ConfirmPage note={note} interpretation={interpretation} attachments={contextAttachments} petName={petName} ownerName={ownerName} ownerRole={ownerRole} saveError={contextSaveError} onBack={() => goBack('context')} onSave={saveContext} />}
-            {view === 'saved' && saved && <SavedPage saved={saved} onBack={() => goBack('confirm')} onReturnToday={() => navigateTo('today')} onUndo={undoContext} onEvidence={() => navigateTo('clip')} onEdit={() => navigateTo('context')} petName={petName} ownerName={ownerName} />}
+            {view === 'addMoments' && <StoryAddPage step="moments" saveError={storySaveError} onBack={cancelStoryObservation} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
+            {view === 'addCompose' && <StoryAddPage step="compose" saveError={storySaveError} onBack={() => goBack('addMoments')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addPreview')} />}
+            {view === 'addPreview' && <StoryAddPage step="preview" saveError={storySaveError} onBack={() => goBack('addCompose')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
+            {view === 'addSaved' && <StoryAddPage step="saved" saveError={storySaveError} onBack={() => goBack('addPreview')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
+            {view === 'momentDetail' && <MomentDetailPage moment={selectedMoment} contexts={selectedMomentContexts} ownerName={ownerName} petName={petName} onBack={() => goBack('story')} onAddContext={() => startContextForMoment(selectedMoment.id)} onEditContext={(context) => startContextForMoment(selectedMoment.id, context)} onDeleteContext={deleteOwnerContext} />}
+            {view === 'overview' && <OverviewPage onBack={() => goBack('today')} onClip={() => { setSelectedMomentId('window'); navigateTo('clip'); }} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} onSaved={() => { const context = savedContexts.find((entry) => entry.momentId === 'window'); if (context) { setSelectedMomentId('window'); setLastSavedContextId(context.id); navigateTo('saved'); } }} petName={petName}/>}
+            {view === 'clip' && <ClipPage onBack={() => goBack('overview')} onContext={() => startContextForMoment('window')}  petName={petName} ownerName={ownerName} />}
+            {view === 'context' && <ContextPage moment={selectedMoment} petName={petName} note={note} setNote={setNote} interpretation={interpretation} setInterpretation={setInterpretation} attachments={contextAttachments} setAttachments={setContextAttachments} onBack={() => goBack('momentDetail')} onReview={() => navigateTo('confirm')} />}
+            {view === 'confirm' && <ConfirmPage moment={selectedMoment} note={note} interpretation={interpretation} attachments={contextAttachments} petName={petName} ownerName={ownerName} ownerRole={ownerRole} saveError={contextSaveError} onBack={() => goBack('context')} onSave={saveContext} />}
+            {view === 'saved' && lastSavedContext && <SavedPage saved={lastSavedContext} onBack={() => goBack('confirm')} onReturnStory={() => navigateTo('story')} onUndo={() => undoContext(lastSavedContext.id)} onEvidence={() => openMomentDetail(lastSavedContext.momentId)} onEdit={() => startContextForMoment(lastSavedContext.momentId, lastSavedContext)} petName={petName} ownerName={ownerName} />}
             {view === 'undone' && <UndonePage onBack={() => goBack('saved')} onReturnToday={() => navigateTo('today')} onReview={() => navigateTo('overview')} petName={petName} />}
-            {view === 'ask' && <AskPage onEvidence={() => navigateTo('overview')} onContext={() => navigateTo('context')} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} messages={askMessages} messageEndRef={askEndRef} />}
-            {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} onPetsNavigate={() => navigateTo('pets')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onAction={(title, detail) => setProfileAction({ title, detail })} careMembers={careMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} onPatternHistory={() => navigateTo('patternHistory')} onCareEvent={() => navigateTo('careEvent')} />}
-            {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} initialAvatar={petAvatar} initialBreed={petBreed} initialAge={petAge} onSaved={setPetName} onPetSaved={({ name, breed, age, avatar }) => { setPetName(name); setPetBreed(breed); setPetAge(age); setPetAvatar(avatar); setProfileSaveNotice('Pet details saved successfully'); }} onBack={() => goBack('pets')} />}
-            {view === 'profile' && <SettingsPage kind="profile" initialName={ownerName} initialAvatar={ownerAvatar} initialPreference={ownerPreference} onSaved={setOwnerName} onProfileSaved={({ name, avatar, preference }) => { setOwnerName(name); setOwnerAvatar(avatar); setOwnerPreference(preference); setProfileSaveNotice('Profile saved successfully'); }} onBack={() => goBack('you')} />}
+            {view === 'ask' && <AskPage onEvidence={() => navigateTo('overview')} onContext={() => startContextForMoment('window')} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} messages={askMessages} messageEndRef={askEndRef} hasDemoMoments={activePetRecord.hasDemoMoments} />}
+            {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerEmail={activeAccount.email} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} onPetsNavigate={() => navigateTo('pets')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={() => setShowPetSwitcher(true)} onAccountSwitcher={() => setShowAccountSwitcher(true)} onSignOut={() => setShowSignOutConfirm(true)} onAction={(title, detail) => setProfileAction({ title, detail })} careMembers={careMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} onPatternHistory={() => navigateTo('patternHistory')} onCareEvent={() => navigateTo('careEvent')} />}
+            {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} initialAvatar={petAvatar} initialBreed={petBreed} initialAge={petAge} onSaved={setPetName} onPetSaved={({ name, breed, age, avatar }) => { setPetName(name); setPetBreed(breed); setPetAge(age); setPetAvatar(avatar); updateActivePetRecord({ name, breed, age, avatar }); setProfileSaveNotice('Pet details saved successfully'); }} onBack={() => goBack('pets')} />}
+            {view === 'profile' && <SettingsPage kind="profile" initialName={ownerName} initialAvatar={ownerAvatar} initialPreference={ownerPreference} onSaved={setOwnerName} onProfileSaved={({ name, avatar, preference }) => { setOwnerName(name); setOwnerAvatar(avatar); setOwnerPreference(preference); updateActiveAccountRecord({ name, avatar, preference }); setProfileSaveNotice('Profile saved successfully'); }} onBack={() => goBack('you')} />}
             {view === 'memberDetails' && selectedCareMember && <CareMemberDetailsPage member={selectedCareMember} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} onOwnerRoleChange={updateOwnerRole} primaryMemberId={primaryMemberId} petName={petName} onBack={() => goBack('careMembers')} />}
             {(view === 'careMembers' ||
               view === 'patternHistory' ||
@@ -1609,6 +2309,10 @@ export default function App() {
         {view === 'story' && showStoryAddOptions && <div className="story-add-menu-backdrop" role="presentation" onClick={() => setShowStoryAddOptions(false)}><div className="story-add-choices" role="menu" aria-label="Add to Story" onClick={(event) => event.stopPropagation()}><button className="story-add-choice story-add-choice-new" role="menuitem" onClick={() => { setShowStoryAddOptions(false); startStoryObservation(); }}>New moment</button><button className="story-add-choice story-add-choice-drafts" role="menuitem" onClick={() => { setShowStoryAddOptions(false); navigateTo('drafts'); }}>Drafts{storyDrafts.length > 0 ? ` (${storyDrafts.length})` : ''}</button></div></div>}
         {view === 'ask' && <AskComposer value={askInput} onValue={(value) => { setAskInput(value); if (askSaveError) setAskSaveError(''); }} onSend={sendAskMessage} saveError={askSaveError} onQuickContext={(value) => { setAskSaveError(''); setAskInput((current) => current ? `${current} ${value}` : value); }} />}
         {profileAction && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setProfileAction(null)}><section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-dialog-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={() => setProfileAction(null)}>×</button><h2 id="profile-dialog-title">{profileAction.title}</h2><p>{profileAction.detail}</p><button className="primary-button" onClick={() => setProfileAction(null)}>Done</button></section></div>}
+        {showAccountSwitcher && <AccountSwitcher accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onClose={() => setShowAccountSwitcher(false)} onSwitch={switchAccount} onRegister={registerAccount} onRequestSignOut={() => { setShowAccountSwitcher(false); setShowSignOutConfirm(true); }} />}
+        {showPetSwitcher && <PetSwitcher pets={activeAccount.pets} activePetId={activePetRecord.id} onClose={() => setShowPetSwitcher(false)} onSwitch={switchPet} onAdd={addPet} onDelete={deletePet} />}
+        {showSignOutConfirm && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setShowSignOutConfirm(false)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="signout-title" onClick={(event) => event.stopPropagation()}><h2 id="signout-title">Sign out of Pawsona?</h2><p>Your accounts, pet profiles and prototype data will remain saved on this device.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setShowSignOutConfirm(false)}>Cancel</button><button className="danger-button" onClick={signOut}>Sign out</button></div></section></div>}
+        {accountActionError && <button className="account-error-toast" role="alert" onClick={() => setAccountActionError('')}>{accountActionError}<span>Dismiss</span></button>}
         {profileSaveNotice && <div className="profile-save-toast" role="status">{profileSaveNotice}</div>}
         {mainView && <BottomNav active={activeNav} onNavigate={navigate} />}
       </div>
