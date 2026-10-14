@@ -315,6 +315,14 @@ function StoryMediaView({ src, type, alt, controls = false }: { src: string; typ
     : <img src={src} alt={alt} />;
 }
 
+function LinkedEvidenceCard({ moment, petName, detail }: { moment: MomentRecord; petName: string; detail: string }) {
+  const hasMedia = Boolean(moment.image?.trim());
+  return <div className={`linked-evidence ${hasMedia ? '' : 'linked-evidence-text-only'}`}>
+    {hasMedia && <StoryMediaView src={moment.image} type={moment.mediaType} alt={`${petName} · ${moment.title}`} />}
+    <span><strong>{moment.title}</strong><small>{detail}</small></span>
+  </div>;
+}
+
 function OwnerAvatar({ src, name, className = '' }: { src: string; name: string; className?: string }) {
   return <span className={`member-avatar emily-avatar owner-avatar ${className}`}>{src ? <img src={src} alt="" /> : name.slice(0, 1).toUpperCase()}</span>;
 }
@@ -372,11 +380,10 @@ function BottomNav({ active, onNavigate }: { active: View; onNavigate: (view: Vi
   );
 }
 
-function StickyAction({ label, onClick, hint, disabled = false, className = '' }: { label: string; onClick: () => void; hint?: string; disabled?: boolean; className?: string }) {
+function StickyAction({ label, onClick, disabled = false, className = '' }: { label: string; onClick: () => void; disabled?: boolean; className?: string }) {
   return (
     <div className={`sticky-action ${className}`}>
       <button className="primary-button full" onClick={onClick} disabled={disabled}>{label}</button>
-      {hint && <p>{hint}</p>}
     </div>
   );
 }
@@ -798,7 +805,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
       {sourceTab !== 'Notes' && <label className="moment-choice add-device-choice"><input type="file" accept="image/*,video/*" onChange={(event) => { uploadMedia(event.target.files?.[0]); event.currentTarget.value = ''; }} /><span className="add-device-plus">＋</span><span>{uploadedSelected ? 'Replace photo or video' : 'Add photo or video'}</span></label>}
       {uploadError && <p className="upload-error" role="alert">{uploadError}</p>}
     </div>
-    <div className="sticky-action add-moment-sticky-action"><button className="primary-button full" onClick={onEdit} disabled={!selectedMoments.length}>{selectedMoments.length > 1 ? 'Continue with selected sources' : `Continue with this ${sourceTab === 'Notes' ? 'note' : sourceTab === 'Clips' ? 'clip' : 'moment'}`}</button><p>Each Story entry represents one distinct moment.</p></div>
+    <div className="sticky-action add-moment-sticky-action"><button className="primary-button full" onClick={onEdit} disabled={!selectedMoments.length}>{selectedMoments.length > 1 ? 'Continue with selected sources' : `Continue with this ${sourceTab === 'Notes' ? 'note' : sourceTab === 'Clips' ? 'clip' : 'moment'}`}</button></div>
   </div>;
 
   if (step === 'compose') return <div className="add-flow-page">
@@ -808,7 +815,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
     <label className="observation-title-field"><strong>Title</strong><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Add a title for this moment" maxLength={70} /></label>
     <section className="observation-writing-card"><strong>What happened with {petName}?</strong><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Describe what you noticed…" />{relatedPhotos.length > 0 && <div className="related-photos-strip">{relatedPhotos.map((media, index) => <div className={media.type.startsWith('audio/') ? 'audio-attachment-thumb' : ''} key={`${media.name}-${index}`}><StoryMediaView src={media.url} type={media.type} alt={media.name} controls={media.type.startsWith('audio/')} /><button type="button" aria-label={`Remove attachment ${index + 1}`} onClick={() => setRelatedPhotos(relatedPhotos.filter((_, mediaIndex) => mediaIndex !== index))}>×</button></div>)}</div>}{uploadError && <p className="upload-error" role="alert">{uploadError}</p>}<div className="observation-writing-tools">{!isWrittenObservation && <label aria-label="Add photos"><input type="file" accept="image/*" multiple onChange={(event) => { addRelatedPhotos(event.target.files); event.currentTarget.value = ''; }} /><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" /><circle cx="9" cy="9" r="1.5" /><path d="m5 17 5-5 3 3 2-2 5 5" /></svg></label>}<label aria-label="Add a voice note"><input type="file" accept="audio/*" capture onChange={(event) => { addRelatedPhotos(event.target.files); event.currentTarget.value = ''; }} /><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8" /></svg></label><span className="observation-attachment-hint">{isWrittenObservation ? 'You can add a voice note too.' : 'You can add more photos or voice notes too.'}</span></div></section>
     <section className="add-context-choices"><strong>Add context</strong><div>{['Visitors at home', 'Routine changed', 'Not sure yet'].map((item) => <button key={item} className={context === item ? 'active' : ''} onClick={() => setContext(context === item ? '' : item)}>{item}</button>)}</div></section>
-    <div className="sticky-action"><button className="primary-button full" onClick={onEdit} disabled={!note.trim()}>Preview observation</button><p>Your note is shown as your own words.</p></div>
+    <div className="sticky-action"><button className="primary-button full" onClick={onEdit} disabled={!note.trim()}>Preview observation</button></div>
   </div>;
 
   if (step === 'preview') return <div className="add-flow-page">
@@ -816,7 +823,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
     <article className={`observation-preview-card ${!hasVisual ? 'note-observation-preview' : ''}`}>{hasVisual ? <StoryMediaView src={image} type={mediaType} alt={petName} controls={mediaType?.startsWith('video/')} /> : <div className="observation-note-visual"><strong>A note from {ownerName}</strong><p>{note || 'A moment with ' + petName + '.'}</p></div>}{relatedPhotos.length > 0 && <div className="preview-related-photos">{relatedPhotos.map((media, index) => <StoryMediaView key={`${media.name}-${index}`} src={media.url} type={media.type} alt={`Related attachment ${index + 1}`} controls={media.type.startsWith('audio/')} />)}</div>}<div className="observation-preview-copy"><small>{petName} · Today</small><strong>{observationTitle}</strong><p>{note || 'A moment with ' + petName + '.'}</p>{selectedNotes.length > 0 && <div className="preview-source-notes"><strong>Saved note sources</strong>{selectedNotes.map((entry) => <span key={entry.id}>{entry.text}<small>{entry.label}</small></span>)}</div>}<div>{selectedMoments.length} selected {selectedMoments.length === 1 ? 'source' : 'sources'} · {hasVisual ? 'owner observation' : `Written observation · ${ownerName}`}</div><span>Owner-provided context{context ? ` · ${context}` : ''}</span></div></article>
     <section className="observation-destination"><strong>Where this goes</strong><button className={!privateRecord ? 'selected' : ''} onClick={() => setPrivateRecord(false)}><span className="destination-radio">{!privateRecord && <i />}</span>Add to {petName}'s Story</button><button className={privateRecord ? 'selected' : ''} onClick={() => setPrivateRecord(true)}><span className="destination-radio">{privateRecord && <i />}</span>Keep as a private record</button><small>{privateRecord ? 'Only you can see this record until you choose to share it.' : 'You choose which sources and words are saved.'}</small></section>
     {saveError && <p className="inline-save-error" role="alert">{saveError}</p>}
-    <div className="sticky-action"><button className="primary-button full" onClick={onSave}>{privateRecord ? 'Save private note' : 'Save observation'}</button>{!privateRecord && <p>Nothing updates {petName}'s baseline automatically.</p>}</div>
+    <div className="sticky-action"><button className="primary-button full" onClick={onSave}>{privateRecord ? 'Save private note' : 'Save observation'}</button></div>
   </div>;
 
   return <div className="add-flow-page">
@@ -824,7 +831,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
     <section className="observation-saved-banner"><strong>✓ &nbsp;{privateRecord ? 'Your private note is saved' : 'Your observation is saved'}</strong><span>{privateRecord ? `Visible only to you · Added by ${ownerName}` : `Added by ${ownerName}`} · Today</span></section>
     <article className="observation-preview-card saved-observation-card">{latestHasVisual ? <StoryMediaView src={image} type={mediaType} alt={petName} controls={mediaType?.startsWith('video/')} /> : <div className="observation-note-visual"><strong>A note from {ownerName}</strong><p>{observationText || 'A moment with ' + petName + '.'}</p></div>}{latest?.relatedPhotos && latest.relatedPhotos.length > 0 && <div className="preview-related-photos">{latest.relatedPhotos.map((media, index) => <StoryMediaView key={`${media.name}-${index}`} src={media.url} type={media.type} alt={`Related attachment ${index + 1}`} controls={media.type.startsWith('audio/')} />)}</div>}<div className="observation-preview-copy"><strong>{observationTitle}</strong><p>{observationText || 'A moment with ' + petName + '.'}</p>{savedSourceNotes.length > 0 && <div className="preview-source-notes"><strong>Saved note sources</strong>{savedSourceNotes.map((entry) => <span key={entry.id}>{entry.text}<small>{entry.label}</small></span>)}</div>}<div>{(latest?.momentCount ?? selectedMoments.length) === 0 ? `Written observation · ${ownerName}` : `${latest?.momentCount ?? selectedMoments.length} selected ${(latest?.momentCount ?? selectedMoments.length) === 1 ? 'source' : 'sources'} · owner observation`}</div><span>{privateRecord ? 'Private record · not in ' + petName + '’s Story' : `Owner-provided context${latest?.context ? ` · ${latest.context}` : ''}`}</span></div></article>
     <div className="saved-observation-links"><button className="text-link" onClick={onEdit}>Edit observation</button></div>
-    <div className="sticky-action"><button className="primary-button full" onClick={onCancel}>{privateRecord ? 'Return to Today' : 'View in Story'}</button><p>You can edit or remove this observation later.</p></div>
+    <div className="sticky-action"><button className="primary-button full" onClick={onCancel}>{privateRecord ? 'Return to Today' : 'View in Story'}</button></div>
   </div>;
 }
 
@@ -859,7 +866,7 @@ function MomentDetailPage({ moment, contexts, ownerName, ownerAvatar, petName, o
         <div className="section-heading"><h2>Owner context</h2>{contexts.length > 0 && <span>{contexts.length} saved</span>}</div>
         {contexts.length ? <div className="moment-context-list">{contexts.map((context) => <article className="detail-card moment-context-card" key={context.id}><div className="moment-context-head"><div className="moment-context-author"><OwnerAvatar src={ownerAvatar} name={ownerName} className="moment-context-avatar" /><span><strong>{ownerName}</strong><small>{formatObservationTime(context.savedAt).replace('\n', ' · ')}</small></span></div><span className={`context-kind-tag ${context.interpretation}`}>{interpretationLabels[context.interpretation]}</span></div><p>{context.note}</p><ContextAttachmentList attachments={context.attachments ?? []} /><div className="moment-context-actions"><button className="text-link" onClick={() => onEditContext(context)}>Edit</button><button className="moment-context-delete" onClick={() => { setDeleteError(''); setPendingDelete(context); }}>Delete</button></div></article>)}</div> : <div className="empty-context-state"><strong>No context has been added</strong><p>Add what was happening around this specific moment. It will stay attached here.</p></div>}
       </section>
-      <StickyAction className="moment-detail-action" label="Add context to this moment" onClick={onAddContext} hint={`Context will be linked only to “${moment.title}”.`} />
+      <StickyAction className="moment-detail-action" label="Add context to this moment" onClick={onAddContext} />
       {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={closeDeleteDialog}><section className="profile-dialog context-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-context-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-context-title">Delete this context?</h2><p>This removes the owner context from “{moment.title}”. This action cannot be undone.</p>{deleteError && <p className="inline-save-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={closeDeleteDialog}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete context</button></div></section></div>}
     </>
   );
@@ -878,7 +885,7 @@ function OverviewPage({ onBack, onClip, petName, saved, onSaved }: { onBack: () 
         <button className="evidence-tile" onClick={onClip}><img src={asset('overview-window.png')} alt={`${petName} resting by the window`} /><span><strong>Window rest</strong><small>{formatShortDate()} · clip</small></span></button>
         <button className="evidence-tile" onClick={onClip}><img src={asset('overview-rest.png')} alt={`${petName} resting in another selected clip`} /><span><strong>Another rest</strong><small>Recent day · clip</small></span></button>
       </div>
-      <StickyAction label="See supporting moments" onClick={onClip} hint="This is a comparison, not a cause or diagnosis." />
+      <StickyAction label="See supporting moments" onClick={onClip} />
     </>
   );
 }
@@ -896,7 +903,7 @@ function ClipPage({ onBack, onContext, petName, ownerName}: { onBack: () => void
       <section className="detail-card"><strong>From the home camera</strong><p>{formatShortDate()} · 11:35 AM–11:36 AM</p></section>
       <section className="detail-card warm"><strong>What the clip shows</strong><p>{petName} rested beside the window during this recorded moment.</p></section>
       <section className="detail-card"><strong>{ownerName}’s note · today</strong><p>“Visitors were at home.” This is owner context, not an AI conclusion.</p></section>
-      <StickyAction label="Add your context" onClick={onContext} hint="Your words will stay separate from the clip." />
+      <StickyAction label="Add your context" onClick={onContext} />
     </>
   );
 }
@@ -948,11 +955,11 @@ function ContextPage({ moment, note, setNote, interpretation, setInterpretation,
   return (
     <>
       <DetailHeader title="Add context" eyebrow="YOUR WORDS · OWNER INPUT" onBack={onBack} />
-      <div className="linked-evidence"><StoryMediaView src={moment.image} type={moment.mediaType} alt={`${petName} · ${moment.title}`} /><span><strong>{moment.title}</strong><small>{moment.time} · one moment</small></span></div>
+      <LinkedEvidenceCard moment={moment} petName={petName} detail={`${moment.time} · one moment`} />
       <h2 className="question-heading">What else was happening?</h2>
       <div className={`writing-field ${attachments.length ? 'has-attachments' : ''}`}><textarea aria-label={`Your context for ${petName}’s ${moment.title}`} value={note} onChange={(event) => setNote(event.target.value)} placeholder={`What was happening around ${moment.title.toLowerCase()}?`} maxLength={500} /><ContextAttachmentList attachments={attachments} onRemove={(kind) => setAttachments(attachments.filter((attachment) => attachment.kind !== kind))} /><div className="context-attachment-tools"><label><input type="file" accept="image/*" aria-label="Add photo" onChange={(event) => { attachFile(event.target.files?.[0], 'photo'); event.currentTarget.value = ''; }} /><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" /><circle cx="9" cy="9" r="1.5" /><path d="m5 17 5-5 3 3 2-2 5 5" /></svg></label><label><input type="file" accept="audio/*" capture aria-label="Add voice note" onChange={(event) => { attachFile(event.target.files?.[0], 'voice'); event.currentTarget.value = ''; }} /><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8" /></svg></label></div>{attachmentError && <p className="context-attachment-error" role="alert">{attachmentError}</p>}</div>
       <fieldset className="choice-card"><legend>How should Pawsona treat this?</legend>{(Object.keys(interpretationLabels) as Interpretation[]).map((value) => <label key={value}><input type="radio" name="interpretation" value={value} checked={interpretation === value} onChange={() => setInterpretation(value)} />{interpretationLabels[value]}</label>)}</fieldset>
-      <StickyAction label="Review what will be saved" onClick={onReview} disabled={!note.trim()} hint="You can leave this pattern open." />
+      <StickyAction label="Review what will be saved" onClick={onReview} disabled={!note.trim()} />
     </>
   );
 }
@@ -962,7 +969,7 @@ function ConfirmPage({ moment, note, interpretation, attachments, petName, owner
     <>
       <DetailHeader title="Confirm" eyebrow="REVIEW BEFORE SAVING" onBack={onBack} />
       <section className="confirm-card"><small>OWNER CORRECTION</small><h2>{interpretationLabels[interpretation]}</h2><p>“{note}”</p><span>{ownerName} · {ownerRole} · Today</span></section>
-      <div className="linked-evidence"><StoryMediaView src={moment.image} type={moment.mediaType} alt={`${petName} · ${moment.title}`} /><span><strong>{moment.title}</strong><small>1 linked moment{attachments.length ? ` + ${attachments.length} ${attachments.length === 1 ? 'attachment' : 'attachments'}` : ''}</small></span></div>
+      <LinkedEvidenceCard moment={moment} petName={petName} detail={`1 linked moment${attachments.length ? ` + ${attachments.length} ${attachments.length === 1 ? 'attachment' : 'attachments'}` : ''}`} />
       <ContextAttachmentList attachments={attachments} />
       <section className="detail-card effects-card"><strong>After you save</strong><p>✓ &nbsp;Your context stays attributed to you</p><p>✓ &nbsp;The original observations stay available</p><p>○ &nbsp;Baseline is not changed automatically</p></section>
       <button className="text-link standalone" onClick={onBack}>Edit words or choice</button>
