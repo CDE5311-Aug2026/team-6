@@ -45,10 +45,14 @@ type OwnerContext = {
   note: string;
   interpretation: Interpretation;
   savedAt: string;
+  authorId?: string;
+  authorName?: string;
+  authorAvatar?: string;
   attachments?: ContextAttachment[];
 };
 
-type CareMember = { id: string; name: string; role: string; detail: string };
+type CareMember = { id: string; name: string; role: string; detail: string; email?: string; access?: 'editor' | 'viewer' };
+type CareInvitation = { id: string; groupId: string; ownerAccountId: string; ownerName: string; petId: string; petName: string; petBreed: string; petAge: string; petAvatar: string; petSpecies?: 'Dog' | 'Cat'; email: string; recipientAccountId?: string; role: 'Caregiver' | 'Viewer'; status: 'pending' | 'accepted' | 'declined' | 'cancelled'; createdAt: string };
 
 type CareEvent = {
   type: string;
@@ -90,6 +94,19 @@ type LifeCareEvent = {
 const mediaSourcesKey = 'pawsona-media-sources-v1';
 const typicalPatternsKey = 'pawsona-typical-patterns-v1';
 const lifeCareEventsKey = 'pawsona-life-care-events-v1';
+const careInvitationsKey = 'pawsona-care-invitations-v1';
+
+function readCareInvitations(): CareInvitation[] {
+  try {
+    const value = localStorage.getItem(careInvitationsKey);
+    const parsed: unknown = value ? JSON.parse(value) : [];
+    return Array.isArray(parsed) ? parsed as CareInvitation[] : [];
+  } catch { return []; }
+}
+
+function saveCareInvitations(invites: CareInvitation[]) {
+  try { localStorage.setItem(careInvitationsKey, JSON.stringify(invites)); } catch { /* Keep invitations for this session. */ }
+}
 
 function defaultMediaSources(hasDemoData: boolean): MediaSource[] {
   return [
@@ -185,11 +202,12 @@ function saveCareMembersToStorage(members: CareMember[]) {
 }
 type StoryMedia = { name: string; type: string; url: string };
 type StorySourceNote = { id: string; text: string; label: string };
-type StoryObservation = { id: string; note: string; title: string; image: string; mediaType?: string; relatedPhotos?: StoryMedia[]; momentCount: number; momentIds?: string[]; sourceNotes?: StorySourceNote[]; context: string; privateRecord: boolean; savedAt: string };
+type StoryObservation = { id: string; note: string; title: string; image: string; mediaType?: string; relatedPhotos?: StoryMedia[]; momentCount: number; momentIds?: string[]; sourceNotes?: StorySourceNote[]; context: string; privateRecord: boolean; savedAt: string; authorId?: string; authorName?: string; authorAvatar?: string };
 type StoryDraft = { id: string; selectedMoments: string[]; note: string; title?: string; momentAt?: string; relatedPhotos?: StoryMedia[]; context: string; savedAt: string; privateRecord?: boolean; uploadedMedia?: StoryMedia };
 type AskAttachment = { url: string; name: string; kind: 'image' | 'audio'; type: string };
 type AskMessage = { role: 'user' | 'assistant'; text: string; attachment?: AskAttachment };
 type PetWorkspace = {
+  groupName: string;
   contexts: OwnerContext[];
   observations: StoryObservation[];
   drafts: StoryDraft[];
@@ -205,9 +223,12 @@ type PrototypePet = {
   id: string;
   name: string;
   breed: string;
+  species?: 'Dog' | 'Cat';
   age: string;
   avatar: string;
   hasDemoMoments: boolean;
+  sharedGroupId?: string;
+  sharedOwnerAccountId?: string;
   workspace: PetWorkspace;
 };
 type PrototypeAccount = {
@@ -357,6 +378,9 @@ function readSavedContexts(): OwnerContext[] {
         note: entry.note,
         interpretation: entry.interpretation,
         savedAt: typeof saved.savedAt === 'string' ? saved.savedAt : new Date().toISOString(),
+        authorId: typeof saved.authorId === 'string' ? saved.authorId : undefined,
+        authorName: typeof saved.authorName === 'string' ? saved.authorName : undefined,
+        authorAvatar: typeof saved.authorAvatar === 'string' ? saved.authorAvatar : undefined,
         attachments: Array.isArray(saved.attachments) ? saved.attachments : [],
       }];
     });
@@ -546,19 +570,16 @@ function StoryTimelineRow({ item, showTime = true, menuOpen, onMenuToggle, onVie
       </button>
       {item.contexts && item.contexts.length > 0 && <TimelineContextTicker contexts={item.contexts} />}
       <button className="timeline-more" aria-label={`More actions for ${item.title}`} aria-haspopup="menu" aria-expanded={menuOpen} onClick={onMenuToggle}>···</button>
-      {menuOpen && <div className="timeline-action-menu" role="menu"><button role="menuitem" onClick={onView}>View details</button><button role="menuitem" onClick={onEdit}>Edit</button><button className="danger-menu-item" role="menuitem" onClick={onDelete}>Delete</button></div>}
+      {menuOpen && <div className="timeline-action-menu" role="menu"><button role="menuitem" onClick={onEdit}>Edit</button><button className="danger-menu-item" role="menuitem" onClick={onDelete}>Delete</button></div>}
     </div>
   </div>;
 }
 
-function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPetsNavigate, petName, petAvatar, ownerName, contexts, observations, includedMoments, hasDemoMoments }: { onMoment: (momentId: string) => void; onEditStory: () => void; onEditMoment: (item: StoryTimelineItem) => void; onDeleteMoment: (momentId: string) => string; onPetsNavigate: () => void; petName: string; petAvatar: string; ownerName: string; contexts: OwnerContext[]; observations: StoryObservation[]; includedMoments: string[] | null; hasDemoMoments: boolean }) {
+function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPetsNavigate, petName, petAvatar, ownerName, accounts, contexts, observations, includedMoments, hasDemoMoments }: { onMoment: (momentId: string) => void; onEditStory: () => void; onEditMoment: (item: StoryTimelineItem) => void; onDeleteMoment: (momentId: string) => string; onPetsNavigate: () => void; petName: string; petAvatar: string; ownerName: string; accounts: PrototypeAccount[]; contexts: OwnerContext[]; observations: StoryObservation[]; includedMoments: string[] | null; hasDemoMoments: boolean }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<StoryTimelineItem | null>(null);
   const [deleteError, setDeleteError] = useState('');
-  const getTimelineContexts = (momentId: string, observationContext = '') => [
-    ...contexts.filter((entry) => entry.momentId === momentId).map((entry) => ({ author: ownerName, text: entry.note })),
-    ...(observationContext.trim() ? [{ author: ownerName, text: observationContext.trim() }] : []),
-  ];
+  const getTimelineContexts = (momentId: string) => contexts.filter((entry) => entry.momentId === momentId).map((entry) => ({ author: (entry.authorId && accounts.find((account) => account.id === entry.authorId)?.name) || entry.authorName || ownerName, text: entry.note }));
   const moments = (hasDemoMoments ? baseMomentDefinitions : []).map((moment) => ({
     id: moment.id,
     time: moment.time,
@@ -582,10 +603,10 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
       )
   );
   const todayTimelineItems = [
-    ...todayObservations.map((observation) => ({ id: observation.id, time: formatObservationTime(observation.savedAt), title: observation.title, note: observation.note, image: observationHasPrimaryMedia(observation) ? observation.image : '', mediaType: observation.mediaType, contexts: getTimelineContexts(observation.id, observation.context) })),
+    ...todayObservations.map((observation) => ({ id: observation.id, time: formatObservationTime(observation.savedAt), title: observation.title, note: observation.note, image: observationHasPrimaryMedia(observation) ? observation.image : '', mediaType: observation.mediaType, contexts: getTimelineContexts(observation.id) })),
     ...visibleMoments,
   ];
-  const earlierTimelineItems = earlierObservations.map((observation) => ({ id: observation.id, time: formatObservationTime(observation.savedAt), title: observation.title, note: observation.note, image: observationHasPrimaryMedia(observation) ? observation.image : '', mediaType: observation.mediaType, contexts: getTimelineContexts(observation.id, observation.context) }));
+  const earlierTimelineItems = earlierObservations.map((observation) => ({ id: observation.id, time: formatObservationTime(observation.savedAt), title: observation.title, note: observation.note, image: observationHasPrimaryMedia(observation) ? observation.image : '', mediaType: observation.mediaType, contexts: getTimelineContexts(observation.id) }));
 
   const totalMomentCount =
     todayObservations.length + visibleMoments.length;
@@ -906,7 +927,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   </div>;
 }
 
-function MomentDetailPage({ moment, contexts, ownerName, ownerAvatar, petName, onBack, onAddContext, onEditContext, onDeleteContext }: { moment: MomentRecord; contexts: OwnerContext[]; ownerName: string; ownerAvatar: string; petName: string; onBack: () => void; onAddContext: () => void; onEditContext: (context: OwnerContext) => void; onDeleteContext: (id: string) => boolean }) {
+function MomentDetailPage({ moment, contexts, accounts, ownerName, ownerAvatar, currentAccountId, groupOwnerAccountId, petName, onBack, onAddContext, onEditContext, onDeleteContext }: { moment: MomentRecord; contexts: OwnerContext[]; accounts: PrototypeAccount[]; ownerName: string; ownerAvatar: string; currentAccountId: string; groupOwnerAccountId?: string; petName: string; onBack: () => void; onAddContext: () => void; onEditContext: (context: OwnerContext) => void; onDeleteContext: (id: string) => boolean }) {
   const [pendingDelete, setPendingDelete] = useState<OwnerContext | null>(null);
   const [deleteError, setDeleteError] = useState('');
 
@@ -935,7 +956,7 @@ function MomentDetailPage({ moment, contexts, ownerName, ownerAvatar, petName, o
       {moment.observationContext && <section className="observation-context-summary"><strong>Context saved with this observation</strong><span>{moment.observationContext}</span></section>}
       <section className="moment-context-section">
         <div className="section-heading"><h2>Owner context</h2>{contexts.length > 0 && <span>{contexts.length} saved</span>}</div>
-        {contexts.length ? <div className="moment-context-list">{contexts.map((context) => <article className="detail-card moment-context-card" key={context.id}><div className="moment-context-head"><div className="moment-context-author"><OwnerAvatar src={ownerAvatar} name={ownerName} className="moment-context-avatar" /><span><strong>{ownerName}</strong><small>{formatObservationTime(context.savedAt).replace('\n', ' · ')}</small></span></div><span className={`context-kind-tag ${context.interpretation}`}>{interpretationLabels[context.interpretation]}</span></div><p>{context.note}</p><ContextAttachmentList attachments={context.attachments ?? []} /><div className="moment-context-actions"><button className="text-link" onClick={() => onEditContext(context)}>Edit</button><button className="moment-context-delete" onClick={() => { setDeleteError(''); setPendingDelete(context); }}>Delete</button></div></article>)}</div> : <div className="empty-context-state"><strong>No context has been added</strong><p>Add what was happening around this specific moment. It will stay attached here.</p></div>}
+        {contexts.length ? <div className="moment-context-list">{contexts.map((context) => { const authorAccount = context.authorId ? accounts.find((account) => account.id === context.authorId) : undefined; const authorName = authorAccount?.name ?? context.authorName ?? ownerName; const authorAvatar = authorAccount ? authorAccount.avatar : context.authorAvatar ?? (context.authorId ? '' : ownerAvatar); const isAuthor = context.authorId ? context.authorId === currentAccountId : (!groupOwnerAccountId || groupOwnerAccountId === currentAccountId); const canDelete = isAuthor || (!!groupOwnerAccountId && currentAccountId === groupOwnerAccountId); return <article className="detail-card moment-context-card" key={context.id}><div className="moment-context-head"><div className="moment-context-author"><OwnerAvatar src={authorAvatar} name={authorName} className="moment-context-avatar" /><span><strong>{authorName}</strong><small>{formatObservationTime(context.savedAt).replace('\n', ' · ')}</small></span></div><span className={`context-kind-tag ${context.interpretation}`}>{interpretationLabels[context.interpretation]}</span></div><p>{context.note}</p><ContextAttachmentList attachments={context.attachments ?? []} />{(isAuthor || canDelete) && <div className="moment-context-actions">{isAuthor && <button className="text-link" onClick={() => onEditContext(context)}>Edit</button>}{canDelete && <button className="moment-context-delete" onClick={() => { setDeleteError(''); setPendingDelete(context); }}>Delete</button>}</div>}</article>; })}</div> : <div className="empty-context-state"><strong>No context has been added</strong><p>Add what was happening around this specific moment. It will stay attached here.</p></div>}
       </section>
       <StickyAction className="moment-detail-action" label="Add context to this moment" onClick={onAddContext} />
       {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={closeDeleteDialog}><section className="profile-dialog context-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-context-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-context-title">Delete this context?</h2><p>This removes the owner context from “{moment.title}”. This action cannot be undone.</p>{deleteError && <p className="inline-save-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={closeDeleteDialog}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete context</button></div></section></div>}
@@ -1102,15 +1123,16 @@ function readAskMessages(): AskMessage[] {
 const prototypeSessionKey = 'pawsona-prototype-session-v1';
 
 function defaultCareMembers(ownerName: string): CareMember[] {
-  return [
-    { id: 'emily', name: ownerName, role: 'Primary owner', detail: 'manages the profile' },
-    { id: 'mom', name: 'Mom', role: 'Caregiver', detail: 'can add observations' },
-    { id: 'dad', name: 'Dad', role: 'Caregiver', detail: 'can add observations' },
-  ];
+  return [{ id: 'emily', name: ownerName, role: 'Primary owner', detail: 'manages the profile' }];
+}
+
+function withoutExampleCareMembers(members: CareMember[]): CareMember[] {
+  return members.filter((member) => !((member.id === 'mom' && member.name === 'Mom') || (member.id === 'dad' && member.name === 'Dad')));
 }
 
 function emptyPetWorkspace(ownerName: string): PetWorkspace {
   return {
+    groupName: 'Care circle',
     contexts: [],
     observations: [],
     drafts: [],
@@ -1126,12 +1148,13 @@ function emptyPetWorkspace(ownerName: string): PetWorkspace {
 
 function currentLegacyWorkspace(ownerName: string): PetWorkspace {
   return {
+    groupName: 'Care circle',
     contexts: readSavedContexts(),
     observations: readStoryObservations(),
     drafts: readStoryDrafts(),
     visibility: readStoryVisibility(),
     askMessages: readAskMessages(),
-    careMembers: readCareMembers() ?? defaultCareMembers(ownerName),
+    careMembers: withoutExampleCareMembers(readCareMembers() ?? defaultCareMembers(ownerName)),
     careEvent: readCareEvent(),
     mediaSources: readMediaSources(true),
     patterns: readTypicalPatterns(ownerName, true),
@@ -1144,12 +1167,13 @@ function normalizeWorkspace(value: unknown, ownerName: string, hasDemoData: bool
   if (typeof value !== 'object' || value === null) return fallback;
   const workspace = value as Partial<PetWorkspace>;
   return {
+    groupName: typeof workspace.groupName === 'string' && workspace.groupName.trim() ? workspace.groupName : 'Care circle',
     contexts: Array.isArray(workspace.contexts) ? workspace.contexts : [],
     observations: Array.isArray(workspace.observations) ? workspace.observations : [],
     drafts: Array.isArray(workspace.drafts) ? workspace.drafts : [],
     visibility: workspace.visibility === null || (Array.isArray(workspace.visibility) && workspace.visibility.every((id) => typeof id === 'string')) ? workspace.visibility : null,
     askMessages: Array.isArray(workspace.askMessages) ? workspace.askMessages : [],
-    careMembers: Array.isArray(workspace.careMembers) ? workspace.careMembers : fallback.careMembers,
+    careMembers: Array.isArray(workspace.careMembers) ? withoutExampleCareMembers(workspace.careMembers) : fallback.careMembers,
     careEvent: typeof workspace.careEvent === 'object' ? workspace.careEvent ?? null : null,
     mediaSources: Array.isArray(workspace.mediaSources) ? workspace.mediaSources : defaultMediaSources(hasDemoData),
     patterns: Array.isArray(workspace.patterns) ? workspace.patterns : defaultTypicalPatterns(ownerName, hasDemoData),
@@ -1205,9 +1229,12 @@ function readPrototypeSession(): PrototypeSession {
           id: pet.id,
           name: pet.name,
           breed: typeof pet.breed === 'string' ? pet.breed : 'Mixed breed',
+          species: (pet.species === 'Cat' ? 'Cat' : 'Dog') as 'Dog' | 'Cat',
           age: typeof pet.age === 'string' ? pet.age : '1',
           avatar: typeof pet.avatar === 'string' ? pet.avatar : '',
           hasDemoMoments,
+          sharedGroupId: typeof pet.sharedGroupId === 'string' ? pet.sharedGroupId : undefined,
+          sharedOwnerAccountId: typeof pet.sharedOwnerAccountId === 'string' ? pet.sharedOwnerAccountId : undefined,
           workspace: normalizeWorkspace(pet.workspace, accountName, hasDemoMoments),
         }];
       });
@@ -1482,17 +1509,19 @@ function AccountSwitcher({ accounts, activeAccountId, onClose, onSwitch, onRegis
   return <div className="profile-dialog-backdrop" role="presentation" onClick={onClose}><section className="profile-dialog switcher-dialog" role="dialog" aria-modal="true" aria-labelledby="account-switcher-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={onClose}>×</button><h2 id="account-switcher-title">Accounts</h2><p>Switching accounts also switches its saved pet spaces.</p><div className="switcher-list">{accounts.map((account) => <button key={account.id} className={account.id === activeAccountId ? 'selected' : ''} onClick={() => { if (account.id !== activeAccountId) onSwitch(account.id); onClose(); }}><OwnerAvatar src={account.avatar} name={account.name} /><span><strong>{account.name}</strong><small>{account.email}</small></span><em>{account.id === activeAccountId ? 'Current' : 'Switch'}</em></button>)}</div>{creating ? <form className="switcher-form" onSubmit={register}><label><span>Your name</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label><label><span>Email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label><label><span>First pet</span><input value={petName} onChange={(event) => setPetName(event.target.value)} /></label>{error && <p className="account-form-error" role="alert">{error}</p>}<div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => { setCreating(false); setError(''); }}>Cancel</button><button className="primary-button" disabled={!name.trim() || !email.trim() || !petName.trim()}>Create</button></div></form> : <><button className="cancel-button full" onClick={() => setCreating(true)}>Create another account</button><button className="account-signout-link" onClick={onRequestSignOut}>Sign out of this account</button></>}</section></div>;
 }
 
-function PetSwitcher({ pets, activePetId, onClose, onSwitch, onAdd, onDelete }: { pets: PrototypePet[]; activePetId: string; onClose: () => void; onSwitch: (id: string) => void; onAdd: (name: string, breed: string, age: string) => string; onDelete: (id: string) => string }) {
+function PetSwitcher({ pets, activePetId, onClose, onSwitch, onAdd, onDelete }: { pets: PrototypePet[]; activePetId: string; onClose: () => void; onSwitch: (id: string) => void; onAdd: (name: string, breed: string, age: string, species: 'Dog' | 'Cat', avatar: string) => string; onDelete: (id: string) => string }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [breed, setBreed] = useState('');
+  const [species, setSpecies] = useState<'Dog' | 'Cat'>('Dog');
+  const [avatar, setAvatar] = useState('');
   const [age, setAge] = useState('1');
   const [error, setError] = useState('');
   const [pendingDelete, setPendingDelete] = useState<PrototypePet | null>(null);
 
   function add(event: FormEvent) {
     event.preventDefault();
-    const nextError = onAdd(name.trim(), breed.trim(), age.trim());
+    const nextError = onAdd(name.trim(), breed.trim(), age.trim(), species, avatar);
     setError(nextError);
     if (!nextError) onClose();
   }
@@ -1505,11 +1534,29 @@ function PetSwitcher({ pets, activePetId, onClose, onSwitch, onAdd, onDelete }: 
     setPendingDelete(null);
   }
 
-  return <div className="profile-dialog-backdrop" role="presentation" onClick={onClose}><section className="profile-dialog switcher-dialog" role="dialog" aria-modal="true" aria-labelledby="pet-switcher-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={onClose}>×</button><h2 id="pet-switcher-title">Pet profiles</h2><p>Choose which pet’s Today, Story and context you want to view.</p><div className="switcher-list pet-switcher-list">{pets.map((pet) => <div key={pet.id} className={`pet-switcher-row ${pet.id === activePetId ? 'selected' : ''}`}><button className="pet-switcher-choice" onClick={() => { if (pet.id !== activePetId) onSwitch(pet.id); onClose(); }}><Avatar name={pet.name} src={pet.avatar} /><span><strong>{pet.name}</strong><small>{pet.breed} · {formatPetAge(pet.age)}</small></span><em>{pet.id === activePetId ? 'Current' : 'Switch'}</em></button><button className="pet-profile-delete" disabled={pets.length === 1} aria-label={pets.length === 1 ? `${pet.name} is the only pet and cannot be deleted` : `Delete ${pet.name}`} title={pets.length === 1 ? 'Add another pet before deleting this one' : `Delete ${pet.name}`} onClick={() => { setError(''); setPendingDelete(pet); }}>Delete</button></div>)}</div>{pets.length === 1 && <p className="pet-delete-help">Add another pet before deleting this profile.</p>}{error && !adding && <p className="account-form-error" role="alert">{error}</p>}{adding ? <form className="switcher-form" onSubmit={add}><label><span>Pet name</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label><label><span>Breed</span><input value={breed} onChange={(event) => setBreed(event.target.value)} placeholder="Mixed breed" /></label><label><span>Age</span><input type="number" min="0" max="40" value={age} onChange={(event) => setAge(event.target.value)} /></label>{error && <p className="account-form-error" role="alert">{error}</p>}<div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => { setAdding(false); setError(''); }}>Cancel</button><button className="primary-button" disabled={!name.trim() || !breed.trim() || !age.trim()}>Add pet</button></div></form> : <button className="cancel-button full" onClick={() => setAdding(true)}>Add another pet</button>}{pendingDelete && <div className="nested-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog pet-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-pet-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-pet-title">Delete {pendingDelete.name}?</h2><p>This permanently removes this pet profile and its timeline, Story, context and Ask AI history from this device. Other pets will not be changed.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete pet</button></div></section></div>}</section></div>;
+  function readPetAvatar(file?: File) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') return;
+      const image = new Image();
+      image.onload = () => {
+        const scale = Math.min(1, 512 / Math.max(image.naturalWidth, image.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height);
+        setAvatar(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return <div className="profile-dialog-backdrop" role="presentation" onClick={onClose}><section className="profile-dialog switcher-dialog" role="dialog" aria-modal="true" aria-labelledby="pet-switcher-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={onClose}>×</button><h2 id="pet-switcher-title">Pet profiles</h2><p>Choose which pet’s Today, Story and context you want to view.</p><div className="switcher-list pet-switcher-list">{pets.map((pet) => <div key={pet.id} className={`pet-switcher-row ${pet.id === activePetId ? 'selected' : ''}`}><button className="pet-switcher-choice" onClick={() => { if (pet.id !== activePetId) onSwitch(pet.id); onClose(); }}><Avatar name={pet.name} src={pet.avatar} /><span><strong>{pet.name}</strong><small>{pet.breed} · {formatPetAge(pet.age)}</small></span><em>{pet.id === activePetId ? 'Current' : 'Switch'}</em></button><button className="pet-profile-delete" disabled={pets.length === 1} aria-label={pets.length === 1 ? `${pet.name} is the only pet and cannot be deleted` : `Delete ${pet.name}`} title={pets.length === 1 ? 'Add another pet before deleting this one' : `Delete ${pet.name}`} onClick={() => { setError(''); setPendingDelete(pet); }}>Delete</button></div>)}</div>{pets.length === 1 && <p className="pet-delete-help">Add another pet before deleting this profile.</p>}{error && !adding && <p className="account-form-error" role="alert">{error}</p>}{adding ? <form className="switcher-form" onSubmit={add}><div className="pet-photo-field"><label className="profile-avatar-upload" aria-label="Upload pet photo"><img className="profile-edit-avatar pet-edit-avatar" src={avatar || asset('luna-avatar.png')} alt={name || 'Pet'} /><span className="avatar-edit-badge" aria-hidden="true">✎</span><input type="file" accept="image/*" aria-label="Choose pet photo" onChange={(event) => readPetAvatar(event.target.files?.[0])} /></label><span>Add a pet photo</span></div><fieldset className="pet-species-field"><legend>Pet type</legend><div className="pet-species-options">{(['Dog', 'Cat'] as const).map((option) => <button key={option} type="button" aria-pressed={species === option} className={species === option ? 'selected' : ''} onClick={() => setSpecies(option)}>{option === 'Dog' ? '🐕 Dog' : '🐈 Cat'}</button>)}</div></fieldset><label><span>Pet name</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label><label><span>Breed</span><input value={breed} onChange={(event) => setBreed(event.target.value)} placeholder="Mixed breed" /></label><label><span>Age</span><input type="number" min="0" max="40" value={age} onChange={(event) => setAge(event.target.value)} /></label>{error && <p className="account-form-error" role="alert">{error}</p>}<div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => { setAdding(false); setError(''); }}>Cancel</button><button className="primary-button" disabled={!name.trim() || !breed.trim() || !age.trim()}>Add pet</button></div></form> : <button className="cancel-button full" onClick={() => setAdding(true)}>Add another pet</button>}{pendingDelete && <div className="nested-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog pet-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-pet-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-pet-title">Delete {pendingDelete.name}?</h2><p>This permanently removes this pet profile and its timeline, Story, context and Ask AI history from this device. Other pets will not be changed.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete pet</button></div></section></div>}</section></div>;
 }
 
-function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', ownerPreference = 'Manage your profile details here.', pets, activePetId, onPetsNavigate, onSettingsNavigate, onPetEdit, onProfileEdit, onPetSwitcher, careMembers, primaryMemberId, onMemberClick, onCareMembers, patterns, lifeEvents, mediaSources, onPatternHistory, onPattern, onLifeCare, onConnectedMedia }: { kind: 'pets' | 'you'; petName: string; petAvatar: string; petBreed: string; petAge: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; ownerPreference?: string; pets: PrototypePet[]; activePetId: string; onPetsNavigate: () => void; onSettingsNavigate: () => void; onPetEdit: () => void; onProfileEdit: () => void; onPetSwitcher: () => void; careMembers: CareMember[]; primaryMemberId: string; onMemberClick: (id: string) => void; onCareMembers: () => void; patterns: TypicalPattern[]; lifeEvents: LifeCareEvent[]; mediaSources: MediaSource[]; onPatternHistory: () => void; onPattern: (id: string) => void; onLifeCare: (category?: 'life' | 'health') => void; onConnectedMedia: (sourceId?: string) => void }) {
-  const isPrimaryCaregiver = primaryMemberId === 'emily';
+function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', ownerPreference = 'Manage your profile details here.', pets, activePetId, onPetsNavigate, onSettingsNavigate, onPetEdit, onProfileEdit, onPetSwitcher, careMembers, accounts, primaryMemberId, onMemberClick, onCareMembers, patterns, lifeEvents, mediaSources, onPatternHistory, onPattern, onLifeCare, onConnectedMedia, invitations = [], onAcceptInvitation, onDeclineInvitation, careOwnerName = ownerName, careOwnerAvatar = ownerAvatar, careOwnerRole = ownerRole, groupName = 'Care circle', canManageCareGroup = primaryMemberId === 'emily' }: { kind: 'pets' | 'you'; petName: string; petAvatar: string; petBreed: string; petAge: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; ownerPreference?: string; pets: PrototypePet[]; activePetId: string; accounts: PrototypeAccount[]; onPetsNavigate: () => void; onSettingsNavigate: () => void; onPetEdit: () => void; onProfileEdit: () => void; onPetSwitcher: () => void; careMembers: CareMember[]; primaryMemberId: string; onMemberClick: (id: string) => void; onCareMembers: () => void; patterns: TypicalPattern[]; lifeEvents: LifeCareEvent[]; mediaSources: MediaSource[]; onPatternHistory: () => void; onPattern: (id: string) => void; onLifeCare: (category?: 'life' | 'health') => void; onConnectedMedia: (sourceId?: string) => void; invitations?: CareInvitation[]; onAcceptInvitation?: (invite: CareInvitation) => void; onDeclineInvitation?: (inviteId: string) => void; careOwnerName?: string; careOwnerAvatar?: string; careOwnerRole?: string; groupName?: string; canManageCareGroup?: boolean }) {
   const petDetailsLabel = `${petBreed} · ${formatPetAge(petAge)}`;
   const confirmedPatterns = patterns.filter((pattern) => pattern.status === 'confirmed');
   return kind === 'pets' ? (
@@ -1523,8 +1570,8 @@ function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, own
       <section className="profile-section care-section">
         <h2>Who looks after {petName}?</h2>
         <div className="profile-card care-card">
-          <div className="card-topline"><strong>Group Name</strong>{isPrimaryCaregiver && <button className="profile-link" onClick={onCareMembers}>Manage members →</button>}</div>
-          {careMembers.map((member) => <button className="member-row" key={member.id} onClick={() => onMemberClick(member.id)}>{member.id === 'emily' ? <OwnerAvatar src={ownerAvatar} name={ownerName} /> : <span className={`member-avatar ${member.id}-avatar`}>{member.name.slice(0, 1)}</span>}<span><strong>{member.id === 'emily' ? ownerName : member.name}</strong>{member.id === primaryMemberId && <small>{member.id === 'emily' ? ownerRole : 'Primary caregiver'}</small>}</span><i>›</i></button>)}
+          <div className="card-topline"><strong>{groupName}</strong>{canManageCareGroup && <button className="profile-link" onClick={onCareMembers}>Manage members →</button>}</div>
+          {careMembers.map((member) => { const linkedAccount = accounts.find((account) => account.id === member.id || (!!member.email && account.email.toLowerCase() === member.email.toLowerCase())); const memberName = member.id === primaryMemberId ? careOwnerName : linkedAccount?.name ?? member.name; const memberAvatar = member.id === primaryMemberId ? careOwnerAvatar : linkedAccount?.avatar ?? ''; return <button className="member-row" key={member.id} onClick={() => onMemberClick(member.id)}><OwnerAvatar src={memberAvatar} name={memberName} className={member.id === primaryMemberId ? '' : `${member.id}-avatar`} /><span><strong>{memberName}</strong>{member.id === primaryMemberId && <small>{careOwnerRole}</small>}</span><i>›</i></button>; })}
         </div>
       </section>
 
@@ -1547,17 +1594,18 @@ function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, own
     </div>
   ) : (
     <div className="profile-page you-page">
-      <MainHeader eyebrow="YOUR SPACE" title="My Profile" onPetsNavigate={onPetsNavigate} onSettingsNavigate={onSettingsNavigate} petName={petName} petAvatar={petAvatar} />
+      <MainHeader eyebrow="MY SPACE" title="My Profile" onPetsNavigate={onPetsNavigate} onSettingsNavigate={onSettingsNavigate} petName={petName} petAvatar={petAvatar} />
       <button className="account-profile-hero" onClick={onProfileEdit}>
         <OwnerAvatar src={ownerAvatar} name={ownerName} className="account-avatar" />
         <span className="profile-hero-copy"><strong>{ownerName}</strong><small>{ownerPreference}</small><span className="mini-action"><b>✎</b> Edit my profile</span></span>
       </button>
 
       <section className="profile-section you-section">
-        <div className="profile-section-heading"><h2>My pets</h2><button className="profile-link" onClick={onPetSwitcher}>Switch or add →</button></div>
+        <div className="profile-section-heading"><h2>My pets</h2>{invitations.length > 0 && <span className="invitation-count">{invitations.length} invitation{invitations.length === 1 ? '' : 's'}</span>}<button className="profile-link" onClick={onPetSwitcher}>Switch or add →</button></div>
         <div className="profile-card you-list pets-list">
           {pets.map((pet) => <button className="you-row" key={pet.id} onClick={() => pet.id === activePetId ? onPetEdit() : onPetSwitcher()}><Avatar name={pet.name} src={pet.avatar} /><span><strong>{pet.name}</strong><small>{pet.breed} · {formatPetAge(pet.age)}</small></span><em>{pet.id === activePetId ? 'Active' : 'Switch'}</em></button>)}
         </div>
+        {invitations.length > 0 && <div className="care-invitation-list" aria-label="Care group invitations">{invitations.map((invite) => <article className="care-invitation-card" key={invite.id}><div className="care-invitation-pet"><Avatar name={invite.petName} src={invite.petAvatar} /><span><strong>{invite.petName}’s care group</strong><small>Invited by {invite.ownerName} · {invite.email}</small></span></div><p>{invite.ownerName} invited you to help care for {invite.petName} as a {invite.role.toLowerCase()}.</p><div className="care-invitation-actions"><button className="cancel-button" onClick={() => onDeclineInvitation?.(invite.id)}>Decline</button><button className="primary-button" onClick={() => onAcceptInvitation?.(invite)}>Accept invitation</button></div></article>)}</div>}
       </section>
 
       <section className="profile-section you-section media-section">
@@ -1693,12 +1741,14 @@ function LifeCarePage({ petName, ownerName, events, initialCategory, startAdding
   </section>;
 }
 
-function SettingsHubPage({ accounts, activeAccountId, onBack, onSwitchAccount, onRegister, onSignOut, onAction }: { accounts: PrototypeAccount[]; activeAccountId: string; onBack: () => void; onSwitchAccount: (id: string) => void; onRegister: (name: string, email: string, petName: string) => string; onSignOut: () => void; onAction: (title: string, detail: string) => void }) {
+function SettingsHubPage({ accounts, activeAccountId, onBack, onSwitchAccount, onRegister, onDeleteAccount, onSignOut, onAction }: { accounts: PrototypeAccount[]; activeAccountId: string; onBack: () => void; onSwitchAccount: (id: string) => void; onRegister: (name: string, email: string, petName: string) => string; onDeleteAccount: (id: string) => string; onSignOut: () => void; onAction: (title: string, detail: string) => void }) {
   const [creatingAccount, setCreatingAccount] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPetName, setNewPetName] = useState('');
   const [createError, setCreateError] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<PrototypeAccount | null>(null);
+  const [deleteError, setDeleteError] = useState('');
 
   function createAccount(event: FormEvent) {
     event.preventDefault();
@@ -1706,13 +1756,19 @@ function SettingsHubPage({ accounts, activeAccountId, onBack, onSwitchAccount, o
     setCreateError(error);
     if (!error) setCreatingAccount(false);
   }
+  function confirmDeleteAccount() {
+    if (!pendingDelete) return;
+    const error = onDeleteAccount(pendingDelete.id);
+    setDeleteError(error);
+    if (!error) setPendingDelete(null);
+  }
   const orderedAccounts = [...accounts].sort((a, b) => Number(b.id === activeAccountId) - Number(a.id === activeAccountId));
 
   return <section className="settings-hub-page">
     <header className="settings-hub-header"><button className="back-button" aria-label="Go back" onClick={onBack}>←</button><h1>Settings</h1></header>
     <div className="settings-hub-content">
       <section className="settings-hub-section"><h2>Account</h2><div className="profile-card settings-account-list">
-        {orderedAccounts.map((account) => <button key={account.id} className={`settings-account-row ${account.id === activeAccountId ? 'current' : ''}`} aria-current={account.id === activeAccountId ? 'true' : undefined} onClick={() => { if (account.id !== activeAccountId) onSwitchAccount(account.id); }}><OwnerAvatar src={account.avatar} name={account.name} /><span><strong>{account.name}</strong><small>{account.email}</small></span><em>{account.id === activeAccountId ? 'Current' : 'Switch'}</em></button>)}
+        {orderedAccounts.map((account) => <div key={account.id} className={`settings-account-row ${account.id === activeAccountId ? 'current' : ''}`}><button className="settings-account-switch" aria-current={account.id === activeAccountId ? 'true' : undefined} onClick={() => { if (account.id !== activeAccountId) onSwitchAccount(account.id); }}><OwnerAvatar src={account.avatar} name={account.name} /><span><strong>{account.name}</strong><small>{account.email}</small></span><em>{account.id === activeAccountId ? 'Current' : 'Switch'}</em></button><button className="settings-account-delete" aria-label={`Delete ${account.name} account`} title={`Delete ${account.name} account`} onClick={() => { setDeleteError(''); setPendingDelete(account); }}>Delete</button></div>)}
         {!creatingAccount ? <button className="settings-create-account" onClick={() => { setCreateError(''); setCreatingAccount(true); }}>＋ Create another account</button> : <form className="settings-create-form" onSubmit={createAccount}>
         <label><span>Your name</span><input autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} /></label>
         <label><span>Email</span><input type="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} /></label>
@@ -1727,6 +1783,7 @@ function SettingsHubPage({ accounts, activeAccountId, onBack, onSwitchAccount, o
         <button className="media-row" onClick={() => onAction('Accessibility & feedback', 'Text size, captions, help and suggestions.')}><span className="media-icon">◎</span><span><strong>Accessibility &amp; feedback</strong><small>Text size, captions, help and suggestions</small></span><i>›</i></button>
       </div></section>
     </div>
+    {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="settings-delete-account-title" onClick={(event) => event.stopPropagation()}><h2 id="settings-delete-account-title">Delete {pendingDelete.name}?</h2><p>This permanently removes this local account and the pets, moments and context saved inside it.</p>{deleteError && <p className="account-form-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDeleteAccount}>Delete account</button></div></section></div>}
   </section>;
 }
 
@@ -1796,7 +1853,7 @@ function SettingsPage({ kind, initialName, initialBreed = 'Golden Retriever', in
         <button className="back-button" aria-label={pet ? 'Back to Pets' : 'Back to You'} onClick={onBack}>←</button>
         <h1>{pet ? `${name || 'Luna'}’s details` : 'My profile'}</h1>
       </header>
-      <p className="settings-eyebrow">{pet ? 'PET PROFILE' : 'YOUR SPACE'}</p>
+      <p className="settings-eyebrow">{pet ? 'PET PROFILE' : 'MY SPACE'}</p>
       <section className="settings-summary profile-summary">
         <label className="profile-avatar-upload" aria-label={pet ? 'Upload pet photo' : 'Upload profile photo'}>
           {pet ? <img className="profile-edit-avatar pet-edit-avatar" src={avatar || asset('luna-avatar.png')} alt={name || 'Pet'} /> : <OwnerAvatar src={avatar} name={name} className="profile-edit-avatar" />}
@@ -1832,16 +1889,7 @@ function SettingsPage({ kind, initialName, initialBreed = 'Golden Retriever', in
   );
 }
 
-function RolePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const options = ['Primary caregiver', 'Caregiver', 'Temporary caregiver'];
-  return <section className={`settings-field profile-edit-field profile-role-field${open ? ' is-open' : ''}`}>
-    <strong>Role</strong><div className="profile-field-control"><button type="button" className="profile-role-trigger" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)}><span>{value}</span><i className={open ? 'is-open' : ''}>⌄</i></button></div>
-    {open && <div className="profile-role-options" role="listbox" aria-label="Choose your role">{options.map((option) => <button type="button" role="option" aria-selected={value === option} className={value === option ? 'selected' : ''} key={option} onClick={() => { onChange(option); setOpen(false); }}>{option}</button>)}</div>}
-  </section>;
-}
-
-function PetSecondaryPage({ kind, petName, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', careMembers, primaryMemberId, isPrimaryCaregiver, onBack, onReviewEvidence, onSaveEvent, onMemberClick, onRemoveMember, onAddMember }: { kind: 'careMembers' | 'patternHistory' | 'careEvent'; petName: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; careMembers: CareMember[]; primaryMemberId: string; isPrimaryCaregiver: boolean; onBack: () => void; onReviewEvidence: () => void; onSaveEvent: (event: CareEvent) => boolean; onMemberClick: (id: string) => void; onRemoveMember: (id: string) => void; onAddMember: (name: string, role: string) => void }) {
+function PetSecondaryPage({ kind, petName, ownerName, ownerEmail, ownerAvatar = '', ownerRole, onOwnerRoleChange, groupName, onGroupNameChange, careMembers, primaryMemberId, isPrimaryCaregiver, onBack, onReviewEvidence, onSaveEvent, onMemberClick, onRemoveMember, onAddMember, accounts, activeAccountId, invitations, onChangeAccess, onChangeRole, onCancelInvitation }: { kind: 'careMembers' | 'patternHistory' | 'careEvent'; petName: string; ownerName: string; ownerEmail: string; ownerAvatar?: string; ownerRole: string; onOwnerRoleChange: (role: string) => void; groupName: string; onGroupNameChange: (name: string) => void; careMembers: CareMember[]; primaryMemberId: string; isPrimaryCaregiver: boolean; onBack: () => void; onReviewEvidence: () => void; onSaveEvent: (event: CareEvent) => boolean; onMemberClick: (id: string) => void; onRemoveMember: (id: string) => void; onAddMember: (name: string, email: string, role: 'Caregiver' | 'Viewer', recipientAccountId?: string) => string; accounts: PrototypeAccount[]; activeAccountId: string; invitations: CareInvitation[]; onChangeAccess: (id: string, access: 'editor' | 'viewer') => void; onChangeRole: (id: string, role: 'Caregiver' | 'Temporary caregiver') => void; onCancelInvitation: (id: string) => void }) {
   const [eventType, setEventType] = useState('Routine change');
   const [when, setWhen] = useState('Today');
   const [customDate, setCustomDate] = useState('');
@@ -1850,11 +1898,16 @@ function PetSecondaryPage({ kind, petName, ownerName, ownerRole = 'Primary careg
   const [savedEvent, setSavedEvent] = useState(false);
   const [eventSaveError, setEventSaveError] = useState('');
   const [lastSavedEvent, setLastSavedEvent] = useState<CareEvent | null>(readCareEvent);
-  const [openMemberMenu, setOpenMemberMenu] = useState<string | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<CareMember | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
-  const [newMemberName, setNewMemberName] = useState('');
-  const [newMemberRole, setNewMemberRole] = useState('Caregiver');
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [draftGroupName, setDraftGroupName] = useState(groupName);
+  const [editingGroupName, setEditingGroupName] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [selectedInviteAccountId, setSelectedInviteAccountId] = useState('');
+  const [newMemberRole, setNewMemberRole] = useState<'Caregiver' | 'Viewer'>('Caregiver');
+  const [inviteError, setInviteError] = useState('');
+  const [inviteNotice, setInviteNotice] = useState('');
   const isCareMembers = kind === 'careMembers';
   const isPatternHistory = kind === 'patternHistory';
   const careMemberCount = careMembers.length;
@@ -1877,20 +1930,19 @@ function PetSecondaryPage({ kind, petName, ownerName, ownerRole = 'Primary careg
         <button className="back-button" aria-label="Back to pet profile" onClick={onBack}>←</button>
         <h1>{title}</h1>
       </header>
-      <div className="settings-eyebrow-row"><p className="settings-eyebrow">{eyebrow}</p>{isCareMembers && isPrimaryCaregiver && <button className="profile-link care-add-member" onClick={() => setShowAddMember(true)}>Add +</button>}</div>
-      <section className="settings-summary">
+      <div className="settings-eyebrow-row">{isCareMembers ? <>{editingGroupName ? <form className="care-group-name-form" onSubmit={(event) => { event.preventDefault(); onGroupNameChange(draftGroupName); setEditingGroupName(false); }}><input autoFocus aria-label="Group name" maxLength={40} value={draftGroupName} onChange={(event) => setDraftGroupName(event.target.value)} /><button type="submit" className="group-name-save" aria-label="Save group name"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4.5 10.3 3.6 3.5 7.5-7.6" /></svg></button><button type="button" className="group-name-cancel" aria-label="Cancel editing group name" onClick={() => setEditingGroupName(false)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9m0-9-9 9" /></svg></button></form> : <div className="care-group-name"><strong>{groupName}</strong>{isPrimaryCaregiver && <button className="group-name-edit" aria-label="Edit group name" onClick={() => { setDraftGroupName(groupName); setEditingGroupName(true); }}>✎</button>}</div>}</> : <p className="settings-eyebrow">{eyebrow}</p>}{isCareMembers && isPrimaryCaregiver && <div className="care-members-actions"><button className="profile-link" onClick={() => { setShowGroupSettings(true); setInviteNotice(''); }}>Group settings</button><button className="profile-link care-add-member" onClick={() => { setShowAddMember(true); setMemberSearch(''); setSelectedInviteAccountId(''); setInviteError(''); }}>Add +</button></div>}</div>
+      {!isCareMembers && <section className="settings-summary">
         <strong>{summaryTitle}</strong>
         <p>{summaryNote}</p>
-      </section>
+      </section>}
+      {isCareMembers && inviteNotice && <p className="care-invite-notice" role="status">{inviteNotice}</p>}
       {isCareMembers ? <div className="care-member-details">
-        {careMembers.map((member) => <div className="care-person-wrap" key={member.id}>
+        {careMembers.map((member) => { const linkedAccount = accounts.find((account) => account.id === member.id || (!!member.email && account.email.toLowerCase() === member.email.toLowerCase())); const memberName = member.id === primaryMemberId ? ownerName : linkedAccount?.name ?? member.name; const memberAvatar = member.id === primaryMemberId ? ownerAvatar : linkedAccount?.avatar ?? ''; return <div className="care-person-wrap" key={member.id}>
           <button className="care-person-card" onClick={() => onMemberClick(member.id)}>
-            {member.id === 'emily' ? <OwnerAvatar src={ownerAvatar} name={ownerName} className="care-person-avatar" /> : <span className={`member-avatar care-person-avatar ${member.id}-avatar`}>{member.name.slice(0, 1)}</span>}
-            <span className="care-person-copy"><strong>{member.id === 'emily' ? ownerName : member.name}</strong><small>{member.id === 'emily' ? ownerRole : member.id === primaryMemberId ? 'Primary caregiver' : member.role}</small><span>{member.id === primaryMemberId ? 'Manages the profile' : 'Can add observations'}</span></span>
+            <OwnerAvatar src={memberAvatar} name={memberName} className={`care-person-avatar ${member.id === primaryMemberId ? '' : `${member.id}-avatar`}`} />
+            <span className="care-person-copy"><strong>{memberName}</strong><small>{member.email ?? (member.id === primaryMemberId ? ownerEmail : linkedAccount?.email ?? 'No linked account')}</small><span>{member.id === primaryMemberId ? 'Primary caregiver · Manages the profile' : (member.access ?? 'editor') === 'viewer' ? 'View shared records' : `${member.role} · Can add observations`}</span></span>
           </button>
-          {isPrimaryCaregiver && member.id !== 'emily' && <button className="member-more care-person-more" aria-label={`Options for ${member.name}`} aria-expanded={openMemberMenu === member.id} onClick={() => setOpenMemberMenu(openMemberMenu === member.id ? null : member.id)}>⋯</button>}
-          {isPrimaryCaregiver && openMemberMenu === member.id && member.id !== 'emily' && <div className="member-menu care-person-menu" role="menu"><button role="menuitem" onClick={() => { setPendingRemoval(member); setOpenMemberMenu(null); }}>Remove member</button></div>}
-        </div>)}
+        </div>; })}
       </div> : isPatternHistory ? <div className="pattern-history-details">
         <article className="settings-field"><strong>Active mornings</strong><p>Seen in selected records and owner notes</p></article>
         <article className="settings-field"><strong>Quiet afternoon rest</strong><p>Review this pattern against recent clips</p></article>
@@ -1933,22 +1985,25 @@ function PetSecondaryPage({ kind, petName, ownerName, ownerRole = 'Primary careg
         {savedEvent && <p role="status">Your care event has been saved.</p>}
         {eventSaveError && <p className="inline-save-error" role="alert">{eventSaveError}</p>}
       </div>}
-      {pendingRemoval && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingRemoval(null)}><section className="profile-dialog member-removal-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-member-title" onClick={(event) => event.stopPropagation()}><h2 id="remove-member-title">Remove {pendingRemoval.name}?</h2><p>They will no longer be able to add observations or care context for {petName}.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingRemoval(null)}>Cancel</button><button className="danger-button" onClick={() => { onRemoveMember(pendingRemoval.id); setPendingRemoval(null); }}>Remove member</button></div></section></div>}
-      {showAddMember && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setShowAddMember(false)}><form className="profile-dialog add-member-dialog" role="dialog" aria-modal="true" aria-labelledby="add-member-title" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); const name = newMemberName.trim(); if (!name) return; onAddMember(name, newMemberRole); setNewMemberName(''); setNewMemberRole('Caregiver'); setShowAddMember(false); }}><h2 id="add-member-title">Add group member</h2><label className="settings-field"><strong>Name</strong><input autoFocus value={newMemberName} onChange={(event) => setNewMemberName(event.target.value)} placeholder="Enter name" /></label><label className="settings-field"><strong>Role</strong><select value={newMemberRole} onChange={(event) => setNewMemberRole(event.target.value)}><option>Caregiver</option><option>Temporary caregiver</option></select></label><div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => setShowAddMember(false)}>Cancel</button><button type="submit" className="primary-button" disabled={!newMemberName.trim()}>Add member</button></div></form></div>}
+      {pendingRemoval && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingRemoval(null)}><section className="profile-dialog member-removal-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-member-title" onClick={(event) => event.stopPropagation()}><h2 id="remove-member-title">Remove {pendingRemoval.name}?</h2><p>They will no longer be able to access {petName}’s care group.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingRemoval(null)}>Cancel</button><button className="danger-button" onClick={() => { onRemoveMember(pendingRemoval.id); setPendingRemoval(null); }}>Remove member</button></div></section></div>}
+      {showGroupSettings && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setShowGroupSettings(false)}><section className="profile-dialog group-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="group-settings-title" onClick={(event) => event.stopPropagation()}><h2 id="group-settings-title">Group settings</h2><p className="group-settings-intro">Manage member accounts and what they can do for {petName}.</p><div className="group-settings-list">{careMembers.map((member) => <div className="group-settings-row" key={member.id}><div className="group-settings-identity"><strong>{member.id === primaryMemberId ? ownerName : member.name}</strong><small>{member.email ?? (member.id === primaryMemberId ? ownerEmail : 'No linked account')}</small></div>{member.id === primaryMemberId ? <><span className="group-owner-tag">Owner</span><div className="group-settings-controls"><select className="group-role-select" aria-label="Your role" value={ownerRole} onChange={(event) => onOwnerRoleChange(event.target.value)}><option value="Primary caregiver">Primary caregiver</option><option value="Caregiver">Caregiver</option><option value="Temporary caregiver">Temporary caregiver</option></select></div></> : <div className="group-settings-controls"><select className="group-role-select" aria-label={`Role for ${member.name}`} value={member.role === 'Temporary caregiver' ? 'Temporary caregiver' : 'Caregiver'} onChange={(event) => onChangeRole(member.id, event.target.value as 'Caregiver' | 'Temporary caregiver')}><option value="Caregiver">Caregiver</option><option value="Temporary caregiver">Temporary</option></select><select className="group-access-select" aria-label={`Permission for ${member.name}`} value={member.access ?? 'editor'} onChange={(event) => onChangeAccess(member.id, event.target.value as 'editor' | 'viewer')}><option value="editor">Can add</option><option value="viewer">View only</option></select><button className="group-remove-button" onClick={() => { setPendingRemoval(member); setShowGroupSettings(false); }}>Remove</button></div>}</div>)}</div>{invitations.filter((invite) => invite.status === 'pending').length > 0 && <div className="group-pending-invites"><strong>Pending invitations</strong>{invitations.filter((invite) => invite.status === 'pending').map((invite) => <div key={invite.id}><span>{invite.email}<small>{invite.role}</small></span><button onClick={() => onCancelInvitation(invite.id)}>Cancel invite</button></div>)}</div>}<div className="member-removal-actions"><button className="primary-button" onClick={() => setShowGroupSettings(false)}>Done</button></div></section></div>}
+      {showAddMember && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setShowAddMember(false)}><form className="profile-dialog add-member-dialog" role="dialog" aria-modal="true" aria-labelledby="add-member-title" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); const recipient = accounts.find((account) => account.id === selectedInviteAccountId && account.id !== activeAccountId); if (!recipient) { setInviteError('Choose an existing account from the search results.'); return; } const result = onAddMember(recipient.name, recipient.email, newMemberRole, recipient.id); if (result) { setInviteError(result); return; } setInviteNotice(`Invitation sent to ${recipient.name}.`); setMemberSearch(''); setSelectedInviteAccountId(''); setNewMemberRole('Caregiver'); setInviteError(''); setShowAddMember(false); }}><h2 id="add-member-title">Invite to care group</h2><p className="group-settings-intro">Search for an existing account by name or email, then select it to invite.</p><label className="settings-field"><strong>Name or email</strong><input autoFocus value={memberSearch} onChange={(event) => { setMemberSearch(event.target.value); setSelectedInviteAccountId(''); setInviteError(''); }} placeholder="Search name or email" /></label>{memberSearch.trim() && <div className="invite-search-results">{accounts.filter((account) => account.id !== activeAccountId && `${account.name} ${account.email}`.toLowerCase().includes(memberSearch.toLowerCase())).map((account) => <button type="button" className={selectedInviteAccountId === account.id ? 'selected' : ''} key={account.id} onClick={() => setSelectedInviteAccountId(account.id)}><strong>{account.name}</strong><small>{account.email}</small></button>)}{accounts.filter((account) => account.id !== activeAccountId && `${account.name} ${account.email}`.toLowerCase().includes(memberSearch.toLowerCase())).length === 0 && <p>No saved account found. Invitations are limited to existing accounts.</p>}</div>}<label className="settings-field"><strong>Permission</strong><select value={newMemberRole} onChange={(event) => setNewMemberRole(event.target.value as 'Caregiver' | 'Viewer')}><option value="Caregiver">Can add observations</option><option value="Viewer">View only</option></select></label>{inviteError && <p className="account-form-error" role="alert">{inviteError}</p>}<div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => setShowAddMember(false)}>Cancel</button><button type="submit" className="primary-button" disabled={!selectedInviteAccountId}>Send invitation</button></div></form></div>}
     </section>
   );
 }
 
-function CareMemberDetailsPage({ member, ownerName, ownerRole, ownerAvatar, ownerPreference, onOwnerRoleChange, primaryMemberId, petName, onBack }: { member: CareMember; ownerName: string; ownerRole: string; ownerAvatar: string; ownerPreference: string; onOwnerRoleChange: (role: string) => void; primaryMemberId: string; petName: string; onBack: () => void }) {
-  const name = member.id === 'emily' ? ownerName : member.name;
+function CareMemberDetailsPage({ member, ownerName, ownerRole, ownerAvatar, ownerPreference, memberAvatar = '', memberPreference = '', primaryMemberId, isPrimaryCaregiver, petName, onBack }: { member: CareMember; ownerName: string; ownerRole: string; ownerAvatar: string; ownerPreference: string; memberAvatar?: string; memberPreference?: string; primaryMemberId: string; isPrimaryCaregiver: boolean; petName: string; onBack: () => void }) {
+  const name = member.id === primaryMemberId ? ownerName : member.name;
   const primary = member.id === primaryMemberId;
-  if (member.id === 'emily') return <section className="settings-page pet-subpage">
+  const avatar = primary ? ownerAvatar : memberAvatar;
+  const preference = primary ? ownerPreference : memberPreference;
+  if (primary && isPrimaryCaregiver) return <section className="settings-page pet-subpage">
     <header className="settings-header"><button className="back-button" aria-label="Back to pet profile" onClick={onBack}>←</button><h1>Account details</h1></header>
     <p className="settings-eyebrow">CARE MEMBER</p>
-    <section className="settings-summary profile-summary"><OwnerAvatar src={ownerAvatar} name={ownerName} className="profile-edit-avatar" /><div className="profile-summary-copy"><strong>{ownerName}</strong><p>{ownerPreference}</p></div></section>
+    <section className="settings-summary profile-summary"><OwnerAvatar src={avatar} name={name} className="profile-edit-avatar" /><div className="profile-summary-copy"><strong>{name}</strong><p>{preference}</p></div></section>
     <div className="care-event-details member-account-details">
       <div className="settings-field"><strong>Name</strong><p>{ownerName}</p></div>
-      <RolePicker value={ownerRole} onChange={onOwnerRoleChange} />
+      <div className="settings-field"><strong>Role</strong><p>{ownerRole}</p></div>
       <div className="settings-field"><strong>Preferences</strong><p>{ownerPreference}</p></div>
       <div className="settings-field"><strong>Care access</strong><p>{primary ? 'Manages the profile' : 'Can add observations'}</p></div>
     </div>
@@ -1956,10 +2011,10 @@ function CareMemberDetailsPage({ member, ownerName, ownerRole, ownerAvatar, owne
   return <section className="settings-page pet-subpage">
     <header className="settings-header"><button className="back-button" aria-label="Back to pet profile" onClick={onBack}>←</button><h1>Account details</h1></header>
     <p className="settings-eyebrow">CARE MEMBER</p>
-    <section className="settings-summary"><strong>{name}</strong><p>Care profile for {petName}’s care circle.</p></section>
+    <section className="settings-summary profile-summary"><OwnerAvatar src={avatar} name={name} className="profile-edit-avatar" /><div className="profile-summary-copy"><strong>{name}</strong><p>{preference || `Care profile for ${petName}’s care circle.`}</p></div></section>
     <div className="care-event-details member-account-details">
       <div className="settings-field"><strong>Name</strong><p>{name}</p></div>
-      <div className="settings-field"><strong>Role</strong><p>{primary ? 'Primary caregiver' : member.role}</p></div>
+      <div className="settings-field"><strong>Role</strong><p>{primary ? member.role || 'Primary caregiver' : member.role}</p></div>
       <div className="settings-field"><strong>Care access</strong><p>{primary ? 'Manages the profile' : 'Can add observations'}</p></div>
     </div>
   </section>;
@@ -1983,7 +2038,15 @@ export default function App() {
   const [profileSaveNotice, setProfileSaveNotice] = useState('');
   const [contextSavedNotice, setContextSavedNotice] = useState(false);
   const [storyDraftSavedNotice, setStoryDraftSavedNotice] = useState(false);
-  const [savedContexts, setSavedContexts] = useState<OwnerContext[]>(readSavedContexts);
+  const [savedContexts, setSavedContexts] = useState<OwnerContext[]>(() => {
+    const account = prototypeSession.accounts.find((entry) => entry.id === prototypeSession.activeAccountId);
+    const pet = account?.pets.find((entry) => entry.id === account.activePetId) ?? account?.pets[0];
+    if (pet?.sharedGroupId) {
+      const groupContexts = prototypeSession.accounts.flatMap((entry) => entry.pets.filter((groupPet) => groupPet.sharedGroupId === pet.sharedGroupId).flatMap((groupPet) => groupPet.workspace.contexts));
+      return [...new Map(groupContexts.map((context) => [context.id, context])).values()].sort((left, right) => right.savedAt.localeCompare(left.savedAt));
+    }
+    return readSavedContexts();
+  });
   const [storyObservations, setStoryObservations] = useState<StoryObservation[]>(readStoryObservations);
   const [storyDrafts, setStoryDrafts] = useState<StoryDraft[]>(readStoryDrafts);
   const [includedStoryMoments, setIncludedStoryMoments] = useState<string[] | null>(readStoryVisibility);
@@ -2013,6 +2076,7 @@ export default function App() {
     { id: 'mom', name: 'Mom', role: 'Caregiver', detail: 'can add observations' },
     { id: 'dad', name: 'Dad', role: 'Caregiver', detail: 'can add observations' },
   ]);
+  const [careInvitations, setCareInvitations] = useState<CareInvitation[]>(readCareInvitations);
   const [mediaSources, setMediaSources] = useState<MediaSource[]>(() => readMediaSources(true));
   const [typicalPatterns, setTypicalPatterns] = useState<TypicalPattern[]>(() => readTypicalPatterns(ownerName, true));
   const [lifeCareEvents, setLifeCareEvents] = useState<LifeCareEvent[]>(readLifeCareEvents);
@@ -2020,7 +2084,6 @@ export default function App() {
   const [selectedPatternId, setSelectedPatternId] = useState<string | null>(null);
   const [lifeCareInitialCategory, setLifeCareInitialCategory] = useState<'life' | 'health' | null>(null);
   const [lifeCareStartAdding, setLifeCareStartAdding] = useState(false);
-  const primaryMemberId = ownerRole === 'Primary caregiver' ? 'emily' : '';
   const [selectedCareMemberId, setSelectedCareMemberId] = useState('emily');
   const [askInput, setAskInput] = useState('');
   const [askMessages, setAskMessages] = useState<AskMessage[]>(readAskMessages);
@@ -2035,10 +2098,14 @@ export default function App() {
   const contextReturnView = useRef<View>('momentDetail');
   const activeAccount = prototypeSession.accounts.find((account) => account.id === prototypeSession.activeAccountId) ?? null;
   const activePetRecord = activeAccount?.pets.find((pet) => pet.id === activeAccount.activePetId) ?? activeAccount?.pets[0] ?? null;
+  const groupOwnerAccountId = activePetRecord?.sharedOwnerAccountId ?? (activePetRecord?.sharedGroupId ? activePetRecord.sharedGroupId.split(':')[0] : undefined);
+  const groupOwnerAccount = prototypeSession.accounts.find((account) => account.id === groupOwnerAccountId) ?? activeAccount;
+  const primaryMemberId = activePetRecord?.sharedGroupId ? groupOwnerAccountId ?? '' : ownerRole === 'Primary caregiver' ? 'emily' : '';
 
   function workspaceFromState(): PetWorkspace {
     return {
-      contexts: savedContexts,
+      contexts: activePetRecord?.sharedGroupId && activeAccount?.id !== groupOwnerAccountId ? [] : savedContexts,
+      groupName: activePetRecord?.workspace.groupName ?? 'Care circle',
       observations: storyObservations,
       drafts: storyDrafts,
       visibility: includedStoryMoments,
@@ -2076,6 +2143,80 @@ export default function App() {
     };
   }
 
+  function saveContextsToCurrentGroup(contexts: OwnerContext[], mergeGroupCopies = false): boolean {
+    if (!activeAccount || !activePetRecord) return false;
+    const captured = captureCurrentSpace(prototypeSession);
+    const groupId = activePetRecord.sharedGroupId;
+    const groupContexts = mergeGroupCopies && groupId
+      ? captured.accounts.flatMap((account) => account.pets.filter((pet) => pet.sharedGroupId === groupId).flatMap((pet) => pet.workspace.contexts))
+      : [];
+    const contextsToSave = mergeGroupCopies
+      ? [...new Map([...groupContexts, ...contexts].map((context) => [context.id, context])).values()].sort((left, right) => right.savedAt.localeCompare(left.savedAt))
+      : contexts;
+    const nextSession: PrototypeSession = {
+      ...captured,
+      accounts: captured.accounts.map((account) => ({
+        ...account,
+        pets: account.pets.map((pet) => {
+          const belongsToActivePet = account.id === activeAccount.id && pet.id === activePetRecord.id;
+          const belongsToSharedGroup = !!groupId && pet.sharedGroupId === groupId;
+          const isGroupOwnerPet = account.id === (activePetRecord.sharedOwnerAccountId ?? groupId?.split(':')[0]);
+          return belongsToActivePet || belongsToSharedGroup
+            ? { ...pet, workspace: { ...pet.workspace, contexts: groupId && !isGroupOwnerPet ? [] : contextsToSave } }
+            : pet;
+        }),
+      })),
+    };
+    try {
+      persistPrototypeSession(nextSession);
+      localStorage.setItem(storageKey, JSON.stringify(contextsToSave));
+    } catch {
+      return false;
+    }
+    setPrototypeSession(nextSession);
+    setSavedContexts(contextsToSave);
+    return true;
+  }
+
+  function saveObservationsToCurrentGroup(observations: StoryObservation[], replacedId?: string): boolean {
+    if (!activeAccount || !activePetRecord) return false;
+    const captured = captureCurrentSpace(prototypeSession);
+    const groupId = activePetRecord.sharedGroupId;
+    const sharedPublic = groupId
+      ? captured.accounts.flatMap((account) => account.pets.filter((pet) => pet.sharedGroupId === groupId).flatMap((pet) => pet.workspace.observations.filter((entry) => !entry.privateRecord && entry.id !== replacedId)))
+      : observations.filter((entry) => !entry.privateRecord && entry.id !== replacedId);
+    const replacement = replacedId ? observations.find((entry) => entry.id === replacedId && !entry.privateRecord) : undefined;
+    const sharedObservations = [...new Map([...sharedPublic, ...(replacement ? [replacement] : [])].map((entry) => [entry.id, entry])).values()].sort((left, right) => right.savedAt.localeCompare(left.savedAt));
+    const nextSession: PrototypeSession = {
+      ...captured,
+      accounts: captured.accounts.map((account) => ({
+        ...account,
+        pets: account.pets.map((pet) => {
+          const belongsToActivePet = account.id === activeAccount.id && pet.id === activePetRecord.id;
+          const belongsToSharedGroup = !!groupId && pet.sharedGroupId === groupId;
+          if (!belongsToActivePet && !belongsToSharedGroup) return pet;
+          const privateObservations = belongsToActivePet ? observations.filter((entry) => entry.privateRecord) : pet.workspace.observations.filter((entry) => entry.privateRecord);
+          const visibility = pet.workspace.visibility && replacedId
+            ? [...new Set([...pet.workspace.visibility.filter((id) => id !== replacedId), ...(replacement ? [replacement.id] : [])])]
+            : pet.workspace.visibility;
+          return { ...pet, workspace: { ...pet.workspace, observations: [...privateObservations, ...sharedObservations].sort((left, right) => right.savedAt.localeCompare(left.savedAt)), visibility } };
+        }),
+      })),
+    };
+    const activeObservations = groupId
+      ? [...observations.filter((entry) => entry.privateRecord), ...sharedObservations].sort((left, right) => right.savedAt.localeCompare(left.savedAt))
+      : observations;
+    try {
+      persistPrototypeSession(nextSession);
+      localStorage.setItem('pawsona-story-observations-v1', JSON.stringify(activeObservations));
+    } catch {
+      return false;
+    }
+    setPrototypeSession(nextSession);
+    setStoryObservations(activeObservations);
+    return true;
+  }
+
   function applyAccountSpace(session: PrototypeSession, accountId: string, petId: string): string {
     const account = session.accounts.find((entry) => entry.id === accountId);
     const pet = account?.pets.find((entry) => entry.id === petId);
@@ -2111,7 +2252,10 @@ export default function App() {
     setPetBreed(pet.breed);
     setPetAge(pet.age);
     setPetAvatar(pet.avatar);
-    setSavedContexts(pet.workspace.contexts);
+    const sharedContexts = pet.sharedGroupId
+      ? session.accounts.flatMap((entry) => entry.pets.filter((groupPet) => groupPet.sharedGroupId === pet.sharedGroupId).flatMap((groupPet) => groupPet.workspace.contexts))
+      : pet.workspace.contexts;
+    setSavedContexts([...new Map(sharedContexts.map((context) => [context.id, context])).values()].sort((left, right) => right.savedAt.localeCompare(left.savedAt)));
     setStoryObservations(pet.workspace.observations);
     setStoryDrafts(pet.workspace.drafts);
     setIncludedStoryMoments(pet.workspace.visibility);
@@ -2184,7 +2328,7 @@ export default function App() {
     setAccountActionError(error);
   }
 
-  function addPet(name: string, breed: string, age: string): string {
+  function addPet(name: string, breed: string, age: string, species: 'Dog' | 'Cat', avatar: string): string {
     if (!activeAccount) return 'Sign in before adding a pet.';
     const numericAge = Number(age);
     if (!name || !breed || !Number.isInteger(numericAge) || numericAge < 0 || numericAge > 40) return 'Enter a name, breed and an age from 0 to 40.';
@@ -2195,7 +2339,7 @@ export default function App() {
       accounts: captured.accounts.map((account) => account.id === activeAccount.id ? {
         ...account,
         activePetId: petId,
-        pets: [...account.pets, { id: petId, name, breed, age, avatar: '', hasDemoMoments: false, workspace: emptyPetWorkspace(account.name) }],
+        pets: [...account.pets, { id: petId, name, breed, species, age, avatar, hasDemoMoments: false, workspace: emptyPetWorkspace(account.name) }],
       } : account),
     };
     return applyAccountSpace(next, activeAccount.id, petId);
@@ -2276,6 +2420,110 @@ export default function App() {
     });
   }
 
+  function sendCareInvitation(_name: string, email: string, role: 'Caregiver' | 'Viewer', recipientAccountId?: string): string {
+    if (!activeAccount || !activePetRecord) return 'Open a pet profile before inviting a caregiver.';
+    if (!recipientAccountId || !prototypeSession.accounts.some((account) => account.id === recipientAccountId && account.email.toLowerCase() === email.toLowerCase())) return 'Choose an existing account from the search results.';
+    const normalizedEmail = email.trim().toLowerCase();
+    if (normalizedEmail === activeAccount.email.toLowerCase()) return 'You cannot invite your own account.';
+    if (careInvitations.some((invite) => invite.groupId === `${activeAccount.id}:${activePetRecord.id}` && invite.email === normalizedEmail && ['pending', 'accepted'].includes(invite.status))) return 'This account already has an active invitation or membership.';
+    const captured = captureCurrentSpace(prototypeSession);
+    const groupId = activePetRecord.sharedGroupId ?? `${activeAccount.id}:${activePetRecord.id}`;
+    const members = careMembers.map((member) => member.id === 'emily' ? { ...member, id: activeAccount.id, name: activeAccount.name, email: activeAccount.email, role: 'Primary caregiver' } : member);
+    const nextSession: PrototypeSession = { ...captured, accounts: captured.accounts.map((account) => account.id !== activeAccount.id ? account : { ...account, pets: account.pets.map((pet) => pet.id === activePetRecord.id ? { ...pet, sharedGroupId: groupId, sharedOwnerAccountId: activeAccount.id, workspace: { ...pet.workspace, careMembers: members } } : pet) }) };
+    const invitation: CareInvitation = { id: `invite-${Date.now()}`, groupId, ownerAccountId: activeAccount.id, ownerName: activeAccount.name, petId: activePetRecord.id, petName: petName, petBreed, petAge, petAvatar, email: normalizedEmail, recipientAccountId, role, status: 'pending', createdAt: new Date().toISOString() };
+    const nextInvitations = [...careInvitations, invitation];
+    setPrototypeSession(nextSession);
+    setCareMembers(members);
+    saveCareMembersToStorage(members);
+    setCareInvitations(nextInvitations);
+    saveCareInvitations(nextInvitations);
+    try { persistPrototypeSession(nextSession); } catch { return 'The invitation could not be saved on this device. Please try again.'; }
+    return '';
+  }
+
+  function updateCareGroupMember(memberId: string, change: { access?: 'editor' | 'viewer'; role?: 'Caregiver' | 'Temporary caregiver'; remove?: boolean }) {
+    if (!activeAccount || !activePetRecord) return;
+    const captured = captureCurrentSpace(prototypeSession);
+    const groupId = activePetRecord.sharedGroupId ?? `${activeAccount.id}:${activePetRecord.id}`;
+    const updateMembers = (members: CareMember[]) => {
+      const linked = members.map((member) => member.id === 'emily' ? { ...member, id: activeAccount.id, name: activeAccount.name, email: activeAccount.email, role: 'Primary caregiver' } : member);
+      return change.remove ? linked.filter((member) => member.id !== memberId) : linked.map((member) => {
+        if (member.id !== memberId) return member;
+        if (change.access) return { ...member, access: change.access, detail: change.access === 'viewer' ? 'can view shared records' : 'can add observations' };
+        return { ...member, role: change.role ?? member.role };
+      });
+    };
+    const nextMembers = updateMembers(careMembers);
+    const nextSession: PrototypeSession = { ...captured, accounts: captured.accounts.map((account) => {
+      const pets = account.pets.flatMap((pet) => {
+      const inGroup = pet.sharedGroupId === groupId || (account.id === activeAccount.id && pet.id === activePetRecord.id);
+      if (change.remove && account.id === memberId && pet.sharedGroupId === groupId) return [];
+      return inGroup ? [{ ...pet, sharedGroupId: groupId, sharedOwnerAccountId: groupOwnerAccountId ?? activeAccount.id, workspace: { ...pet.workspace, careMembers: updateMembers(pet.workspace.careMembers) } }] : [pet];
+      });
+      // Removing someone from a shared group must not leave their standalone account
+      // pointing at the deleted shared pet. Keep their last remaining pet active.
+      const activePetId = pets.some((pet) => pet.id === account.activePetId) ? account.activePetId : pets[0]?.id ?? account.activePetId;
+      return { ...account, pets, activePetId };
+    }) };
+    setCareMembers(nextMembers);
+    saveCareMembersToStorage(nextMembers);
+    setPrototypeSession(nextSession);
+    if (change.remove) {
+      const nextInvitations = careInvitations.map((invite) => invite.groupId === groupId && invite.recipientAccountId === memberId ? { ...invite, status: 'cancelled' as const } : invite);
+      setCareInvitations(nextInvitations);
+      saveCareInvitations(nextInvitations);
+    }
+  }
+
+  function updateCareGroupName(nextName: string) {
+    if (!activeAccount || !activePetRecord) return;
+    const name = nextName.trim().slice(0, 40) || 'Care circle';
+    const captured = captureCurrentSpace(prototypeSession);
+    const groupId = activePetRecord.sharedGroupId ?? `${activeAccount.id}:${activePetRecord.id}`;
+    const nextSession: PrototypeSession = {
+      ...captured,
+      accounts: captured.accounts.map((account) => ({
+        ...account,
+        pets: account.pets.map((pet) => pet.sharedGroupId === groupId || (account.id === activeAccount.id && pet.id === activePetRecord.id)
+          ? { ...pet, workspace: { ...pet.workspace, groupName: name } }
+          : pet),
+      })),
+    };
+    setPrototypeSession(nextSession);
+    try { persistPrototypeSession(nextSession); } catch { setAccountActionError('The group name changed for this session, but could not be saved.'); }
+  }
+
+  function acceptCareInvitation(invite: CareInvitation) {
+    if (!activeAccount || activeAccount.email.toLowerCase() !== invite.email.toLowerCase()) {
+      setAccountActionError('Sign in with the email address that received this invitation.');
+      return;
+    }
+    const captured = captureCurrentSpace(prototypeSession);
+    const owner = captured.accounts.find((account) => account.id === invite.ownerAccountId);
+    const ownerPet = owner?.pets.find((pet) => pet.id === invite.petId);
+    if (!owner || !ownerPet || owner.id === activeAccount.id) return;
+    const member: CareMember = { id: activeAccount.id, name: activeAccount.name, email: activeAccount.email, role: invite.role, access: invite.role === 'Viewer' ? 'viewer' : 'editor', detail: invite.role === 'Viewer' ? 'can view shared records' : 'can add observations' };
+    const linkedMembers = ownerPet.workspace.careMembers.map((entry) => entry.id === 'emily' ? { ...entry, id: owner.id, name: owner.name, email: owner.email, role: 'Primary caregiver' } : entry);
+    const members = [...linkedMembers.filter((entry) => entry.id !== member.id), member];
+    const sharedPetId = `shared-${invite.id}`;
+    const nextSession: PrototypeSession = { ...captured, accounts: captured.accounts.map((account) => {
+      if (account.id === owner.id) return { ...account, pets: account.pets.map((pet) => pet.id === ownerPet.id ? { ...pet, sharedGroupId: invite.groupId, sharedOwnerAccountId: owner.id, workspace: { ...pet.workspace, careMembers: members } } : pet) };
+      if (account.id === activeAccount.id && !account.pets.some((pet) => pet.sharedGroupId === invite.groupId)) return { ...account, pets: [...account.pets, { id: sharedPetId, sharedGroupId: invite.groupId, sharedOwnerAccountId: owner.id, name: invite.petName, breed: invite.petBreed, age: invite.petAge, avatar: invite.petAvatar, hasDemoMoments: true, workspace: { ...ownerPet.workspace, careMembers: members } }] };
+      return account;
+    }) };
+    const nextInvitations = careInvitations.map((entry) => entry.id === invite.id ? { ...entry, status: 'accepted' as const, recipientAccountId: activeAccount.id } : entry);
+    setPrototypeSession(nextSession);
+    setCareInvitations(nextInvitations);
+    saveCareInvitations(nextInvitations);
+    try { persistPrototypeSession(nextSession); } catch { setAccountActionError('The invitation was accepted but could not be saved to this device.'); }
+  }
+
+  function updateInvitationStatus(inviteId: string, status: 'declined' | 'cancelled') {
+    const next = careInvitations.map((invite) => invite.id === inviteId ? { ...invite, status } : invite);
+    setCareInvitations(next);
+    saveCareInvitations(next);
+  }
+
   function navigateTo(nextView: View) {
     if (nextView !== view) navigationHistory.current.push(view);
     setView(nextView);
@@ -2326,6 +2574,8 @@ export default function App() {
   const lastSavedContext = savedContexts.find((context) => context.id === lastSavedContextId) ?? null;
 
   function startContextForMoment(momentId: string, existing?: OwnerContext) {
+    if (existing?.authorId && existing.authorId !== activeAccount?.id && activePetRecord?.sharedGroupId) return;
+    if (existing && !existing.authorId && activePetRecord?.sharedGroupId && activeAccount?.id !== groupOwnerAccountId) return;
     const target = resolveMoment(momentId, storyObservations);
     contextReturnView.current = view;
     setSelectedMomentId(target.id);
@@ -2343,16 +2593,15 @@ export default function App() {
   }
 
   function saveContext() {
-    const nextContext: OwnerContext = { id: editingContextId ?? `owner-context-${Date.now()}`, momentId: selectedMoment.id, momentTitle: selectedMoment.title, momentImage: selectedMoment.image, note: note.trim(), interpretation, savedAt: new Date().toISOString(), attachments: contextAttachments };
+    const previous = editingContextId ? savedContexts.find((entry) => entry.id === editingContextId) : undefined;
+    if (previous && (previous.authorId ? previous.authorId !== activeAccount?.id : (!!activePetRecord?.sharedGroupId && activeAccount?.id !== groupOwnerAccountId))) return;
+    const nextContext: OwnerContext = { id: editingContextId ?? `owner-context-${Date.now()}`, momentId: selectedMoment.id, momentTitle: selectedMoment.title, momentImage: selectedMoment.image, note: note.trim(), interpretation, savedAt: previous?.savedAt ?? new Date().toISOString(), authorId: previous?.authorId ?? activeAccount?.id, authorName: previous?.authorName ?? ownerName, authorAvatar: previous?.authorAvatar ?? ownerAvatar, attachments: contextAttachments };
     const next = [nextContext, ...savedContexts.filter((entry) => entry.id !== nextContext.id)];
     setContextSaveError('');
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(next));
-    } catch {
+    if (!saveContextsToCurrentGroup(next, true)) {
       setContextSaveError('Your correction could not be saved on this device. Remove a large attachment or free some browser storage, then try again.');
       return;
     }
-    setSavedContexts(next);
     setEditingContextId(null);
     setLastSavedContextId(nextContext.id);
     setContextSavedNotice(true);
@@ -2363,20 +2612,18 @@ export default function App() {
 
   function undoContext(contextId: string) {
     const next = savedContexts.filter((context) => context.id !== contextId);
-    setSavedContexts(next);
-    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* Local state still works. */ }
+    saveContextsToCurrentGroup(next);
     setLastSavedContextId(null);
     navigateTo('undone');
   }
 
   function deleteOwnerContext(contextId: string): boolean {
+    const context = savedContexts.find((entry) => entry.id === contextId);
+    if (!context) return false;
+    const canDelete = context.authorId ? context.authorId === activeAccount?.id || (!!groupOwnerAccountId && activeAccount?.id === groupOwnerAccountId) : (!activePetRecord?.sharedGroupId || activeAccount?.id === groupOwnerAccountId);
+    if (!canDelete) return false;
     const next = savedContexts.filter((context) => context.id !== contextId);
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(next));
-    } catch {
-      return false;
-    }
-    setSavedContexts(next);
+    if (!saveContextsToCurrentGroup(next)) return false;
     if (lastSavedContextId === contextId) setLastSavedContextId(null);
     return true;
   }
@@ -2449,6 +2696,9 @@ export default function App() {
       context: draftObservationContext,
       privateRecord: draftPrivateRecord,
       savedAt: draftMomentAt ? new Date(draftMomentAt).toISOString() : new Date().toISOString(),
+      authorId: existing?.authorId ?? activeAccount?.id ?? undefined,
+      authorName: existing?.authorName ?? ownerName,
+      authorAvatar: existing?.authorAvatar ?? ownerAvatar,
     };
     const next = [observation, ...storyObservations.filter((entry) => entry.id !== observation.id)];
     let nextDrafts: StoryDraft[] | null = null;
@@ -2458,17 +2708,17 @@ export default function App() {
     } else if (activeStoryDraftId) {
       nextDrafts = storyDrafts.filter((entry) => entry.id !== activeStoryDraftId);
     }
-    try {
-      localStorage.setItem('pawsona-story-observations-v1', JSON.stringify(next));
-      if (nextDrafts) localStorage.setItem(storyDraftsKey, JSON.stringify(nextDrafts));
-    } catch {
+    if (!saveObservationsToCurrentGroup(next, observation.id)) {
       setStorySaveError('This observation could not be saved on this device. Remove a large photo or video, then try again.');
       return;
     }
-    setStoryObservations(next);
+    try { if (nextDrafts) localStorage.setItem(storyDraftsKey, JSON.stringify(nextDrafts)); } catch {
+      setStorySaveError('The observation was saved, but its draft could not be cleared from this device.');
+      return;
+    }
     if (nextDrafts) setStoryDrafts(nextDrafts);
     setActiveStoryDraftId(null);
-    setIncludedStoryMoments((current) => current ? [observation.id, ...current] : null);
+    setIncludedStoryMoments((current) => current ? (observation.privateRecord ? current.filter((id) => id !== observation.id) : [observation.id, ...current]) : null);
     navigateTo('addSaved');
   }
 
@@ -2490,8 +2740,12 @@ export default function App() {
 
   const mainView = (['today', 'story', 'ask', 'pets', 'you'] as View[]).includes(view);
   const activeNav: View = view === 'petDetails' ? 'pets' : view === 'profile' ? 'you' : mainView ? view : 'today';
-  const isPrimaryCaregiver = ownerRole === 'Primary caregiver' && primaryMemberId === 'emily';
+  const isPrimaryCaregiver = activePetRecord?.sharedGroupId ? groupOwnerAccount?.id === activeAccount?.id : ownerRole === 'Primary caregiver' && primaryMemberId === 'emily';
   const selectedCareMember = careMembers.find((member) => member.id === selectedCareMemberId) ?? careMembers[0];
+  const selectedMemberAccount = selectedCareMember ? prototypeSession.accounts.find((account) => account.id === selectedCareMember.id || (!!selectedCareMember.email && account.email.toLowerCase() === selectedCareMember.email.toLowerCase())) : undefined;
+  const receivedCareInvitations = activeAccount ? careInvitations.filter((invite) => invite.status === 'pending' && invite.email.toLowerCase() === activeAccount.email.toLowerCase()) : [];
+  const activeCareGroupId = activeAccount && activePetRecord ? activePetRecord.sharedGroupId ?? `${activeAccount.id}:${activePetRecord.id}` : '';
+  const activeGroupInvitations = careInvitations.filter((invite) => invite.groupId === activeCareGroupId && invite.status === 'pending');
   function openCareMember(id: string) {
     setSelectedCareMemberId(id);
     navigateTo('memberDetails');
@@ -2545,11 +2799,8 @@ export default function App() {
   }
   function deleteStoryRow(id: string) {
     if (!id.startsWith('story-observation-')) return;
-    setStoryObservations((current) => {
-      const next = current.filter((entry) => entry.id !== id);
-      try { localStorage.setItem('pawsona-story-observations-v1', JSON.stringify(next)); } catch { /* Keep the deletion active for this session. */ }
-      return next;
-    });
+    const next = storyObservations.filter((entry) => entry.id !== id);
+    saveObservationsToCurrentGroup(next, id);
   }
   function deleteStoryMoment(id: string): string {
     const isObservation = storyObservations.some((entry) => entry.id === id);
@@ -2562,16 +2813,13 @@ export default function App() {
     const nextContexts = isObservation ? savedContexts.filter((entry) => entry.momentId !== id) : savedContexts;
     try {
       localStorage.setItem(storyVisibilityKey, JSON.stringify(nextVisibility));
-      if (isObservation) {
-        localStorage.setItem('pawsona-story-observations-v1', JSON.stringify(nextObservations));
-        localStorage.setItem(storageKey, JSON.stringify(nextContexts));
-      }
+      if (isObservation) localStorage.setItem(storageKey, JSON.stringify(nextContexts));
     } catch {
       return 'This moment could not be deleted from this device. Please try again.';
     }
     setIncludedStoryMoments(nextVisibility);
     if (isObservation) {
-      setStoryObservations(nextObservations);
+      if (!saveObservationsToCurrentGroup(nextObservations, id)) return 'This moment could not be deleted from this device. Please try again.';
       setSavedContexts(nextContexts);
     }
     return '';
@@ -2642,7 +2890,7 @@ export default function App() {
           <StatusBar />
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
             {view === 'today' && <TodayPage petName={petName} petAvatar={petAvatar} hasDemoMoments={activePetRecord.hasDemoMoments} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onEvidence={() => navigateTo('overview')} onPetsNavigate={() => navigateTo('pets')} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} />}
-            {view === 'story' && <StoryPage onMoment={openMomentDetail} onEditStory={() => navigateTo('storyEdit')} onEditMoment={(item) => editStoryRow({ id: item.id, image: item.image, mediaType: item.mediaType, title: item.title, meta: `${item.time} · story moment`, note: item.note })} onDeleteMoment={deleteStoryMoment} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} ownerName={ownerName} contexts={savedContexts} observations={storyObservations} includedMoments={includedStoryMoments} hasDemoMoments={activePetRecord.hasDemoMoments} />}
+            {view === 'story' && <StoryPage onMoment={openMomentDetail} onEditStory={() => navigateTo('storyEdit')} onEditMoment={(item) => editStoryRow({ id: item.id, image: item.image, mediaType: item.mediaType, title: item.title, meta: `${item.time} · story moment`, note: item.note })} onDeleteMoment={deleteStoryMoment} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} ownerName={ownerName} accounts={prototypeSession.accounts} contexts={savedContexts} observations={storyObservations} includedMoments={includedStoryMoments} hasDemoMoments={activePetRecord.hasDemoMoments} />}
             {view === 'storyEdit' && <StoryEditPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} hasDemoMoments={activePetRecord.hasDemoMoments} onBack={() => goBack('story')} onEdit={editStoryRow} onDelete={deleteStoryRow} onSave={(ids) => { setIncludedStoryMoments(ids);try {
               localStorage.setItem(
                 storyVisibilityKey,
@@ -2656,7 +2904,7 @@ export default function App() {
             {view === 'addCompose' && <StoryAddPage step="compose" saveError={storySaveError} onBack={() => goBack('addMoments')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addPreview')} />}
             {view === 'addPreview' && <StoryAddPage step="preview" saveError={storySaveError} onBack={() => goBack('addCompose')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
             {view === 'addSaved' && <StoryAddPage step="saved" saveError={storySaveError} onBack={() => goBack('addPreview')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
-            {view === 'momentDetail' && <MomentDetailPage moment={selectedMoment} contexts={selectedMomentContexts} ownerName={ownerName} ownerAvatar={ownerAvatar} petName={petName} onBack={() => goBack('story')} onAddContext={() => startContextForMoment(selectedMoment.id)} onEditContext={(context) => startContextForMoment(selectedMoment.id, context)} onDeleteContext={deleteOwnerContext} />}
+            {view === 'momentDetail' && <MomentDetailPage moment={selectedMoment} contexts={selectedMomentContexts} accounts={prototypeSession.accounts} ownerName={ownerName} ownerAvatar={ownerAvatar} currentAccountId={activeAccount.id} groupOwnerAccountId={activePetRecord.sharedGroupId ? groupOwnerAccountId : undefined} petName={petName} onBack={() => goBack('story')} onAddContext={() => startContextForMoment(selectedMoment.id)} onEditContext={(context) => startContextForMoment(selectedMoment.id, context)} onDeleteContext={deleteOwnerContext} />}
             {view === 'overview' && <OverviewPage onBack={() => goBack('today')} onClip={() => { setSelectedMomentId('window'); navigateTo('clip'); }} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} onSaved={() => openMomentDetail('window')} petName={petName}/>}
             {view === 'clip' && <ClipPage onBack={() => goBack('overview')} onContext={() => startContextForMoment('window')}  petName={petName} ownerName={ownerName} />}
             {view === 'context' && <ContextPage moment={selectedMoment} petName={petName} note={note} setNote={setNote} interpretation={interpretation} setInterpretation={setInterpretation} attachments={contextAttachments} setAttachments={setContextAttachments} onBack={() => goBack('momentDetail')} onReview={() => navigateTo('confirm')} />}
@@ -2664,51 +2912,37 @@ export default function App() {
             {view === 'saved' && lastSavedContext && <SavedPage saved={lastSavedContext} onBack={() => goBack('confirm')} onReturnStory={() => navigateTo('story')} onUndo={() => undoContext(lastSavedContext.id)} onEvidence={() => openMomentDetail(lastSavedContext.momentId)} onEdit={() => startContextForMoment(lastSavedContext.momentId, lastSavedContext)} petName={petName} ownerName={ownerName} />}
             {view === 'undone' && <UndonePage onBack={() => goBack('saved')} onReturnToday={() => navigateTo('today')} onReview={() => navigateTo('overview')} petName={petName} />}
             {view === 'ask' && <AskPage onEvidence={() => navigateTo('overview')} onContext={() => startContextForMoment('window')} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} messages={askMessages} messageEndRef={askEndRef} hasDemoMoments={activePetRecord.hasDemoMoments} />}
-            {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} onPetsNavigate={() => navigateTo('pets')} onSettingsNavigate={() => navigateTo('settings')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={() => setShowPetSwitcher(true)} careMembers={careMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} patterns={typicalPatterns} lifeEvents={lifeCareEvents} mediaSources={mediaSources} onPatternHistory={() => openPatternKnowledge()} onPattern={openPatternKnowledge} onLifeCare={openLifeCare} onConnectedMedia={openConnectedMedia} />}
+            {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} accounts={prototypeSession.accounts} onPetsNavigate={() => navigateTo('pets')} onSettingsNavigate={() => navigateTo('settings')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={() => setShowPetSwitcher(true)} careMembers={careMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} patterns={typicalPatterns} lifeEvents={lifeCareEvents} mediaSources={mediaSources} onPatternHistory={() => openPatternKnowledge()} onPattern={(id) => openPatternKnowledge(id)} onLifeCare={openLifeCare} onConnectedMedia={openConnectedMedia} invitations={view === 'you' ? receivedCareInvitations : []} onAcceptInvitation={acceptCareInvitation} onDeclineInvitation={(id) => updateInvitationStatus(id, 'declined')} careOwnerName={groupOwnerAccount?.name ?? ownerName} careOwnerAvatar={groupOwnerAccount?.avatar ?? ownerAvatar} careOwnerRole={groupOwnerAccount?.role ?? ownerRole} groupName={activePetRecord.workspace.groupName} canManageCareGroup={isPrimaryCaregiver} />}
             {view === 'connectedMedia' && <ConnectedMediaPage petName={petName} sources={mediaSources} initialSourceId={selectedMediaSourceId} onBack={() => goBack('you')} onUpdate={saveMediaSource} onDelete={deleteMediaSource} />}
             {view === 'patternHistory' && <PatternKnowledgePage petName={petName} ownerName={ownerName} patterns={typicalPatterns} initialPatternId={selectedPatternId} onBack={() => goBack('pets')} onSave={saveTypicalPattern} onDelete={deleteTypicalPattern} />}
             {view === 'careEvent' && <LifeCarePage petName={petName} ownerName={ownerName} events={lifeCareEvents} initialCategory={lifeCareInitialCategory} startAdding={lifeCareStartAdding} onBack={() => goBack('pets')} onSave={saveLifeCareEvent} onDelete={deleteLifeCareEvent} />}
-            {view === 'settings' && <SettingsHubPage accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onBack={() => goBack('you')} onSwitchAccount={switchAccount} onRegister={registerAccount} onSignOut={() => setShowSignOutConfirm(true)} onAction={(title, detail) => setProfileAction({ title, detail })} />}
+            {view === 'settings' && <SettingsHubPage accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onBack={() => goBack('you')} onSwitchAccount={switchAccount} onRegister={registerAccount} onDeleteAccount={deleteSavedAccount} onSignOut={() => setShowSignOutConfirm(true)} onAction={(title, detail) => setProfileAction({ title, detail })} />}
             {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} initialAvatar={petAvatar} initialBreed={petBreed} initialAge={petAge} onSaved={setPetName} onPetSaved={({ name, breed, age, avatar }) => { setPetName(name); setPetBreed(breed); setPetAge(age); setPetAvatar(avatar); updateActivePetRecord({ name, breed, age, avatar }); setProfileSaveNotice('Pet details saved successfully'); }} onBack={() => goBack('pets')} />}
             {view === 'profile' && <SettingsPage kind="profile" initialName={ownerName} initialAvatar={ownerAvatar} initialPreference={ownerPreference} onSaved={setOwnerName} onProfileSaved={({ name, avatar, preference }) => { setOwnerName(name); setOwnerAvatar(avatar); setOwnerPreference(preference); updateActiveAccountRecord({ name, avatar, preference }); setProfileSaveNotice('Profile saved successfully'); }} onBack={() => goBack('you')} />}
-            {view === 'memberDetails' && selectedCareMember && <CareMemberDetailsPage member={selectedCareMember} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} onOwnerRoleChange={updateOwnerRole} primaryMemberId={primaryMemberId} petName={petName} onBack={() => goBack('careMembers')} />}
+            {view === 'memberDetails' && selectedCareMember && <CareMemberDetailsPage member={selectedCareMember} ownerName={groupOwnerAccount?.name ?? ownerName} ownerRole={groupOwnerAccount?.role ?? ownerRole} ownerAvatar={groupOwnerAccount?.avatar ?? ownerAvatar} ownerPreference={groupOwnerAccount?.preference ?? ownerPreference} memberAvatar={selectedMemberAccount?.avatar ?? ''} memberPreference={selectedMemberAccount?.preference ?? ''} primaryMemberId={primaryMemberId} isPrimaryCaregiver={isPrimaryCaregiver} petName={petName} onBack={() => goBack('careMembers')} />}
             {view === 'careMembers' && (
               <PetSecondaryPage
                 kind={view}
                 petName={petName}
-                ownerName={ownerName}
-                ownerRole={ownerRole}
-                ownerAvatar={ownerAvatar}
+                ownerName={groupOwnerAccount?.name ?? ownerName}
+                ownerEmail={groupOwnerAccount?.email ?? activeAccount.email}
+                ownerAvatar={groupOwnerAccount?.avatar ?? ownerAvatar}
+                ownerRole={groupOwnerAccount?.role ?? ownerRole}
+                onOwnerRoleChange={updateOwnerRole}
+                groupName={activePetRecord.workspace.groupName}
+                onGroupNameChange={updateCareGroupName}
                 careMembers={careMembers}
                 primaryMemberId={primaryMemberId}
                 isPrimaryCaregiver={isPrimaryCaregiver}
+                accounts={prototypeSession.accounts}
+                activeAccountId={activeAccount.id}
+                invitations={activeGroupInvitations}
+                onChangeAccess={(id, access) => updateCareGroupMember(id, { access })}
+                onChangeRole={(id, role) => updateCareGroupMember(id, { role })}
+                onCancelInvitation={(id) => updateInvitationStatus(id, 'cancelled')}
                 onMemberClick={openCareMember}
-                onRemoveMember={(id) => {
-                  setCareMembers((members) => {
-                    const next = members.filter(
-                      (member) => member.id !== id
-                    );
-
-                    saveCareMembersToStorage(next);
-                    return next;
-                  });
-                }}
-                onAddMember={(name, role) => {
-                  setCareMembers((members) => {
-                    const next = [
-                      ...members,
-                      {
-                        id: `member-${Date.now()}`,
-                        name,
-                        role,
-                        detail: 'can add observations',
-                      },
-                    ];
-
-                    saveCareMembersToStorage(next);
-                    return next;
-                  });
-                }}
+                onRemoveMember={(id) => updateCareGroupMember(id, { remove: true })}
+                onAddMember={sendCareInvitation}
                 onBack={() => goBack('pets')}
                 onReviewEvidence={() => navigateTo('overview')}
                 onSaveEvent={(event) => {
