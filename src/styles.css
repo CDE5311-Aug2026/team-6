@@ -54,6 +54,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .header-settings-button { width: 42px; height: 42px; flex: none; margin: 5px 1px 0 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: #fff0a7; color: var(--color-text-primary); font-size: 22px; line-height: 1; }
 .header-settings-button:hover { background: #ffcf29; }
 .main-header .avatar { width: 56px; height: 56px; margin: 0; }
+.header-avatar-button.is-empty { overflow: visible; }
+.header-avatar-placeholder { display: block; width: 54px; height: 54px; border: 1px solid var(--color-border); border-radius: 50%; background: #fff; }
 
 .primary-button { appearance: none; border: 0; border-radius: var(--radius-pill); background: var(--color-action); color: var(--color-text-primary); font: 600 14px/21px 'Poppins', sans-serif; padding: 12px 20px; min-height: 45px; white-space: nowrap; }
 .primary-button:not(:disabled) { box-shadow: 0 3px 9px #1a29211c; }
@@ -71,6 +73,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .today-empty-state > span { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 18px; background: var(--color-accent-soft); color: #eeb500; font-size: 28px; }
 .today-empty-state h2 { margin: 18px 0 6px; font: 600 20px/28px 'Poppins', sans-serif; }
 .today-empty-state p { margin: 0 0 20px; color: var(--color-text-secondary); font: 400 13px/20px 'Roboto', sans-serif; }
+.pets-empty-state { min-height: 360px; margin-top: 8px; }
+.pet-photo-placeholder { display: grid; place-items: center; background: var(--color-accent-soft); color: #d4a700; font-size: 34px; }
 .today-section { margin-top: 16px; }
 .today-section h2, .section-heading h2 { margin: 0; color: #000; font: 600 20px/28px 'Poppins', sans-serif; letter-spacing: -.3px; }
 .moment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }

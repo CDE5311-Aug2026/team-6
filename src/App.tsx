@@ -227,6 +227,7 @@ type PrototypePet = {
   age: string;
   avatar: string;
   hasDemoMoments: boolean;
+  isEmptyProfile?: boolean;
   sharedGroupId?: string;
   sharedOwnerAccountId?: string;
   workspace: PetWorkspace;
@@ -348,6 +349,36 @@ const readStoryObservations = (): StoryObservation[] => {
 
 const storageKey = 'pawsona-owner-context-v1';
 const asset = (name: string) => `${import.meta.env.BASE_URL}assets/${name}`;
+
+async function mediaDataUrl(file: Blob): Promise<string> {
+  let storedFile = file;
+  if (file.type.startsWith('image/') && file.type !== 'image/gif' && typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
+      if (scale < 1 || file.size > 350 * 1024) {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+        canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+        const context = canvas.getContext('2d');
+        if (context) {
+          context.fillStyle = '#ffffff';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+          const compressed = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.72));
+          if (compressed && compressed.size < file.size) storedFile = compressed;
+        }
+      }
+      bitmap.close();
+    } catch { /* Keep the original if this browser cannot resize the image. */ }
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Unreadable file'));
+    reader.onerror = () => reject(new Error('Unreadable file'));
+    reader.readAsDataURL(storedFile);
+  });
+}
 const interpretationLabels: Record<Interpretation, string> = {
   normal: 'Normal in this context',
   'one-time': 'One-time event',
@@ -422,7 +453,7 @@ function OwnerAvatar({ src, name, className = '' }: { src: string; name: string;
   return <span className={`member-avatar emily-avatar owner-avatar ${className}`}>{src ? <img src={src} alt="" /> : name.slice(0, 1).toUpperCase()}</span>;
 }
 
-function MainHeader({ eyebrow, title, subtitle, petName, petAvatar = '', onPetsNavigate, onSettingsNavigate }: { eyebrow: string; title: string; subtitle?: string; petName: string; petAvatar?: string; onPetsNavigate?: () => void; onSettingsNavigate?: () => void }) {
+function MainHeader({ eyebrow, title, subtitle, petName, petAvatar = '', hasPet = true, onPetsNavigate, onSettingsNavigate }: { eyebrow: string; title: string; subtitle?: string; petName: string; petAvatar?: string; hasPet?: boolean; onPetsNavigate?: () => void; onSettingsNavigate?: () => void }) {
   return (
     <header className="main-header">
       <div>
@@ -430,7 +461,7 @@ function MainHeader({ eyebrow, title, subtitle, petName, petAvatar = '', onPetsN
         <h1>{title}</h1>
         {subtitle && <p className="main-subtitle">{subtitle}</p>}
       </div>
-      {onSettingsNavigate ? <button className="header-settings-button" type="button" aria-label="Open settings" onClick={onSettingsNavigate}><span aria-hidden="true">⚙</span></button> : <button className="header-avatar-button" type="button" aria-label="Open Pets" onClick={onPetsNavigate}><Avatar name={petName} src={petAvatar} /></button>}
+      {onSettingsNavigate ? <button className="header-settings-button" type="button" aria-label="Open settings" onClick={onSettingsNavigate}><span aria-hidden="true">⚙</span></button> : <button className={`header-avatar-button ${hasPet ? '' : 'is-empty'}`} type="button" aria-label="Open Pets" onClick={onPetsNavigate}>{hasPet ? <Avatar name={petName} src={petAvatar} /> : <span className="header-avatar-placeholder" aria-hidden="true" />}</button>}
     </header>
   );
 }
@@ -513,11 +544,11 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
   return { ...base, image: asset(base.image) };
 }
 
-function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, petName, petAvatar, saved, hasDemoMoments }: { onStory: () => void; onMoment: (momentId: string) => void; onEvidence: () => void; onPetsNavigate: () => void; petName: string; petAvatar: string; saved: OwnerContext | null; hasDemoMoments: boolean }) {
+function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, petName, petAvatar, saved, hasDemoMoments, noPetYet }: { onStory: () => void; onMoment: (momentId: string) => void; onEvidence: () => void; onPetsNavigate: () => void; onAddPet: () => void; petName: string; petAvatar: string; saved: OwnerContext | null; hasDemoMoments: boolean; noPetYet: boolean }) {
   return (
     <>
-      <MainHeader eyebrow={`A little window into ${petName}’s day.`} title={`Hello, ${petName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} />
-      {!hasDemoMoments ? <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section> : <>
+      <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${petName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${petName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
+      {!hasDemoMoments ? noPetYet ? <section className="today-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section> : <>
       <section className="today-hero">
         <span className="story-badge">✦ &nbsp; TODAY’S STORY</span>
         <img className="hero-sparkle" src={asset('sparkle.svg')} alt="" />
@@ -575,7 +606,7 @@ function StoryTimelineRow({ item, showTime = true, menuOpen, onMenuToggle, onVie
   </div>;
 }
 
-function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPetsNavigate, petName, petAvatar, ownerName, accounts, contexts, observations, includedMoments, hasDemoMoments }: { onMoment: (momentId: string) => void; onEditStory: () => void; onEditMoment: (item: StoryTimelineItem) => void; onDeleteMoment: (momentId: string) => string; onPetsNavigate: () => void; petName: string; petAvatar: string; ownerName: string; accounts: PrototypeAccount[]; contexts: OwnerContext[]; observations: StoryObservation[]; includedMoments: string[] | null; hasDemoMoments: boolean }) {
+function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPetsNavigate, onAddPet, petName, petAvatar, ownerName, accounts, contexts, observations, includedMoments, hasDemoMoments, noPetYet }: { onMoment: (momentId: string) => void; onEditStory: () => void; onEditMoment: (item: StoryTimelineItem) => void; onDeleteMoment: (momentId: string) => string; onPetsNavigate: () => void; onAddPet: () => void; petName: string; petAvatar: string; ownerName: string; accounts: PrototypeAccount[]; contexts: OwnerContext[]; observations: StoryObservation[]; includedMoments: string[] | null; hasDemoMoments: boolean; noPetYet: boolean }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<StoryTimelineItem | null>(null);
   const [deleteError, setDeleteError] = useState('');
@@ -618,7 +649,8 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
   }
   return (
     <>
-      <MainHeader eyebrow={`${petName.toUpperCase()} · DAILY STORY`} title="Daily moments" subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} />
+      <MainHeader eyebrow={noPetYet ? 'DAILY STORY' : `${petName.toUpperCase()} · DAILY STORY`} title="Daily moments" subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
+      {noPetYet ? <section className="today-empty-state pets-empty-state story-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <>
       <div className="story-summary"><img src={asset('story-heart.png')} alt="" /><strong>
         {totalMomentCount === 0 ? (
           'No moments yet'
@@ -638,6 +670,7 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
       {earlierTimelineItems.length > 0 && <section className="timeline-section earlier-timeline-section"><div className="section-heading"><h2>Earlier moments</h2></div><div className="timeline-list">{earlierTimelineItems.map((item, index) => { const clockTime = item.time.split('\n').at(-1); const showTime = !earlierTimelineItems.slice(0, index).some((previous) => previous.time.split('\n').at(-1) === clockTime); return <StoryTimelineRow key={item.id} item={item} showTime={showTime} menuOpen={openMenuId === item.id} onMenuToggle={() => setOpenMenuId(openMenuId === item.id ? null : item.id)} onView={() => { setOpenMenuId(null); onMoment(item.id); }} onEdit={() => { setOpenMenuId(null); onEditMoment(item); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(item); }} />; })}</div></section>}
       {openMenuId && <button className="timeline-menu-dismiss" aria-label="Close moment actions" onClick={() => setOpenMenuId(null)} />}
       {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-story-moment-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-story-moment-title">Delete “{pendingDelete.title}”?</h2><p>{observations.some((entry) => entry.id === pendingDelete.id) ? 'This permanently removes this moment and its linked owner context from this pet’s Story.' : 'This removes this moment from the current Story. You can add it again later from Edit story.'}</p>{deleteError && <p className="inline-save-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete</button></div></section></div>}
+      </>}
     </>
   );
 }
@@ -848,18 +881,13 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
       setUploadError('Choose files smaller than 2 MB each.');
       return;
     }
-    Promise.all(chosenFiles.map((file) => new Promise<StoryMedia>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => typeof reader.result === 'string' ? resolve({ name: file.name, type: file.type, url: reader.result }) : reject(new Error('Unreadable file'));
-      reader.onerror = () => reject(new Error('Unreadable file'));
-      reader.readAsDataURL(file);
-    }))).then((media) => {
+    Promise.all(chosenFiles.map(async (file) => ({ name: file.name, type: file.type, url: await mediaDataUrl(file) }))).then((media) => {
       setRelatedPhotos([...relatedPhotos, ...media]);
       setUploadError('');
     }).catch(() => setUploadError('An attachment could not be read. Please try another file.'));
   }
 
-  function uploadMedia(file: File | undefined) {
+  async function uploadMedia(file: File | undefined) {
     if (!file) return;
     if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
       setUploadError('Choose an image or video file.');
@@ -870,20 +898,16 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') {
-        setUploadError('This file could not be read. Please try another one.');
-        return;
-      }
-      setUploadedMedia({ name: file.name, type: file.type, url: reader.result });
+    try {
+      const url = await mediaDataUrl(file);
+      setUploadedMedia({ name: file.name, type: file.type, url });
       setSelectedMoments(['uploaded']);
       setNote(defaultObservationForSource('uploaded', petName));
       setTitle(`A moment with ${petName}`);
       setUploadError('');
-    };
-    reader.onerror = () => setUploadError('This file could not be read. Please try another one.');
-    reader.readAsDataURL(file);
+    } catch {
+      setUploadError('This file could not be read. Please try another one.');
+    }
   }
 
   if (step === 'moments') return <div className="add-flow-page">
@@ -1019,7 +1043,7 @@ function ContextPage({ moment, note, setNote, interpretation, setInterpretation,
 }) {
   const [attachmentError, setAttachmentError] = useState('');
 
-  function attachFile(file: File | undefined, kind: ContextAttachment['kind']) {
+  async function attachFile(file: File | undefined, kind: ContextAttachment['kind']) {
     if (!file) return;
     const expectedType = kind === 'photo' ? 'image/' : 'audio/';
     if (!file.type.startsWith(expectedType)) {
@@ -1031,17 +1055,13 @@ function ContextPage({ moment, note, setNote, interpretation, setInterpretation,
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') {
-        setAttachmentError('This attachment could not be read. Please try another one.');
-        return;
-      }
-      setAttachments([...attachments.filter((attachment) => attachment.kind !== kind), { kind, name: file.name, type: file.type, url: reader.result }]);
+    try {
+      const url = await mediaDataUrl(file);
+      setAttachments([...attachments.filter((attachment) => attachment.kind !== kind), { kind, name: file.name, type: file.type, url }]);
       setAttachmentError('');
-    };
-    reader.onerror = () => setAttachmentError('This attachment could not be read. Please try another one.');
-    reader.readAsDataURL(file);
+    } catch {
+      setAttachmentError('This attachment could not be read. Please try another one.');
+    }
   }
 
   return (
@@ -1121,6 +1141,35 @@ function readAskMessages(): AskMessage[] {
 }
 
 const prototypeSessionKey = 'pawsona-prototype-session-v1';
+
+function releaseMirroredMediaCopies(session: PrototypeSession, previousSession: PrototypeSession | null) {
+  const mirrored = new Map<string, Set<string>>();
+  function add(key: string, value: unknown) {
+    if (value === undefined || value === null) return;
+    const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+    if (!serialized || serialized.length < 1024) return;
+    if (!mirrored.has(key)) mirrored.set(key, new Set());
+    mirrored.get(key)?.add(serialized);
+  }
+  for (const source of [session, previousSession].filter((entry): entry is PrototypeSession => entry !== null)) {
+    for (const account of source.accounts) {
+      add('pawsona-owner-avatar', account.avatar);
+      for (const pet of account.pets) {
+        add('pawsona-pet-avatar', pet.avatar);
+        add(storageKey, pet.workspace.contexts);
+        add('pawsona-story-observations-v1', pet.workspace.observations);
+        add(storyDraftsKey, pet.workspace.drafts);
+        add(askMessagesKey, pet.workspace.askMessages);
+      }
+    }
+  }
+  for (const [key, copies] of mirrored) {
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored && copies.has(stored)) localStorage.removeItem(key);
+    } catch { /* Storage cleanup is best effort; the original session stays intact. */ }
+  }
+}
 
 function defaultCareMembers(ownerName: string): CareMember[] {
   return [{ id: 'emily', name: ownerName, role: 'Primary owner', detail: 'manages the profile' }];
@@ -1225,6 +1274,7 @@ function readPrototypeSession(): PrototypeSession {
         const pet = petEntry as Partial<PrototypePet>;
         if (typeof pet.id !== 'string' || typeof pet.name !== 'string') return [];
         const hasDemoMoments = typeof pet.hasDemoMoments === 'boolean' ? pet.hasDemoMoments : pet.id === 'pet-primary';
+        const inferredEmptyProfile = pet.name === 'My pet' && !hasDemoMoments && typeof pet.sharedGroupId !== 'string';
         return [{
           id: pet.id,
           name: pet.name,
@@ -1233,12 +1283,16 @@ function readPrototypeSession(): PrototypeSession {
           age: typeof pet.age === 'string' ? pet.age : '1',
           avatar: typeof pet.avatar === 'string' ? pet.avatar : '',
           hasDemoMoments,
+          isEmptyProfile: inferredEmptyProfile || pet.isEmptyProfile === true,
           sharedGroupId: typeof pet.sharedGroupId === 'string' ? pet.sharedGroupId : undefined,
           sharedOwnerAccountId: typeof pet.sharedOwnerAccountId === 'string' ? pet.sharedOwnerAccountId : undefined,
           workspace: normalizeWorkspace(pet.workspace, accountName, hasDemoMoments),
         }];
       });
       if (!pets.length) return [];
+      // Older invitation flows could leave the account's empty placeholder beside
+      // the newly shared pet. A real pet replaces that placeholder.
+      const availablePets = pets.some((pet) => !pet.isEmptyProfile) ? pets.filter((pet) => !pet.isEmptyProfile) : pets;
       return [{
         id: account.id,
         name: account.name,
@@ -1246,8 +1300,8 @@ function readPrototypeSession(): PrototypeSession {
         role: typeof account.role === 'string' ? account.role : 'Primary caregiver',
         avatar: typeof account.avatar === 'string' ? account.avatar : '',
         preference: typeof account.preference === 'string' ? account.preference : 'Manage your profile details here.',
-        pets,
-        activePetId: pets.some((pet) => pet.id === account.activePetId) ? account.activePetId as string : pets[0].id,
+        pets: availablePets,
+        activePetId: availablePets.some((pet) => pet.id === account.activePetId) ? account.activePetId as string : availablePets[0].id,
       }];
     });
     return {
@@ -1260,39 +1314,24 @@ function readPrototypeSession(): PrototypeSession {
 }
 
 function persistPrototypeSession(session: PrototypeSession) {
-  localStorage.setItem(prototypeSessionKey, JSON.stringify(session));
+  const serialized = JSON.stringify(session);
+  try {
+    localStorage.setItem(prototypeSessionKey, serialized);
+  } catch (error) {
+    let previousSession: PrototypeSession | null = null;
+    try {
+      const stored = localStorage.getItem(prototypeSessionKey);
+      previousSession = stored ? JSON.parse(stored) as PrototypeSession : null;
+    } catch { /* Preserve the current session and continue with best-effort cleanup. */ }
+    releaseMirroredMediaCopies(session, previousSession);
+    localStorage.setItem(prototypeSessionKey, serialized);
+  }
 }
 
-function writeLegacyWorkspace(workspace: PetWorkspace) {
-  localStorage.setItem(storageKey, JSON.stringify(workspace.contexts));
-  localStorage.setItem('pawsona-story-observations-v1', JSON.stringify(workspace.observations));
-  localStorage.setItem(storyDraftsKey, JSON.stringify(workspace.drafts));
-  localStorage.setItem(askMessagesKey, JSON.stringify(workspace.askMessages));
-  localStorage.setItem(careMembersKey, JSON.stringify(workspace.careMembers));
-  if (workspace.visibility === null) localStorage.removeItem(storyVisibilityKey);
-  else localStorage.setItem(storyVisibilityKey, JSON.stringify(workspace.visibility));
-  if (workspace.careEvent === null) localStorage.removeItem(careEventKey);
-  else localStorage.setItem(careEventKey, JSON.stringify(workspace.careEvent));
-  localStorage.setItem(mediaSourcesKey, JSON.stringify(workspace.mediaSources));
-  localStorage.setItem(typicalPatternsKey, JSON.stringify(workspace.patterns));
-  localStorage.setItem(lifeCareEventsKey, JSON.stringify(workspace.lifeEvents));
-}
-
-function writeLegacyProfiles(account: PrototypeAccount, pet: PrototypePet) {
-  localStorage.setItem('pawsona-owner-name', account.name);
-  localStorage.setItem('pawsona-owner-role', account.role);
-  localStorage.setItem('pawsona-owner-avatar', account.avatar);
-  localStorage.setItem('pawsona-owner-preference', account.preference);
-  localStorage.setItem('pawsona-pet-name', pet.name);
-  localStorage.setItem('pawsona-pet-breed', pet.breed);
-  localStorage.setItem('pawsona-pet-age', pet.age);
-  localStorage.setItem('pawsona-pet-avatar', pet.avatar);
-}
-
-function AskPage({ onEvidence, onContext, onPetsNavigate, petName, petAvatar, messages, messageEndRef, hasDemoMoments }: { onEvidence: () => void; onContext: () => void; onPetsNavigate: () => void; petName: string; petAvatar: string; messages: AskMessage[]; messageEndRef: RefObject<HTMLDivElement | null>; hasDemoMoments: boolean }) {
+function AskPage({ onEvidence, onContext, onPetsNavigate, petName, petAvatar, messages, messageEndRef, hasDemoMoments, noPetYet }: { onEvidence: () => void; onContext: () => void; onPetsNavigate: () => void; petName: string; petAvatar: string; messages: AskMessage[]; messageEndRef: RefObject<HTMLDivElement | null>; hasDemoMoments: boolean; noPetYet: boolean }) {
   return (
     <div className="ask-page">
-      <MainHeader eyebrow="ASK AI · OBSERVATION DIALOGUE" title="Ask Pawsona" onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} />
+      <MainHeader eyebrow="ASK AI · OBSERVATION DIALOGUE" title="Ask Pawsona" onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       {hasDemoMoments && <div className="linked-evidence ask-status"><span className="loading-ring" /><span><strong>Reviewing afternoon rest</strong><small>Linked to Today’s Story · 2 clips + your note</small></span></div>}
       <section className="ask-thread" aria-label="Conversation with Pawsona">
         {hasDemoMoments ? <><article className="chat-message ai">{petName} rested longer this afternoon than in the recent clips available. I can’t tell why—or know exactly how {petName} felt. Would you like to check the evidence or add what happened at home?<button className="text-link" onClick={onEvidence}>View evidence →</button></article><article className="chat-message owner">My family had visitors today. {petName} often settles down after that.</article><article className="chat-message ai">Would you like to add this as owner context? You can review the clips before anything is saved.<div className="chat-choices"><button onClick={onContext}>Yes</button><button onClick={onEvidence}>No</button></div></article></> : messages.length === 0 && <article className="chat-message ai">Ask a question or share context after you add moments for {petName}. Prototype replies are simulated and saved only in this pet profile.</article>}
@@ -1332,7 +1371,7 @@ function AskComposer({ value, onValue, onSend, onQuickContext, saveError }: { va
     onValue(value);
   }
 
-  function attachFile(file: File | undefined, kind: AskAttachment['kind']) {
+  async function attachFile(file: File | undefined, kind: AskAttachment['kind']) {
     if (!file) return;
     const expectedType = kind === 'image' ? 'image/' : 'audio/';
     if (!file.type.startsWith(expectedType)) {
@@ -1343,16 +1382,11 @@ function AskComposer({ value, onValue, onSend, onQuickContext, saveError }: { va
       setRecordingError('Choose a file smaller than 1 MB so this conversation can be saved.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') {
-        setRecordingError('This attachment could not be read. Please try another one.');
-        return;
-      }
-      replaceAttachment({ url: reader.result, name: file.name, kind, type: file.type });
-    };
-    reader.onerror = () => setRecordingError('This attachment could not be read. Please try another one.');
-    reader.readAsDataURL(file);
+    try {
+      replaceAttachment({ url: await mediaDataUrl(file), name: file.name, kind, type: file.type });
+    } catch {
+      setRecordingError('This attachment could not be read. Please try another one.');
+    }
   }
 
   function stopMediaStream() {
@@ -1484,9 +1518,9 @@ function AccountAccessPage({ accounts, error, onSignIn, onRegister, onDelete }: 
       <div><h2>Create an account</h2><small>Prototype only · no password or cloud account is created.</small></div>
       <label><span>Your name</span><input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" placeholder="e.g. Anna" /></label>
       <label><span>Email</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" placeholder="anna@example.com" /></label>
-      <label><span>First pet</span><input value={petName} onChange={(event) => setPetName(event.target.value)} placeholder="e.g. Coco" /></label>
+      <label><span>First pet (optional)</span><input value={petName} onChange={(event) => setPetName(event.target.value)} placeholder="You can add a pet later" /></label>
       {(formError || error) && <p className="account-form-error" role="alert">{formError || error}</p>}
-      <button className="primary-button full" disabled={!name.trim() || !email.trim() || !petName.trim()}>Create local account</button>
+      <button className="primary-button full" disabled={!name.trim() || !email.trim()}>Create local account</button>
     </form>
     {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-account-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-account-title">Delete {pendingDelete.name}?</h2><p>This permanently removes this local account and every pet, timeline, Story, context and Ask AI conversation saved inside it. Other accounts will not be changed.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete account</button></div></section></div>}
   </section>;
@@ -1506,11 +1540,12 @@ function AccountSwitcher({ accounts, activeAccountId, onClose, onSwitch, onRegis
     if (!nextError) onClose();
   }
 
-  return <div className="profile-dialog-backdrop" role="presentation" onClick={onClose}><section className="profile-dialog switcher-dialog" role="dialog" aria-modal="true" aria-labelledby="account-switcher-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={onClose}>×</button><h2 id="account-switcher-title">Accounts</h2><p>Switching accounts also switches its saved pet spaces.</p><div className="switcher-list">{accounts.map((account) => <button key={account.id} className={account.id === activeAccountId ? 'selected' : ''} onClick={() => { if (account.id !== activeAccountId) onSwitch(account.id); onClose(); }}><OwnerAvatar src={account.avatar} name={account.name} /><span><strong>{account.name}</strong><small>{account.email}</small></span><em>{account.id === activeAccountId ? 'Current' : 'Switch'}</em></button>)}</div>{creating ? <form className="switcher-form" onSubmit={register}><label><span>Your name</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label><label><span>Email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label><label><span>First pet</span><input value={petName} onChange={(event) => setPetName(event.target.value)} /></label>{error && <p className="account-form-error" role="alert">{error}</p>}<div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => { setCreating(false); setError(''); }}>Cancel</button><button className="primary-button" disabled={!name.trim() || !email.trim() || !petName.trim()}>Create</button></div></form> : <><button className="cancel-button full" onClick={() => setCreating(true)}>Create another account</button><button className="account-signout-link" onClick={onRequestSignOut}>Sign out of this account</button></>}</section></div>;
+  return <div className="profile-dialog-backdrop" role="presentation" onClick={onClose}><section className="profile-dialog switcher-dialog" role="dialog" aria-modal="true" aria-labelledby="account-switcher-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={onClose}>×</button><h2 id="account-switcher-title">Accounts</h2><p>Switching accounts also switches its saved pet spaces.</p><div className="switcher-list">{accounts.map((account) => <button key={account.id} className={account.id === activeAccountId ? 'selected' : ''} onClick={() => { if (account.id !== activeAccountId) onSwitch(account.id); onClose(); }}><OwnerAvatar src={account.avatar} name={account.name} /><span><strong>{account.name}</strong><small>{account.email}</small></span><em>{account.id === activeAccountId ? 'Current' : 'Switch'}</em></button>)}</div>{creating ? <form className="switcher-form" onSubmit={register}><label><span>Your name</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label><label><span>Email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label><label><span>First pet (optional)</span><input value={petName} onChange={(event) => setPetName(event.target.value)} placeholder="You can add a pet later" /></label>{error && <p className="account-form-error" role="alert">{error}</p>}<div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => { setCreating(false); setError(''); }}>Cancel</button><button className="primary-button" disabled={!name.trim() || !email.trim()}>Create</button></div></form> : <><button className="cancel-button full" onClick={() => setCreating(true)}>Create another account</button><button className="account-signout-link" onClick={onRequestSignOut}>Sign out of this account</button></>}</section></div>;
 }
 
-function PetSwitcher({ pets, activePetId, onClose, onSwitch, onAdd, onDelete }: { pets: PrototypePet[]; activePetId: string; onClose: () => void; onSwitch: (id: string) => void; onAdd: (name: string, breed: string, age: string, species: 'Dog' | 'Cat', avatar: string) => string; onDelete: (id: string) => string }) {
-  const [adding, setAdding] = useState(false);
+function PetSwitcher({ pets, activePetId, onClose, onSwitch, onAdd, onDelete, initialAdding = false }: { pets: PrototypePet[]; activePetId: string; onClose: () => void; onSwitch: (id: string) => void; onAdd: (name: string, breed: string, age: string, species: 'Dog' | 'Cat', avatar: string) => string; onDelete: (id: string) => string; initialAdding?: boolean }) {
+  const visiblePets = pets.filter((pet) => !pet.isEmptyProfile);
+  const [adding, setAdding] = useState(initialAdding);
   const [name, setName] = useState('');
   const [breed, setBreed] = useState('');
   const [species, setSpecies] = useState<'Dog' | 'Cat'>('Dog');
@@ -1553,15 +1588,17 @@ function PetSwitcher({ pets, activePetId, onClose, onSwitch, onAdd, onDelete }: 
     reader.readAsDataURL(file);
   }
 
-  return <div className="profile-dialog-backdrop" role="presentation" onClick={onClose}><section className="profile-dialog switcher-dialog" role="dialog" aria-modal="true" aria-labelledby="pet-switcher-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={onClose}>×</button><h2 id="pet-switcher-title">Pet profiles</h2><p>Choose which pet’s Today, Story and context you want to view.</p><div className="switcher-list pet-switcher-list">{pets.map((pet) => <div key={pet.id} className={`pet-switcher-row ${pet.id === activePetId ? 'selected' : ''}`}><button className="pet-switcher-choice" onClick={() => { if (pet.id !== activePetId) onSwitch(pet.id); onClose(); }}><Avatar name={pet.name} src={pet.avatar} /><span><strong>{pet.name}</strong><small>{pet.breed} · {formatPetAge(pet.age)}</small></span><em>{pet.id === activePetId ? 'Current' : 'Switch'}</em></button><button className="pet-profile-delete" disabled={pets.length === 1} aria-label={pets.length === 1 ? `${pet.name} is the only pet and cannot be deleted` : `Delete ${pet.name}`} title={pets.length === 1 ? 'Add another pet before deleting this one' : `Delete ${pet.name}`} onClick={() => { setError(''); setPendingDelete(pet); }}>Delete</button></div>)}</div>{pets.length === 1 && <p className="pet-delete-help">Add another pet before deleting this profile.</p>}{error && !adding && <p className="account-form-error" role="alert">{error}</p>}{adding ? <form className="switcher-form" onSubmit={add}><div className="pet-photo-field"><label className="profile-avatar-upload" aria-label="Upload pet photo"><img className="profile-edit-avatar pet-edit-avatar" src={avatar || asset('luna-avatar.png')} alt={name || 'Pet'} /><span className="avatar-edit-badge" aria-hidden="true">✎</span><input type="file" accept="image/*" aria-label="Choose pet photo" onChange={(event) => readPetAvatar(event.target.files?.[0])} /></label><span>Add a pet photo</span></div><fieldset className="pet-species-field"><legend>Pet type</legend><div className="pet-species-options">{(['Dog', 'Cat'] as const).map((option) => <button key={option} type="button" aria-pressed={species === option} className={species === option ? 'selected' : ''} onClick={() => setSpecies(option)}>{option === 'Dog' ? '🐕 Dog' : '🐈 Cat'}</button>)}</div></fieldset><label><span>Pet name</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label><label><span>Breed</span><input value={breed} onChange={(event) => setBreed(event.target.value)} placeholder="Mixed breed" /></label><label><span>Age</span><input type="number" min="0" max="40" value={age} onChange={(event) => setAge(event.target.value)} /></label>{error && <p className="account-form-error" role="alert">{error}</p>}<div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => { setAdding(false); setError(''); }}>Cancel</button><button className="primary-button" disabled={!name.trim() || !breed.trim() || !age.trim()}>Add pet</button></div></form> : <button className="cancel-button full" onClick={() => setAdding(true)}>Add another pet</button>}{pendingDelete && <div className="nested-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog pet-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-pet-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-pet-title">Delete {pendingDelete.name}?</h2><p>This permanently removes this pet profile and its timeline, Story, context and Ask AI history from this device. Other pets will not be changed.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete pet</button></div></section></div>}</section></div>;
+  return <div className="profile-dialog-backdrop" role="presentation" onClick={onClose}><section className="profile-dialog switcher-dialog" role="dialog" aria-modal="true" aria-labelledby="pet-switcher-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={onClose}>×</button><h2 id="pet-switcher-title">Pet profiles</h2><p>{visiblePets.length ? 'Choose which pet’s Today, Story and context you want to view.' : 'Add a pet profile to continue to Today, Story and context.'}</p>{visiblePets.length > 0 && <div className="switcher-list pet-switcher-list">{visiblePets.map((pet) => <div key={pet.id} className={`pet-switcher-row ${pet.id === activePetId ? 'selected' : ''}`}><button className="pet-switcher-choice" onClick={() => { if (pet.id !== activePetId) onSwitch(pet.id); onClose(); }}><Avatar name={pet.name} src={pet.avatar} /><span><strong>{pet.name}</strong><small>{pet.breed} · {formatPetAge(pet.age)}</small></span><em>{pet.id === activePetId ? 'Current' : 'Switch'}</em></button><button className="pet-profile-delete" disabled={visiblePets.length === 1} aria-label={visiblePets.length === 1 ? `${pet.name} is the only pet and cannot be deleted` : `Delete ${pet.name}`} title={visiblePets.length === 1 ? 'Add another pet before deleting this one' : `Delete ${pet.name}`} onClick={() => { setError(''); setPendingDelete(pet); }}>Delete</button></div>)}</div>}{visiblePets.length === 1 && <p className="pet-delete-help">Add another pet before deleting this profile.</p>}{error && !adding && <p className="account-form-error" role="alert">{error}</p>}{adding ? <form className="switcher-form" onSubmit={add}><div className="pet-photo-field"><label className="profile-avatar-upload" aria-label="Upload pet photo">{avatar ? <img className="profile-edit-avatar pet-edit-avatar" src={avatar} alt={name || 'Pet'} /> : <span className="profile-edit-avatar pet-edit-avatar pet-photo-placeholder" aria-hidden="true">＋</span>}<span className="avatar-edit-badge" aria-hidden="true">✎</span><input type="file" accept="image/*" aria-label="Choose pet photo" onChange={(event) => readPetAvatar(event.target.files?.[0])} /></label><span>Add a pet photo</span></div><fieldset className="pet-species-field"><legend>Pet type</legend><div className="pet-species-options">{(['Dog', 'Cat'] as const).map((option) => <button key={option} type="button" aria-pressed={species === option} className={species === option ? 'selected' : ''} onClick={() => setSpecies(option)}>{option === 'Dog' ? '🐕 Dog' : '🐈 Cat'}</button>)}</div></fieldset><label><span>Pet name</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label><label><span>Breed</span><input value={breed} onChange={(event) => setBreed(event.target.value)} placeholder="Mixed breed" /></label><label><span>Age</span><input type="number" min="0" max="40" value={age} onChange={(event) => setAge(event.target.value)} /></label>{error && <p className="account-form-error" role="alert">{error}</p>}<div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => { setAdding(false); setError(''); }}>Cancel</button><button className="primary-button" disabled={!name.trim() || !breed.trim() || !age.trim()}>Add pet</button></div></form> : <button className="cancel-button full" onClick={() => setAdding(true)}>Add a pet</button>}{pendingDelete && <div className="nested-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog pet-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-pet-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-pet-title">Delete {pendingDelete.name}?</h2><p>This permanently removes this pet profile and its timeline, Story, context and Ask AI history from this device. Other pets will not be changed.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={() => { setPendingDelete(null); confirmDelete(); }}>Delete pet</button></div></section></div>}</section></div>;
 }
 
-function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', ownerPreference = 'Manage your profile details here.', pets, activePetId, onPetsNavigate, onSettingsNavigate, onPetEdit, onProfileEdit, onPetSwitcher, careMembers, accounts, primaryMemberId, onMemberClick, onCareMembers, patterns, lifeEvents, mediaSources, onPatternHistory, onPattern, onLifeCare, onConnectedMedia, invitations = [], onAcceptInvitation, onDeclineInvitation, careOwnerName = ownerName, careOwnerAvatar = ownerAvatar, careOwnerRole = ownerRole, groupName = 'Care circle', canManageCareGroup = primaryMemberId === 'emily' }: { kind: 'pets' | 'you'; petName: string; petAvatar: string; petBreed: string; petAge: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; ownerPreference?: string; pets: PrototypePet[]; activePetId: string; accounts: PrototypeAccount[]; onPetsNavigate: () => void; onSettingsNavigate: () => void; onPetEdit: () => void; onProfileEdit: () => void; onPetSwitcher: () => void; careMembers: CareMember[]; primaryMemberId: string; onMemberClick: (id: string) => void; onCareMembers: () => void; patterns: TypicalPattern[]; lifeEvents: LifeCareEvent[]; mediaSources: MediaSource[]; onPatternHistory: () => void; onPattern: (id: string) => void; onLifeCare: (category?: 'life' | 'health') => void; onConnectedMedia: (sourceId?: string) => void; invitations?: CareInvitation[]; onAcceptInvitation?: (invite: CareInvitation) => void; onDeclineInvitation?: (inviteId: string) => void; careOwnerName?: string; careOwnerAvatar?: string; careOwnerRole?: string; groupName?: string; canManageCareGroup?: boolean }) {
+function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', ownerPreference = 'Manage your profile details here.', pets, activePetId, onPetsNavigate, onSettingsNavigate, onPetEdit, onProfileEdit, onPetSwitcher, careMembers, accounts, primaryMemberId, onMemberClick, onCareMembers, patterns, lifeEvents, mediaSources, onPatternHistory, onPattern, onLifeCare, onConnectedMedia, invitations = [], onAcceptInvitation, onDeclineInvitation, careOwnerName = ownerName, careOwnerAvatar = ownerAvatar, careOwnerRole = ownerRole, groupName = 'Care circle', canManageCareGroup = primaryMemberId === 'emily', noPetYet = false }: { kind: 'pets' | 'you'; petName: string; petAvatar: string; petBreed: string; petAge: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; ownerPreference?: string; pets: PrototypePet[]; activePetId: string; accounts: PrototypeAccount[]; onPetsNavigate: () => void; onSettingsNavigate: () => void; onPetEdit: () => void; onProfileEdit: () => void; onPetSwitcher: () => void; careMembers: CareMember[]; primaryMemberId: string; onMemberClick: (id: string) => void; onCareMembers: () => void; patterns: TypicalPattern[]; lifeEvents: LifeCareEvent[]; mediaSources: MediaSource[]; onPatternHistory: () => void; onPattern: (id: string) => void; onLifeCare: (category?: 'life' | 'health') => void; onConnectedMedia: (sourceId?: string) => void; invitations?: CareInvitation[]; onAcceptInvitation?: (invite: CareInvitation) => void; onDeclineInvitation?: (inviteId: string) => void; careOwnerName?: string; careOwnerAvatar?: string; careOwnerRole?: string; groupName?: string; canManageCareGroup?: boolean; noPetYet?: boolean }) {
   const petDetailsLabel = `${petBreed} · ${formatPetAge(petAge)}`;
+  const displayPets = pets.filter((pet) => !pet.isEmptyProfile);
   const confirmedPatterns = patterns.filter((pattern) => pattern.status === 'confirmed');
   return kind === 'pets' ? (
     <div className="profile-page pets-page">
-      <MainHeader eyebrow="PET PROFILE" title="Pet profile" onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} />
+      <MainHeader eyebrow="PET PROFILE" title="Pet profile" onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
+      {noPetYet ? <section className="today-empty-state pets-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onPetSwitcher}>Add a pet</button></section> : <>
       <section className="pet-profile-hero">
         <Avatar name={petName} src={petAvatar} />
         <div className="profile-hero-copy"><strong>{petName}</strong><small>{petDetailsLabel}</small><div className="pet-hero-actions"><button className="mini-action" onClick={onPetEdit}><span>✎</span> Edit details</button><button className="mini-action" onClick={onPetSwitcher}>⇄ Switch pet</button></div></div>
@@ -1591,10 +1628,11 @@ function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, own
           <button className="knowledge-row" onClick={() => onLifeCare('health')}><span className="knowledge-icon">＋</span><span><strong>Health &amp; care notes</strong><small>{lifeEvents.filter((event) => event.category === 'health').length || 'No'} owner records · not an AI diagnosis</small></span><i>›</i></button>
         </div>
       </section>
+      </>}
     </div>
   ) : (
     <div className="profile-page you-page">
-      <MainHeader eyebrow="MY SPACE" title="My Profile" onPetsNavigate={onPetsNavigate} onSettingsNavigate={onSettingsNavigate} petName={petName} petAvatar={petAvatar} />
+      <MainHeader eyebrow="MY SPACE" title="My Profile" onPetsNavigate={onPetsNavigate} onSettingsNavigate={onSettingsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       <button className="account-profile-hero" onClick={onProfileEdit}>
         <OwnerAvatar src={ownerAvatar} name={ownerName} className="account-avatar" />
         <span className="profile-hero-copy"><strong>{ownerName}</strong><small>{ownerPreference}</small><span className="mini-action"><b>✎</b> Edit my profile</span></span>
@@ -1603,7 +1641,7 @@ function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, own
       <section className="profile-section you-section">
         <div className="profile-section-heading"><h2>My pets</h2>{invitations.length > 0 && <span className="invitation-count">{invitations.length} invitation{invitations.length === 1 ? '' : 's'}</span>}<button className="profile-link" onClick={onPetSwitcher}>Switch or add →</button></div>
         <div className="profile-card you-list pets-list">
-          {pets.map((pet) => <button className="you-row" key={pet.id} onClick={() => pet.id === activePetId ? onPetEdit() : onPetSwitcher()}><Avatar name={pet.name} src={pet.avatar} /><span><strong>{pet.name}</strong><small>{pet.breed} · {formatPetAge(pet.age)}</small></span><em>{pet.id === activePetId ? 'Active' : 'Switch'}</em></button>)}
+          {displayPets.length ? displayPets.map((pet) => <button className="you-row" key={pet.id} onClick={() => pet.id === activePetId ? onPetEdit() : onPetSwitcher()}><Avatar name={pet.name} src={pet.avatar} /><span><strong>{pet.name}</strong><small>{pet.breed} · {formatPetAge(pet.age)}</small></span><em>{pet.id === activePetId ? 'Active' : 'Switch'}</em></button>) : <div className="management-empty"><strong>You haven’t added a pet yet</strong><p>Add one to get started.</p><button className="profile-link" onClick={onPetSwitcher}>Add a pet →</button></div>}
         </div>
         {invitations.length > 0 && <div className="care-invitation-list" aria-label="Care group invitations">{invitations.map((invite) => <article className="care-invitation-card" key={invite.id}><div className="care-invitation-pet"><Avatar name={invite.petName} src={invite.petAvatar} /><span><strong>{invite.petName}’s care group</strong><small>Invited by {invite.ownerName} · {invite.email}</small></span></div><p>{invite.ownerName} invited you to help care for {invite.petName} as a {invite.role.toLowerCase()}.</p><div className="care-invitation-actions"><button className="cancel-button" onClick={() => onDeclineInvitation?.(invite.id)}>Decline</button><button className="primary-button" onClick={() => onAcceptInvitation?.(invite)}>Accept invitation</button></div></article>)}</div>}
       </section>
@@ -1772,9 +1810,9 @@ function SettingsHubPage({ accounts, activeAccountId, onBack, onSwitchAccount, o
         {!creatingAccount ? <button className="settings-create-account" onClick={() => { setCreateError(''); setCreatingAccount(true); }}>＋ Create another account</button> : <form className="settings-create-form" onSubmit={createAccount}>
         <label><span>Your name</span><input autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} /></label>
         <label><span>Email</span><input type="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} /></label>
-        <label><span>First pet</span><input value={newPetName} onChange={(event) => setNewPetName(event.target.value)} /></label>
+        <label><span>First pet (optional)</span><input value={newPetName} onChange={(event) => setNewPetName(event.target.value)} placeholder="You can add a pet later" /></label>
         {createError && <p className="account-form-error" role="alert">{createError}</p>}
-        <div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => setCreatingAccount(false)}>Cancel</button><button className="primary-button" disabled={!newName.trim() || !newEmail.trim() || !newPetName.trim()}>Create account</button></div>
+        <div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => setCreatingAccount(false)}>Cancel</button><button className="primary-button" disabled={!newName.trim() || !newEmail.trim()}>Create account</button></div>
         </form>}
       </div>
       <button className="settings-signout-row" onClick={onSignOut}><span className="settings-signout-icon" aria-hidden="true">↪</span><span><strong>Sign out</strong><small>Your local data will stay on this device</small></span><i>›</i></button></section>
@@ -1800,23 +1838,11 @@ function SettingsPage({ kind, initialName, initialBreed = 'Golden Retriever', in
   const ageIsInvalid = age.trim().length === 0 || !Number.isInteger(numericAge) || numericAge < 0 || numericAge > 40;
   const saveDisabled = nameIsEmpty || (pet && (breedIsEmpty || ageIsInvalid));
   const [saved, setSaved] = useState(false);
-  const [saveFailed, setSaveFailed] = useState(false);
 
   function save() {
     const nextName = name.trim();
     const nextBreed = breed.trim();
     const nextAge = age.trim();
-    try {
-      localStorage.setItem(pet ? 'pawsona-pet-name' : 'pawsona-owner-name', nextName);
-      if (pet) {
-        localStorage.setItem('pawsona-pet-breed', nextBreed);
-        localStorage.setItem('pawsona-pet-age', nextAge);
-        localStorage.setItem('pawsona-pet-avatar', avatar);
-      } else {
-        localStorage.setItem('pawsona-owner-avatar', avatar);
-        localStorage.setItem('pawsona-owner-preference', preference);
-      }
-    } catch { setSaveFailed(true); return; }
     onSaved(nextName);
     if (pet) {
       onPetSaved?.({ name: nextName, breed: nextBreed, age: nextAge, avatar });
@@ -1884,7 +1910,6 @@ function SettingsPage({ kind, initialName, initialBreed = 'Golden Retriever', in
         <button className="primary-button full" onClick={save} disabled={saveDisabled}>{pet ? 'Save details' : 'Save profile'}</button>
         {saved && <p role="status">Your changes have been saved.</p>}
       </div>
-      {saveFailed && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setSaveFailed(false)}><section className="profile-dialog" role="alertdialog" aria-modal="true" aria-labelledby="profile-save-error-title" onClick={(event) => event.stopPropagation()}><h2 id="profile-save-error-title">Couldn’t save your profile</h2><p>Your changes could not be saved. Please try again.</p><button className="primary-button" onClick={() => setSaveFailed(false)}>OK</button></section></div>}
     </section>
   );
 }
@@ -2023,18 +2048,21 @@ function CareMemberDetailsPage({ member, ownerName, ownerRole, ownerAvatar, owne
 export default function App() {
   const [prototypeSession, setPrototypeSession] = useState<PrototypeSession>(readPrototypeSession);
   const [view, setView] = useState<View>('today');
-  const [petName, setPetName] = useState(() => readStorageString('pawsona-pet-name', 'Luna'));
-  const [petAvatar, setPetAvatar] = useState(() => readStorageString('pawsona-pet-avatar', ''));
-  const [petBreed, setPetBreed] = useState(() => readStorageString('pawsona-pet-breed', 'Golden Retriever'));
+  const initialAccount = prototypeSession.accounts.find((entry) => entry.id === prototypeSession.activeAccountId);
+  const initialPet = initialAccount?.pets.find((entry) => entry.id === initialAccount.activePetId) ?? initialAccount?.pets[0];
+  const initialWorkspace = initialPet?.workspace;
+  const [petName, setPetName] = useState(() => initialPet?.name ?? readStorageString('pawsona-pet-name', 'Luna'));
+  const [petAvatar, setPetAvatar] = useState(() => initialPet?.avatar ?? readStorageString('pawsona-pet-avatar', ''));
+  const [petBreed, setPetBreed] = useState(() => initialPet?.breed ?? readStorageString('pawsona-pet-breed', 'Golden Retriever'));
   const [petAge, setPetAge] = useState(() => {
-    const storedAge = readStorageString('pawsona-pet-age', '3');
+    const storedAge = initialPet?.age ?? readStorageString('pawsona-pet-age', '3');
     const numericAge = Number(storedAge);
     return Number.isInteger(numericAge) && numericAge >= 0 && numericAge <= 40 ? storedAge : '3';
   });
-  const [ownerName, setOwnerName] = useState(() => readStorageString('pawsona-owner-name', 'Emily'));
-  const [ownerRole, setOwnerRole] = useState(() => readStorageString('pawsona-owner-role', 'Primary caregiver'));
-  const [ownerAvatar, setOwnerAvatar] = useState(() => readStorageString('pawsona-owner-avatar', ''));
-  const [ownerPreference, setOwnerPreference] = useState(() => readStorageString('pawsona-owner-preference', 'Manage your profile details here.'));
+  const [ownerName, setOwnerName] = useState(() => initialAccount?.name ?? readStorageString('pawsona-owner-name', 'Emily'));
+  const [ownerRole, setOwnerRole] = useState(() => initialAccount?.role ?? readStorageString('pawsona-owner-role', 'Primary caregiver'));
+  const [ownerAvatar, setOwnerAvatar] = useState(() => initialAccount?.avatar ?? readStorageString('pawsona-owner-avatar', ''));
+  const [ownerPreference, setOwnerPreference] = useState(() => initialAccount?.preference ?? readStorageString('pawsona-owner-preference', 'Manage your profile details here.'));
   const [profileSaveNotice, setProfileSaveNotice] = useState('');
   const [contextSavedNotice, setContextSavedNotice] = useState(false);
   const [storyDraftSavedNotice, setStoryDraftSavedNotice] = useState(false);
@@ -2045,11 +2073,11 @@ export default function App() {
       const groupContexts = prototypeSession.accounts.flatMap((entry) => entry.pets.filter((groupPet) => groupPet.sharedGroupId === pet.sharedGroupId).flatMap((groupPet) => groupPet.workspace.contexts));
       return [...new Map(groupContexts.map((context) => [context.id, context])).values()].sort((left, right) => right.savedAt.localeCompare(left.savedAt));
     }
-    return readSavedContexts();
+    return pet?.workspace.contexts ?? readSavedContexts();
   });
-  const [storyObservations, setStoryObservations] = useState<StoryObservation[]>(readStoryObservations);
-  const [storyDrafts, setStoryDrafts] = useState<StoryDraft[]>(readStoryDrafts);
-  const [includedStoryMoments, setIncludedStoryMoments] = useState<string[] | null>(readStoryVisibility);
+  const [storyObservations, setStoryObservations] = useState<StoryObservation[]>(initialWorkspace?.observations ?? readStoryObservations());
+  const [storyDrafts, setStoryDrafts] = useState<StoryDraft[]>(initialWorkspace?.drafts ?? readStoryDrafts());
+  const [includedStoryMoments, setIncludedStoryMoments] = useState<string[] | null>(initialWorkspace?.visibility ?? readStoryVisibility());
   const [editingStoryObservationId, setEditingStoryObservationId] = useState<string | null>(null);
   const [activeStoryDraftId, setActiveStoryDraftId] = useState<string | null>(null);
   const [showStoryAddOptions, setShowStoryAddOptions] = useState(false);
@@ -2071,26 +2099,27 @@ export default function App() {
   const [storySaveError, setStorySaveError] = useState('');
   const [profileAction, setProfileAction] = useState<{ title: string; detail: string } | null>(null);
   const [careMembers, setCareMembers] = useState<CareMember[]>(() =>
-    readCareMembers() ?? [
+    initialWorkspace?.careMembers ?? readCareMembers() ?? [
     { id: 'emily', name: ownerName, role: 'Primary owner', detail: 'manages the profile' },
     { id: 'mom', name: 'Mom', role: 'Caregiver', detail: 'can add observations' },
     { id: 'dad', name: 'Dad', role: 'Caregiver', detail: 'can add observations' },
   ]);
   const [careInvitations, setCareInvitations] = useState<CareInvitation[]>(readCareInvitations);
-  const [mediaSources, setMediaSources] = useState<MediaSource[]>(() => readMediaSources(true));
-  const [typicalPatterns, setTypicalPatterns] = useState<TypicalPattern[]>(() => readTypicalPatterns(ownerName, true));
-  const [lifeCareEvents, setLifeCareEvents] = useState<LifeCareEvent[]>(readLifeCareEvents);
+  const [mediaSources, setMediaSources] = useState<MediaSource[]>(() => initialWorkspace?.mediaSources ?? readMediaSources(true));
+  const [typicalPatterns, setTypicalPatterns] = useState<TypicalPattern[]>(() => initialWorkspace?.patterns ?? readTypicalPatterns(ownerName, true));
+  const [lifeCareEvents, setLifeCareEvents] = useState<LifeCareEvent[]>(initialWorkspace?.lifeEvents ?? readLifeCareEvents());
   const [selectedMediaSourceId, setSelectedMediaSourceId] = useState<string | null>(null);
   const [selectedPatternId, setSelectedPatternId] = useState<string | null>(null);
   const [lifeCareInitialCategory, setLifeCareInitialCategory] = useState<'life' | 'health' | null>(null);
   const [lifeCareStartAdding, setLifeCareStartAdding] = useState(false);
   const [selectedCareMemberId, setSelectedCareMemberId] = useState('emily');
   const [askInput, setAskInput] = useState('');
-  const [askMessages, setAskMessages] = useState<AskMessage[]>(readAskMessages);
+  const [askMessages, setAskMessages] = useState<AskMessage[]>(initialWorkspace?.askMessages ?? readAskMessages());
   const [askSaveError, setAskSaveError] = useState('');
   const [accountActionError, setAccountActionError] = useState('');
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showPetSwitcher, setShowPetSwitcher] = useState(false);
+  const [petSwitcherStartsAdding, setPetSwitcherStartsAdding] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const scrollRef = useRef<HTMLElement>(null);
   const askEndRef = useRef<HTMLDivElement>(null);
@@ -2111,7 +2140,7 @@ export default function App() {
       visibility: includedStoryMoments,
       askMessages,
       careMembers,
-      careEvent: readCareEvent(),
+      careEvent: activePetRecord?.workspace.careEvent ?? readCareEvent(),
       mediaSources,
       patterns: typicalPatterns,
       lifeEvents: lifeCareEvents,
@@ -2143,6 +2172,25 @@ export default function App() {
     };
   }
 
+  function persistWorkspacePatch(patch: Partial<PetWorkspace>): boolean {
+    if (!activeAccount || !activePetRecord) return false;
+    const captured = captureCurrentSpace(prototypeSession);
+    const nextSession: PrototypeSession = {
+      ...captured,
+      accounts: captured.accounts.map((account) => account.id !== activeAccount.id ? account : {
+        ...account,
+        pets: account.pets.map((pet) => pet.id === activePetRecord.id ? { ...pet, workspace: { ...pet.workspace, ...patch } } : pet),
+      }),
+    };
+    try {
+      persistPrototypeSession(nextSession);
+    } catch {
+      return false;
+    }
+    setPrototypeSession(nextSession);
+    return true;
+  }
+
   function saveContextsToCurrentGroup(contexts: OwnerContext[], mergeGroupCopies = false): boolean {
     if (!activeAccount || !activePetRecord) return false;
     const captured = captureCurrentSpace(prototypeSession);
@@ -2169,7 +2217,6 @@ export default function App() {
     };
     try {
       persistPrototypeSession(nextSession);
-      localStorage.setItem(storageKey, JSON.stringify(contextsToSave));
     } catch {
       return false;
     }
@@ -2208,7 +2255,6 @@ export default function App() {
       : observations;
     try {
       persistPrototypeSession(nextSession);
-      localStorage.setItem('pawsona-story-observations-v1', JSON.stringify(activeObservations));
     } catch {
       return false;
     }
@@ -2217,7 +2263,7 @@ export default function App() {
     return true;
   }
 
-  function applyAccountSpace(session: PrototypeSession, accountId: string, petId: string): string {
+  function applyAccountSpace(session: PrototypeSession, accountId: string, petId: string, allowSessionOnly = false): string {
     const account = session.accounts.find((entry) => entry.id === accountId);
     const pet = account?.pets.find((entry) => entry.id === petId);
     if (!account || !pet) return 'That saved profile is no longer available.';
@@ -2226,22 +2272,12 @@ export default function App() {
       activeAccountId: account.id,
       accounts: session.accounts.map((entry) => entry.id === account.id ? { ...entry, activePetId: pet.id } : entry),
     };
+    let storageWarning = '';
     try {
-      writeLegacyProfiles(account, pet);
-      writeLegacyWorkspace(pet.workspace);
       persistPrototypeSession(nextSession);
     } catch {
-      const previousAccount = session.accounts.find((entry) => entry.id === session.activeAccountId);
-      const previousPet = previousAccount?.pets.find((entry) => entry.id === previousAccount.activePetId);
-      if (previousAccount && previousPet) {
-        try {
-          writeLegacyProfiles(previousAccount, previousPet);
-          writeLegacyWorkspace(previousPet.workspace);
-        } catch {
-          /* The caller will keep the current in-memory space active. */
-        }
-      }
-      return 'This profile could not be opened because browser storage is unavailable.';
+      if (!allowSessionOnly) return 'This profile could not be opened because browser storage is unavailable.';
+      storageWarning = 'This account is open for this session, but browser storage is full. Some changes may not be saved after refresh.';
     }
     setPrototypeSession(nextSession);
     setOwnerName(account.name);
@@ -2270,22 +2306,22 @@ export default function App() {
     setLastSavedContextId(null);
     setSelectedMomentId('window');
     setAskInput('');
-    setAccountActionError('');
+    setAccountActionError(storageWarning);
     navigationHistory.current = [];
     setView('today');
-    return '';
+    return storageWarning;
   }
 
   function switchAccount(accountId: string) {
     const captured = captureCurrentSpace(prototypeSession);
     const account = captured.accounts.find((entry) => entry.id === accountId);
-    const error = account ? applyAccountSpace(captured, account.id, account.activePetId) : 'That saved account is no longer available.';
+    const error = account ? applyAccountSpace(captured, account.id, account.activePetId, true) : 'That saved account is no longer available.';
     setAccountActionError(error);
   }
 
   function registerAccount(name: string, email: string, firstPetName: string): string {
     const normalizedEmail = email.trim().toLowerCase();
-    if (!name || !firstPetName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) return 'Enter a name, a valid email and your pet’s name.';
+    if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) return 'Enter a name and a valid email.';
     const captured = captureCurrentSpace(prototypeSession);
     if (captured.accounts.some((account) => account.email.toLowerCase() === normalizedEmail)) return 'An account with this email is already saved on this device.';
     const stamp = Date.now();
@@ -2299,7 +2335,7 @@ export default function App() {
       avatar: '',
       preference: 'Manage your profile details here.',
       activePetId: petId,
-      pets: [{ id: petId, name: firstPetName, breed: 'Mixed breed', age: '1', avatar: '', hasDemoMoments: false, workspace: emptyPetWorkspace(name) }],
+      pets: [{ id: petId, name: firstPetName.trim() || 'My pet', breed: 'Mixed breed', age: '1', avatar: '', hasDemoMoments: false, isEmptyProfile: !firstPetName.trim(), workspace: emptyPetWorkspace(name) }],
     };
     return applyAccountSpace({ ...captured, accounts: [...captured.accounts, account] }, accountId, petId);
   }
@@ -2328,6 +2364,11 @@ export default function App() {
     setAccountActionError(error);
   }
 
+  function openAddPetForm() {
+    setPetSwitcherStartsAdding(true);
+    setShowPetSwitcher(true);
+  }
+
   function addPet(name: string, breed: string, age: string, species: 'Dog' | 'Cat', avatar: string): string {
     if (!activeAccount) return 'Sign in before adding a pet.';
     const numericAge = Number(age);
@@ -2339,7 +2380,7 @@ export default function App() {
       accounts: captured.accounts.map((account) => account.id === activeAccount.id ? {
         ...account,
         activePetId: petId,
-        pets: [...account.pets, { id: petId, name, breed, species, age, avatar, hasDemoMoments: false, workspace: emptyPetWorkspace(account.name) }],
+        pets: [...account.pets.filter((pet) => !pet.isEmptyProfile), { id: petId, name, breed, species, age, avatar, hasDemoMoments: false, workspace: emptyPetWorkspace(account.name) }],
       } : account),
     };
     return applyAccountSpace(next, activeAccount.id, petId);
@@ -2395,7 +2436,7 @@ export default function App() {
         ...current,
         accounts: current.accounts.map((account) => account.id === current.activeAccountId ? {
           ...account,
-          pets: account.pets.map((pet) => pet.id === account.activePetId ? { ...pet, ...profile } : pet),
+          pets: account.pets.map((pet) => pet.id === account.activePetId ? { ...pet, ...profile, isEmptyProfile: false } : pet),
         } : account),
       };
       try { persistPrototypeSession(next); } catch { setAccountActionError('Pet details were saved, but the account index could not be updated.'); }
@@ -2455,11 +2496,14 @@ export default function App() {
     };
     const nextMembers = updateMembers(careMembers);
     const nextSession: PrototypeSession = { ...captured, accounts: captured.accounts.map((account) => {
-      const pets = account.pets.flatMap((pet) => {
+      let pets = account.pets.flatMap((pet) => {
       const inGroup = pet.sharedGroupId === groupId || (account.id === activeAccount.id && pet.id === activePetRecord.id);
       if (change.remove && account.id === memberId && pet.sharedGroupId === groupId) return [];
       return inGroup ? [{ ...pet, sharedGroupId: groupId, sharedOwnerAccountId: groupOwnerAccountId ?? activeAccount.id, workspace: { ...pet.workspace, careMembers: updateMembers(pet.workspace.careMembers) } }] : [pet];
       });
+      if (change.remove && account.id === memberId && pets.length === 0) {
+        pets = [{ id: `empty-${account.id}`, name: 'My pet', breed: 'Mixed breed', age: '1', avatar: '', hasDemoMoments: false, isEmptyProfile: true, workspace: emptyPetWorkspace(account.name) }];
+      }
       // Removing someone from a shared group must not leave their standalone account
       // pointing at the deleted shared pet. Keep their last remaining pet active.
       const activePetId = pets.some((pet) => pet.id === account.activePetId) ? account.activePetId : pets[0]?.id ?? account.activePetId;
@@ -2508,7 +2552,13 @@ export default function App() {
     const sharedPetId = `shared-${invite.id}`;
     const nextSession: PrototypeSession = { ...captured, accounts: captured.accounts.map((account) => {
       if (account.id === owner.id) return { ...account, pets: account.pets.map((pet) => pet.id === ownerPet.id ? { ...pet, sharedGroupId: invite.groupId, sharedOwnerAccountId: owner.id, workspace: { ...pet.workspace, careMembers: members } } : pet) };
-      if (account.id === activeAccount.id && !account.pets.some((pet) => pet.sharedGroupId === invite.groupId)) return { ...account, pets: [...account.pets, { id: sharedPetId, sharedGroupId: invite.groupId, sharedOwnerAccountId: owner.id, name: invite.petName, breed: invite.petBreed, age: invite.petAge, avatar: invite.petAvatar, hasDemoMoments: true, workspace: { ...ownerPet.workspace, careMembers: members } }] };
+      if (account.id === activeAccount.id && !account.pets.some((pet) => pet.sharedGroupId === invite.groupId)) {
+        const ownPets = account.pets.filter((pet) => !pet.isEmptyProfile);
+        const sharedPet: PrototypePet = { id: sharedPetId, sharedGroupId: invite.groupId, sharedOwnerAccountId: owner.id, name: invite.petName, breed: invite.petBreed, age: invite.petAge, avatar: invite.petAvatar, hasDemoMoments: true, workspace: { ...ownerPet.workspace, careMembers: members } };
+        const pets = [...ownPets, sharedPet];
+        const activePetId = ownPets.some((pet) => pet.id === account.activePetId) ? account.activePetId : sharedPetId;
+        return { ...account, pets, activePetId };
+      }
       return account;
     }) };
     const nextInvitations = careInvitations.map((entry) => entry.id === invite.id ? { ...entry, status: 'accepted' as const, recipientAccountId: activeAccount.id } : entry);
@@ -2662,11 +2712,9 @@ export default function App() {
       (draftObservation.trim() || draftObservationTitle.trim() || draftMoments.length || draftRelatedPhotos.length)
     ) {
       const draft: StoryDraft = { id: activeStoryDraftId ?? `story-draft-${Date.now()}`, selectedMoments: draftMoments, note: draftObservation, title: draftObservationTitle, momentAt: draftMomentAt, relatedPhotos: draftRelatedPhotos, context: draftObservationContext, savedAt: new Date().toISOString(), privateRecord: draftPrivateRecord, uploadedMedia: draftUploadedMedia ?? undefined };
-      setStoryDrafts((current) => {
-        const next = [draft, ...current.filter((entry) => entry.id !== draft.id)];
-        try { localStorage.setItem(storyDraftsKey, JSON.stringify(next)); } catch { /* Keep the draft for this session. */ }
-        return next;
-      });
+      const next = [draft, ...storyDrafts.filter((entry) => entry.id !== draft.id)];
+      if (!persistWorkspacePatch({ drafts: next })) setAccountActionError('The draft is available in this session, but browser storage is full.');
+      setStoryDrafts(next);
       setStoryDraftSavedNotice(true);
     }
     setActiveStoryDraftId(null);
@@ -2712,13 +2760,14 @@ export default function App() {
       setStorySaveError('This observation could not be saved on this device. Remove a large photo or video, then try again.');
       return;
     }
-    try { if (nextDrafts) localStorage.setItem(storyDraftsKey, JSON.stringify(nextDrafts)); } catch {
-      setStorySaveError('The observation was saved, but its draft could not be cleared from this device.');
-      return;
+    if (nextDrafts) {
+      if (!persistWorkspacePatch({ drafts: nextDrafts })) setAccountActionError('The observation was saved, but browser storage is full and its draft may return after refresh.');
+      setStoryDrafts(nextDrafts);
     }
-    if (nextDrafts) setStoryDrafts(nextDrafts);
     setActiveStoryDraftId(null);
-    setIncludedStoryMoments((current) => current ? (observation.privateRecord ? current.filter((id) => id !== observation.id) : [observation.id, ...current]) : null);
+    const nextVisibility = includedStoryMoments ? (observation.privateRecord ? includedStoryMoments.filter((id) => id !== observation.id) : [observation.id, ...includedStoryMoments]) : null;
+    if (!persistWorkspacePatch({ visibility: nextVisibility })) setAccountActionError('The observation was saved, but browser storage is full.');
+    setIncludedStoryMoments(nextVisibility);
     navigateTo('addSaved');
   }
 
@@ -2726,9 +2775,7 @@ export default function App() {
     const text = askInput.trim();
     if (!text && !attachment) return false;
     const next: AskMessage[] = [...askMessages, { role: 'user', text, attachment }, { role: 'assistant', text: 'Thanks for sharing. I’ll keep that in context. Would you like to review the linked observations together?' }];
-    try {
-      localStorage.setItem(askMessagesKey, JSON.stringify(next));
-    } catch {
+    if (!persistWorkspacePatch({ askMessages: next })) {
       setAskSaveError('This message could not be saved on this device. Remove the attachment or free some browser storage, then try again.');
       return false;
     }
@@ -2788,11 +2835,7 @@ export default function App() {
   }
   function deleteStoryDraft(id: string): boolean {
     const next = storyDrafts.filter((draft) => draft.id !== id);
-    try {
-      localStorage.setItem(storyDraftsKey, JSON.stringify(next));
-    } catch {
-      return false;
-    }
+    if (!persistWorkspacePatch({ drafts: next })) return false;
     setStoryDrafts(next);
     if (activeStoryDraftId === id) setActiveStoryDraftId(null);
     return true;
@@ -2811,17 +2854,12 @@ export default function App() {
     const nextVisibility = (includedStoryMoments ?? defaultVisibleIds).filter((momentId) => momentId !== id);
     const nextObservations = isObservation ? storyObservations.filter((entry) => entry.id !== id) : storyObservations;
     const nextContexts = isObservation ? savedContexts.filter((entry) => entry.momentId !== id) : savedContexts;
-    try {
-      localStorage.setItem(storyVisibilityKey, JSON.stringify(nextVisibility));
-      if (isObservation) localStorage.setItem(storageKey, JSON.stringify(nextContexts));
-    } catch {
-      return 'This moment could not be deleted from this device. Please try again.';
-    }
-    setIncludedStoryMoments(nextVisibility);
     if (isObservation) {
       if (!saveObservationsToCurrentGroup(nextObservations, id)) return 'This moment could not be deleted from this device. Please try again.';
-      setSavedContexts(nextContexts);
     }
+    if (!persistWorkspacePatch({ visibility: nextVisibility, ...(isObservation ? { contexts: nextContexts } : {}) })) return 'This moment could not be deleted from this device. Please try again.';
+    setIncludedStoryMoments(nextVisibility);
+    if (isObservation) setSavedContexts(nextContexts);
     return '';
   }
   function saveMediaSource(source: MediaSource): string {
@@ -2889,8 +2927,8 @@ export default function App() {
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <StatusBar />
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
-            {view === 'today' && <TodayPage petName={petName} petAvatar={petAvatar} hasDemoMoments={activePetRecord.hasDemoMoments} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onEvidence={() => navigateTo('overview')} onPetsNavigate={() => navigateTo('pets')} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} />}
-            {view === 'story' && <StoryPage onMoment={openMomentDetail} onEditStory={() => navigateTo('storyEdit')} onEditMoment={(item) => editStoryRow({ id: item.id, image: item.image, mediaType: item.mediaType, title: item.title, meta: `${item.time} · story moment`, note: item.note })} onDeleteMoment={deleteStoryMoment} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} ownerName={ownerName} accounts={prototypeSession.accounts} contexts={savedContexts} observations={storyObservations} includedMoments={includedStoryMoments} hasDemoMoments={activePetRecord.hasDemoMoments} />}
+            {view === 'today' && <TodayPage petName={petName} petAvatar={petAvatar} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onEvidence={() => navigateTo('overview')} onPetsNavigate={() => navigateTo('pets')} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} />}
+            {view === 'story' && <StoryPage onMoment={openMomentDetail} onEditStory={() => navigateTo('storyEdit')} onEditMoment={(item) => editStoryRow({ id: item.id, image: item.image, mediaType: item.mediaType, title: item.title, meta: `${item.time} · story moment`, note: item.note })} onDeleteMoment={deleteStoryMoment} onPetsNavigate={() => navigateTo('pets')} onAddPet={openAddPetForm} petName={petName} petAvatar={petAvatar} ownerName={ownerName} accounts={prototypeSession.accounts} contexts={savedContexts} observations={storyObservations} includedMoments={includedStoryMoments} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} />}
             {view === 'storyEdit' && <StoryEditPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} hasDemoMoments={activePetRecord.hasDemoMoments} onBack={() => goBack('story')} onEdit={editStoryRow} onDelete={deleteStoryRow} onSave={(ids) => { setIncludedStoryMoments(ids);try {
               localStorage.setItem(
                 storyVisibilityKey,
@@ -2911,8 +2949,8 @@ export default function App() {
             {view === 'confirm' && <ConfirmPage moment={selectedMoment} note={note} interpretation={interpretation} attachments={contextAttachments} petName={petName} ownerName={ownerName} ownerRole={ownerRole} saveError={contextSaveError} onBack={() => goBack('context')} onSave={saveContext} />}
             {view === 'saved' && lastSavedContext && <SavedPage saved={lastSavedContext} onBack={() => goBack('confirm')} onReturnStory={() => navigateTo('story')} onUndo={() => undoContext(lastSavedContext.id)} onEvidence={() => openMomentDetail(lastSavedContext.momentId)} onEdit={() => startContextForMoment(lastSavedContext.momentId, lastSavedContext)} petName={petName} ownerName={ownerName} />}
             {view === 'undone' && <UndonePage onBack={() => goBack('saved')} onReturnToday={() => navigateTo('today')} onReview={() => navigateTo('overview')} petName={petName} />}
-            {view === 'ask' && <AskPage onEvidence={() => navigateTo('overview')} onContext={() => startContextForMoment('window')} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} messages={askMessages} messageEndRef={askEndRef} hasDemoMoments={activePetRecord.hasDemoMoments} />}
-            {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} accounts={prototypeSession.accounts} onPetsNavigate={() => navigateTo('pets')} onSettingsNavigate={() => navigateTo('settings')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={() => setShowPetSwitcher(true)} careMembers={careMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} patterns={typicalPatterns} lifeEvents={lifeCareEvents} mediaSources={mediaSources} onPatternHistory={() => openPatternKnowledge()} onPattern={(id) => openPatternKnowledge(id)} onLifeCare={openLifeCare} onConnectedMedia={openConnectedMedia} invitations={view === 'you' ? receivedCareInvitations : []} onAcceptInvitation={acceptCareInvitation} onDeclineInvitation={(id) => updateInvitationStatus(id, 'declined')} careOwnerName={groupOwnerAccount?.name ?? ownerName} careOwnerAvatar={groupOwnerAccount?.avatar ?? ownerAvatar} careOwnerRole={groupOwnerAccount?.role ?? ownerRole} groupName={activePetRecord.workspace.groupName} canManageCareGroup={isPrimaryCaregiver} />}
+            {view === 'ask' && <AskPage onEvidence={() => navigateTo('overview')} onContext={() => startContextForMoment('window')} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} messages={askMessages} messageEndRef={askEndRef} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} />}
+            {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} accounts={prototypeSession.accounts} onPetsNavigate={() => navigateTo('pets')} onSettingsNavigate={() => navigateTo('settings')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={activePetRecord.isEmptyProfile ? openAddPetForm : () => setShowPetSwitcher(true)} careMembers={careMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} patterns={typicalPatterns} lifeEvents={lifeCareEvents} mediaSources={mediaSources} onPatternHistory={() => openPatternKnowledge()} onPattern={(id) => openPatternKnowledge(id)} onLifeCare={openLifeCare} onConnectedMedia={openConnectedMedia} invitations={view === 'you' ? receivedCareInvitations : []} onAcceptInvitation={acceptCareInvitation} onDeclineInvitation={(id) => updateInvitationStatus(id, 'declined')} careOwnerName={groupOwnerAccount?.name ?? ownerName} careOwnerAvatar={groupOwnerAccount?.avatar ?? ownerAvatar} careOwnerRole={groupOwnerAccount?.role ?? ownerRole} groupName={activePetRecord.workspace.groupName} canManageCareGroup={isPrimaryCaregiver} noPetYet={activePetRecord.isEmptyProfile ?? false} />}
             {view === 'connectedMedia' && <ConnectedMediaPage petName={petName} sources={mediaSources} initialSourceId={selectedMediaSourceId} onBack={() => goBack('you')} onUpdate={saveMediaSource} onDelete={deleteMediaSource} />}
             {view === 'patternHistory' && <PatternKnowledgePage petName={petName} ownerName={ownerName} patterns={typicalPatterns} initialPatternId={selectedPatternId} onBack={() => goBack('pets')} onSave={saveTypicalPattern} onDelete={deleteTypicalPattern} />}
             {view === 'careEvent' && <LifeCarePage petName={petName} ownerName={ownerName} events={lifeCareEvents} initialCategory={lifeCareInitialCategory} startAdding={lifeCareStartAdding} onBack={() => goBack('pets')} onSave={saveLifeCareEvent} onDelete={deleteLifeCareEvent} />}
@@ -2965,7 +3003,7 @@ export default function App() {
         {view === 'ask' && <AskComposer value={askInput} onValue={(value) => { setAskInput(value); if (askSaveError) setAskSaveError(''); }} onSend={sendAskMessage} saveError={askSaveError} onQuickContext={(value) => { setAskSaveError(''); setAskInput((current) => current ? `${current} ${value}` : value); }} />}
         {profileAction && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setProfileAction(null)}><section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-dialog-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={() => setProfileAction(null)}>×</button><h2 id="profile-dialog-title">{profileAction.title}</h2><p>{profileAction.detail}</p><button className="primary-button" onClick={() => setProfileAction(null)}>Done</button></section></div>}
         {showAccountSwitcher && <AccountSwitcher accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onClose={() => setShowAccountSwitcher(false)} onSwitch={switchAccount} onRegister={registerAccount} onRequestSignOut={() => { setShowAccountSwitcher(false); setShowSignOutConfirm(true); }} />}
-        {showPetSwitcher && <PetSwitcher pets={activeAccount.pets} activePetId={activePetRecord.id} onClose={() => setShowPetSwitcher(false)} onSwitch={switchPet} onAdd={addPet} onDelete={deletePet} />}
+        {showPetSwitcher && <PetSwitcher pets={activeAccount.pets} activePetId={activePetRecord.id} initialAdding={petSwitcherStartsAdding} onClose={() => { setShowPetSwitcher(false); setPetSwitcherStartsAdding(false); }} onSwitch={switchPet} onAdd={addPet} onDelete={deletePet} />}
         {showSignOutConfirm && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setShowSignOutConfirm(false)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="signout-title" onClick={(event) => event.stopPropagation()}><h2 id="signout-title">Sign out of Pawsona?</h2><p>Your accounts, pet profiles and prototype data will remain saved on this device.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setShowSignOutConfirm(false)}>Cancel</button><button className="danger-button" onClick={signOut}>Sign out</button></div></section></div>}
         {accountActionError && <button className="account-error-toast" role="alert" onClick={() => setAccountActionError('')}>{accountActionError}<span>Dismiss</span></button>}
         {contextSavedNotice && <div className="context-saved-toast" role="status"><span aria-hidden="true">✓</span> Context saved</div>}
