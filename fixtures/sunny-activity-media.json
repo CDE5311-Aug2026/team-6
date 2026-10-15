@@ -1,0 +1,17 @@
+{
+  "datasetId": "golden-week-20261009-v1",
+  "petId": "pet-synthetic-sunny-20261009-v1",
+  "assets": [
+    { "id": "sunny-breakfast-v1", "file": "breakfast.png", "activity": "Eating from a food bowl", "recordKinds": ["meal"] },
+    { "id": "sunny-rest-v1", "file": "rest.png", "activity": "Resting on a familiar mat", "recordKinds": ["rest", "settle"] },
+    { "id": "sunny-walk-v1", "file": "walk.png", "activity": "Walking and sniffing outdoors", "recordKinds": ["walk"] },
+    { "id": "sunny-play-v1", "file": "play.png", "activity": "Playing with a rope toy indoors", "recordKinds": ["play"] }
+  ],
+  "provenance": {
+    "kind": "generated-test-illustration",
+    "generationTool": "built-in imagegen",
+    "referenceRole": "User-provided golden retriever identity reference",
+    "reuse": "Activity illustrations are reused across matching synthetic records; they are not event-specific captures.",
+    "displayLabel": null
+  }
+}

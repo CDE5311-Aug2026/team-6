@@ -15,3 +15,6 @@ supabase/.temp/
 /cloud-live-proof.png
 /username-registration-live.png
 /welcome-live.png
+
+# Working media is stored in private Supabase Storage, not in source control.
+/output/sunny-activities/
