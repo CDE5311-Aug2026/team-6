@@ -651,6 +651,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .media-section { margin-top: 29px; }
 .media-list { height: auto; min-height: 202px; padding: 0 17px; }
 .media-row { width: 100%; height: 66px; display: flex; align-items: center; gap: 12px; padding: 0; border: 0; border-bottom: 1px solid #f0efeb; background: transparent; color: #1a2921; text-align: left; }
+.media-row:disabled { opacity: 1; cursor: default; }
 .media-row:last-child { border-bottom: 0; }
 .media-icon { width: 37px; height: 37px; border-radius: 12px; font-size: 19px; }
 .media-row strong { font-size: 11px; }
@@ -794,8 +795,12 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .group-settings-row select { width: 87px; flex: none; padding: 7px 4px; border: 1px solid var(--color-border); border-radius: 10px; background: #fbfaf6; color: var(--color-text-primary); font: 500 10px/15px 'Roboto', sans-serif; }
 .group-settings-row .group-role-select { width: 104px; }
 .group-settings-row:has(.group-owner-tag) .group-role-select { width: 132px; }
+.group-settings-row .group-transfer-button { flex: none; padding: 7px 8px; border: 1px solid var(--color-border); border-radius: 10px; background: #fbfaf6; color: var(--color-text-primary); font: 500 10px/15px 'Roboto', sans-serif; text-align: left; white-space: nowrap; }
+.group-settings-row .group-transfer-button:disabled { opacity: .55; cursor: not-allowed; }
 .group-settings-row .group-access-select { width: 78px; }
 .group-settings-row .group-remove-button { padding-right: 7px; padding-left: 7px; }
+.temporary-expiry-field { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--color-text-muted); font: 500 10px/15px 'Roboto', sans-serif; }
+.temporary-expiry-field input { width: 132px; padding: 7px 8px; border: 1px solid var(--color-border); border-radius: 10px; background: #fbfaf6; color: var(--color-text-primary); font: 500 10px/15px 'Roboto', sans-serif; }
 .group-owner-tag { padding: 5px 9px; border-radius: var(--radius-pill); background: var(--color-accent-soft); color: #725700; font: 600 10px/15px 'Roboto', sans-serif; }
 .group-settings-row:has(.group-owner-tag) .group-owner-tag { grid-column: 2; }
 .group-remove-button, .group-pending-invites button { flex: none; padding: 6px 8px; border: 0; border-radius: 999px; background: #fff1ef; color: #963a34; font: 600 9px/14px 'Roboto', sans-serif; }
