@@ -18,7 +18,7 @@ export async function verifiedUser() {
   return data.user;
 }
 
-export async function createCloudAccount(username: string, password: string) {
+export async function registerCloudAccount(username: string, password: string) {
   const normalized = normalizeUsername(username);
   const { data, error } = await client().functions.invoke('register-username', { body: { username: normalized, password } });
   if (error) {
@@ -30,6 +30,11 @@ export async function createCloudAccount(username: string, password: string) {
     throw new Error('Could not register. Please try again.');
   }
   if (!data?.ok) throw new Error('Could not create this account.');
+}
+
+export async function createCloudAccount(username: string, password: string) {
+  const normalized = normalizeUsername(username);
+  await registerCloudAccount(normalized, password);
   await loginCloudAccount(normalized, password);
 }
 

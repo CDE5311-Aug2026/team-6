@@ -2062,7 +2062,7 @@ function CareMemberDetailsPage({ member, ownerName, ownerRole, ownerAvatar, owne
 
 type AppProps = {
   notice?: ReactNode;
-  cloud?: { initialSession: PrototypeSession; save: (session: PrototypeSession) => void; signOut: () => void };
+  cloud?: { initialSession: PrototypeSession; save: (session: PrototypeSession) => void; signOut: () => void; addAnotherAccount: () => void; accounts: { username: string; name: string }[]; switchAccount: (username: string) => void; removeAccount: (username: string) => Promise<void> };
   guest?: boolean;
   onExit?: () => void;
 };
@@ -2172,6 +2172,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const [showPetSwitcher, setShowPetSwitcher] = useState(false);
   const [petSwitcherStartsAdding, setPetSwitcherStartsAdding] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const [pendingDeviceAccountRemoval, setPendingDeviceAccountRemoval] = useState<{ username: string; name: string } | null>(null);
   const scrollRef = useRef<HTMLElement>(null);
   const askEndRef = useRef<HTMLDivElement>(null);
   const navigationHistory = useRef<View[]>([]);
@@ -2527,6 +2528,17 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setShowSignOutConfirm(false);
     navigationHistory.current = [];
     setView('today');
+  }
+
+  async function confirmRemoveDeviceAccount() {
+    if (!cloud || !pendingDeviceAccountRemoval) return;
+    try {
+      await cloud.removeAccount(pendingDeviceAccountRemoval.username);
+      setPendingDeviceAccountRemoval(null);
+    } catch (error) {
+      setAccountActionError(error instanceof Error ? error.message : 'Could not remove this account from the device.');
+      setPendingDeviceAccountRemoval(null);
+    }
   }
 
   function updateActivePetRecord(profile: { name: string; breed: string; age: string; avatar: string }) {
@@ -3223,7 +3235,37 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
             {view === 'patternHistory' && <PatternKnowledgePage petName={petName} ownerName={ownerName} patterns={typicalPatterns} initialPatternId={selectedPatternId} canManage={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveTypicalPattern} onDelete={deleteTypicalPattern} />}
             {view === 'careEvent' && <LifeCarePage petName={petName} ownerName={ownerName} primaryOwnerName={groupOwnerAccount?.name ?? ownerName} currentAccountId={activeAccount.id} events={lifeCareEvents} initialCategory={lifeCareInitialCategory} startAdding={lifeCareStartAdding} canAdd={canManageLongTermCare} canManageAll={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveLifeCareEvent} onDelete={deleteLifeCareEvent} />}
             {view === 'settings' && !cloud && <SettingsHubPage accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onBack={() => goBack('you')} onSwitchAccount={switchAccount} onRegister={registerAccount} onDeleteAccount={deleteSavedAccount} onSignOut={() => setShowSignOutConfirm(true)} onAction={(title, detail) => setProfileAction({ title, detail })} />}
-            {view === 'settings' && cloud && <section className="settings-page"><header className="settings-header"><button className="back-button" aria-label="Go back" onClick={() => goBack('you')}>←</button><h1>Settings</h1></header><section className="settings-summary"><h2>{ownerName}</h2><p>Username: {activeAccount.email.endsWith('@users.pawsona.invalid') ? activeAccount.email.split('@')[0] : activeAccount.email}</p><p>Your personal records sync to your cloud account. Ask AI supports text and photos. Shared care remains a prototype feature.</p><button className="primary-button" onClick={() => setShowSignOutConfirm(true)}>Sign out</button></section></section>}
+            {view === 'settings' && cloud && <section className="settings-hub-page">
+              <header className="settings-hub-header"><button className="back-button" aria-label="Go back" onClick={() => goBack('you')}>←</button><h1>Settings</h1></header>
+              <div className="settings-hub-content">
+                <section className="settings-hub-section">
+                  <h2>Account</h2>
+                  <div className="profile-card settings-account-list">
+                    {cloud.accounts.map(account => {
+                      const currentUsername = activeAccount.email.endsWith('@users.pawsona.invalid') ? activeAccount.email.split('@')[0].toLowerCase() : activeAccount.email.toLowerCase();
+                      const isCurrent = account.username.toLowerCase() === currentUsername;
+                      return <div key={account.username} className={`settings-account-row ${isCurrent ? 'current' : ''}`}>
+                        <button className="settings-account-switch" aria-current={isCurrent ? 'true' : undefined} onClick={() => { if (!isCurrent) cloud.switchAccount(account.username); }}>
+                          <OwnerAvatar src={isCurrent ? ownerAvatar : ''} name={isCurrent ? ownerName : account.name} />
+                          <span><strong>{isCurrent ? ownerName : account.name}</strong><small>{account.username}</small></span>
+                          <em>{isCurrent ? 'Current' : 'Switch'}</em>
+                        </button>
+                        <button className="settings-account-delete" aria-label={`Remove ${account.name} from this device`} title="Remove from this device" onClick={() => setPendingDeviceAccountRemoval(account)}>Remove</button>
+                      </div>;
+                    })}
+                    <button className="settings-create-account" onClick={cloud.addAnotherAccount}>＋ Add another account</button>
+                  </div>
+                  <button className="settings-signout-row" onClick={() => setShowSignOutConfirm(true)}><span className="settings-signout-icon" aria-hidden="true">↪</span><span><strong>Sign out</strong><small>Your cloud records will remain in your account</small></span><i>›</i></button>
+                </section>
+                <section className="settings-hub-section">
+                  <div className="profile-section-heading"><h2>Privacy &amp; support</h2><button className="profile-link" onClick={() => setProfileAction({ title: 'Privacy & support', detail: 'Review data permissions, sharing, retention and accessibility preferences.' })}>Open →</button></div>
+                  <div className="profile-card you-list privacy-list">
+                    <button className="media-row" onClick={() => setProfileAction({ title: 'Data, sharing & retention', detail: 'Review permissions, access and deletion.' })}><span className="media-icon">▤</span><span><strong>Data, sharing &amp; retention</strong><small>Review permissions, access and deletion</small></span><i>›</i></button>
+                    <button className="media-row" onClick={() => setProfileAction({ title: 'Accessibility & feedback', detail: 'Text size, captions, help and suggestions.' })}><span className="media-icon">◎</span><span><strong>Accessibility &amp; feedback</strong><small>Text size, captions, help and suggestions</small></span><i>›</i></button>
+                  </div>
+                </section>
+              </div>
+            </section>}
             {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} initialAvatar={petAvatar} initialBreed={petBreed} initialAge={petAge} onSaved={setPetName} onPetSaved={({ name, breed, age, avatar }) => { setPetName(name); setPetBreed(breed); setPetAge(age); setPetAvatar(avatar); updateActivePetRecord({ name, breed, age, avatar }); setProfileSaveNotice('Pet details saved successfully'); }} onBack={() => goBack('pets')} />}
             {view === 'profile' && <SettingsPage kind="profile" initialName={ownerName} initialAvatar={ownerAvatar} initialPreference={ownerPreference} onSaved={setOwnerName} onProfileSaved={({ name, avatar, preference }) => { setOwnerName(name); setOwnerAvatar(avatar); setOwnerPreference(preference); updateActiveAccountRecord({ name, avatar, preference }); setProfileSaveNotice('Profile saved successfully'); }} onBack={() => goBack('you')} />}
             {view === 'memberDetails' && selectedCareMember && <CareMemberDetailsPage member={selectedCareMember} ownerName={groupOwnerAccount?.name ?? ownerName} ownerRole={groupOwnerAccount?.role ?? ownerRole} ownerAvatar={groupOwnerAccount?.avatar ?? ownerAvatar} ownerPreference={groupOwnerAccount?.preference ?? ownerPreference} memberAvatar={selectedMemberAccount?.avatar ?? ''} memberPreference={selectedMemberAccount?.preference ?? ''} primaryMemberId={primaryMemberId} isPrimaryCaregiver={isPrimaryCaregiver} petName={petName} onBack={() => goBack('careMembers')} />}
@@ -3271,6 +3313,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         {view === 'story' && canContributeToSharedPet && showStoryAddOptions && <div className="story-add-menu-backdrop" role="presentation" onClick={() => setShowStoryAddOptions(false)}><div className="story-add-choices" role="menu" aria-label="Add to Story" onClick={(event) => event.stopPropagation()}><button className="story-add-choice story-add-choice-new" role="menuitem" onClick={() => { setShowStoryAddOptions(false); startStoryObservation(); }}>New moment</button><button className="story-add-choice story-add-choice-drafts" role="menuitem" onClick={() => { setShowStoryAddOptions(false); navigateTo('drafts'); }}>Drafts{storyDrafts.length > 0 ? ` (${storyDrafts.length})` : ''}</button></div></div>}
         {view === 'ask' && <AskComposer key={askIdentity} busy={askBusy} enabled={Boolean(cloud && activePetRecord && !activePetRecord.isEmptyProfile)} value={askInput} onValue={(value) => { setAskInput(value); if (askSaveError) setAskSaveError(''); }} onSend={sendAskMessage} saveError={askSaveError} onQuickContext={(value) => { setAskSaveError(''); setAskInput((current) => current ? `${current} ${value}` : value); }} />}
         {profileAction && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setProfileAction(null)}><section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-dialog-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={() => setProfileAction(null)}>×</button><h2 id="profile-dialog-title">{profileAction.title}</h2><p>{profileAction.detail}</p><button className="primary-button" onClick={() => setProfileAction(null)}>Done</button></section></div>}
+        {pendingDeviceAccountRemoval && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDeviceAccountRemoval(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="remove-device-account-title" onClick={(event) => event.stopPropagation()}><h2 id="remove-device-account-title">Remove {pendingDeviceAccountRemoval.name} from this device?</h2><p>{pendingDeviceAccountRemoval.username.toLowerCase() === (activeAccount.email.endsWith('@users.pawsona.invalid') ? activeAccount.email.split('@')[0].toLowerCase() : activeAccount.email.toLowerCase()) ? 'You will be signed out of this account. Its cloud account and records will not be deleted.' : 'This only removes the remembered username from this device. The cloud account and its records will not be deleted.'}</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDeviceAccountRemoval(null)}>Cancel</button><button className="danger-button" onClick={() => { void confirmRemoveDeviceAccount(); }}>Remove from device</button></div></section></div>}
         {showAccountSwitcher && <AccountSwitcher accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onClose={() => setShowAccountSwitcher(false)} onSwitch={switchAccount} onRegister={registerAccount} onRequestSignOut={() => { setShowAccountSwitcher(false); setShowSignOutConfirm(true); }} />}
         {showPetSwitcher && <PetSwitcher pets={activeAccount.pets} activePetId={activePetRecord.id} initialAdding={petSwitcherStartsAdding} onClose={() => { setShowPetSwitcher(false); setPetSwitcherStartsAdding(false); }} onSwitch={switchPet} onAdd={addPet} onDelete={deletePet} />}
         {showSignOutConfirm && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setShowSignOutConfirm(false)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="signout-title" onClick={(event) => event.stopPropagation()}><h2 id="signout-title">Sign out of Pawsona?</h2><p>{cloud ? "Synced records remain in your cloud account. Pending changes must finish syncing before you sign out." : "Your guest records will remain in this browser."}</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setShowSignOutConfirm(false)}>Cancel</button><button className="danger-button" onClick={signOut}>Sign out</button></div></section></div>}
