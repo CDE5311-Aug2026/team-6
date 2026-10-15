@@ -1,5 +1,6 @@
 import Welcome from './Welcome';
-import { useEffect, useRef, useState, type FormEvent, type ReactElement, type RefObject } from 'react';
+import { requestAskAI } from './askAI';
+import { useEffect, useRef, useState, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
 
 type View =
   | 'today'
@@ -1421,171 +1422,75 @@ function persistLocalPrototypeSession(session: PrototypeSession) {
   }
 }
 
-function AskPage({ onEvidence, onContext, onPetsNavigate, petName, petAvatar, messages, messageEndRef, hasDemoMoments, noPetYet }: { onEvidence: () => void; onContext: () => void; onPetsNavigate: () => void; petName: string; petAvatar: string; messages: AskMessage[]; messageEndRef: RefObject<HTMLDivElement | null>; hasDemoMoments: boolean; noPetYet: boolean }) {
-  return (
-    <div className="ask-page">
-      <MainHeader eyebrow="ASK AI · OBSERVATION DIALOGUE" title="Ask Pawsona" onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
-      {hasDemoMoments && <div className="linked-evidence ask-status"><span className="loading-ring" /><span><strong>Reviewing afternoon rest</strong><small>Linked to Today’s Story · 2 clips + your note</small></span></div>}
-      <section className="ask-thread" aria-label="Conversation with Pawsona">
-        {hasDemoMoments ? <><article className="chat-message ai">{petName} rested longer this afternoon than in the recent clips available. I can’t tell why—or know exactly how {petName} felt. Would you like to check the evidence or add what happened at home?<button className="text-link" onClick={onEvidence}>View evidence →</button></article><article className="chat-message owner">My family had visitors today. {petName} often settles down after that.</article><article className="chat-message ai">Would you like to add this as owner context? You can review the clips before anything is saved.<div className="chat-choices"><button onClick={onContext}>Yes</button><button onClick={onEvidence}>No</button></div></article></> : messages.length === 0 && <article className="chat-message ai">Ask a question or share context after you add moments for {petName}. Prototype replies are simulated and saved only in this pet profile.</article>}
-        {messages.map((message, index) => message.role === 'user'
-          ? <article className="chat-message owner" key={`user-${index}`}>{message.attachment && (message.attachment.kind === 'audio' ? <audio className="chat-attachment-audio" src={message.attachment.url} controls aria-label={message.attachment.name} /> : <img className="chat-attachment" src={message.attachment.url} alt={message.attachment.name} />)}{message.text && <span>{message.text}</span>}</article>
-          : <article className="chat-message ai dynamic-answer" key={`assistant-${index}`}>{message.text}{hasDemoMoments && <button className="text-link" onClick={onEvidence}>View linked evidence →</button>}</article>)}
-        <div ref={messageEndRef} />
-      </section>
-    </div>
-  );
-}
-
-function AskComposer({ value, onValue, onSend, onQuickContext, saveError }: { value: string; onValue: (value: string) => void; onSend: (attachment?: AskAttachment) => boolean; onQuickContext: (value: string) => void; saveError: string }) {
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const audioInputRef = useRef<HTMLInputElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const [attachment, setAttachment] = useState<AskAttachment | undefined>();
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingError, setRecordingError] = useState('');
-
-  useEffect(() => () => {
-    const recorder = mediaRecorderRef.current;
-    if (recorder && recorder.state !== 'inactive') {
-      recorder.ondataavailable = null;
-      recorder.onerror = null;
-      recorder.onstop = null;
-      recorder.stop();
-    }
-    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-  }, []);
-
-  function replaceAttachment(next: AskAttachment) {
-    setAttachment(next);
-    setRecordingError('');
-    onValue(value);
-  }
-
-  async function attachFile(file: File | undefined, kind: AskAttachment['kind']) {
-    if (!file) return;
-    const expectedType = kind === 'image' ? 'image/' : 'audio/';
-    if (!file.type.startsWith(expectedType)) {
-      setRecordingError(kind === 'image' ? 'Choose an image file.' : 'Choose an audio file.');
-      return;
-    }
-    if (file.size > 1024 * 1024) {
-      setRecordingError('Choose a file smaller than 1 MB so this conversation can be saved.');
-      return;
-    }
-    try {
-      replaceAttachment({ url: await mediaDataUrl(file), name: file.name, kind, type: file.type });
-    } catch {
-      setRecordingError('This attachment could not be read. Please try another one.');
-    }
-  }
-
-  function stopMediaStream() {
-    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-    mediaStreamRef.current = null;
-  }
-
-  async function toggleRecording() {
-    if (isRecording) {
-      mediaRecorderRef.current?.stop();
-      return;
-    }
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      setRecordingError('Live recording is not supported in this browser.');
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-      audioChunksRef.current = [];
-      const preferredType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((type) => MediaRecorder.isTypeSupported(type));
-      const recorder = preferredType ? new MediaRecorder(stream, { mimeType: preferredType }) : new MediaRecorder(stream);
-      mediaRecorderRef.current = recorder;
-      recorder.ondataavailable = (event) => {
-        if (event.data.size) audioChunksRef.current.push(event.data);
-      };
-      recorder.onerror = () => {
-        setRecordingError('The recording could not be completed. Choose an audio file instead.');
-        setIsRecording(false);
-        stopMediaStream();
-      };
-      recorder.onstop = () => {
-        const type = recorder.mimeType || preferredType || 'audio/webm';
-        const blob = new Blob(audioChunksRef.current, { type });
-        if (blob.size) {
-          const extension = type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : 'webm';
-          if (blob.size > 1024 * 1024) {
-            setRecordingError('This recording is too large to save. Record a shorter voice note.');
-          } else {
-            const reader = new FileReader();
-            reader.onload = () => {
-              if (typeof reader.result === 'string') replaceAttachment({ url: reader.result, name: `voice-note.${extension}`, kind: 'audio', type });
-              else setRecordingError('This recording could not be read. Please try again.');
-            };
-            reader.onerror = () => setRecordingError('This recording could not be read. Please try again.');
-            reader.readAsDataURL(blob);
-          }
-        } else {
-          setRecordingError('No audio was captured. Please try again.');
-        }
-        audioChunksRef.current = [];
-        mediaRecorderRef.current = null;
-        setIsRecording(false);
-        stopMediaStream();
-      };
-      recorder.start();
-      setRecordingError('');
-      setIsRecording(true);
-    } catch {
-      setRecordingError('Microphone access was not available. Choose an audio file instead.');
-      setIsRecording(false);
-      stopMediaStream();
-    }
-  }
-
-  function removeAttachment() {
-    setAttachment(undefined);
-    onValue(value);
-    if (imageInputRef.current) imageInputRef.current.value = '';
-    if (audioInputRef.current) audioInputRef.current.value = '';
-  }
-  function send() {
-    if (isRecording) return;
-    if (!onSend(attachment)) return;
-    setAttachment(undefined);
-    if (imageInputRef.current) imageInputRef.current.value = '';
-    if (audioInputRef.current) audioInputRef.current.value = '';
-  }
-  const hasComposerNotice = Boolean(attachment || isRecording || recordingError || saveError);
-  return (
-    <section className={`ask-dock${hasComposerNotice ? ' has-attachment' : ''}`} aria-label="Ask Pawsona a question">
-      <div className="quick-context-label">Quick context</div>
-      <div className="quick-chips">
-        <button onClick={() => onQuickContext('Food changed')}>Food changed</button>
-        <button onClick={() => onQuickContext('Routine changed')}>Routine changed</button>
-        <button onClick={() => onQuickContext('Not sure yet')}>Not sure yet</button>
-      </div>
-      <div className={`ask-input-box${hasComposerNotice ? ' has-attachment' : ''}`}>
-        {isRecording && <div className="ask-recording-status" role="status"><span aria-hidden="true" />Recording… tap the microphone to stop</div>}
-        {!isRecording && attachment && !saveError && <div className="ask-attachment-preview"><div className={`ask-attachment-tile ${attachment.kind}`}>{attachment.kind === 'audio' ? <audio src={attachment.url} controls aria-label={attachment.name} /> : <img src={attachment.url} alt={attachment.name} />}<button type="button" aria-label={`Remove ${attachment.kind} attachment`} onClick={removeAttachment}>×</button></div></div>}
-        {!isRecording && (recordingError || saveError) && <div className="ask-recording-error" role="alert"><span>{recordingError || saveError}</span>{saveError && attachment ? <button type="button" onClick={removeAttachment}>Remove attachment</button> : recordingError && <button type="button" onClick={() => audioInputRef.current?.click()}>Choose audio file</button>}</div>}
-        <textarea aria-label="What would you like to ask Pawsona?" placeholder="What would you like to know?" value={value} onChange={(event) => onValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !isRecording) { event.preventDefault(); send(); } }} />
-        <div className="ask-input-tools">
-          <button aria-label="Attach an image" disabled={isRecording} onClick={() => imageInputRef.current?.click()}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" /><circle cx="9" cy="9" r="1.5" /><path d="m5 17 5-5 3 3 2-2 5 5" /></svg></button>
-          <button aria-label="Add context" onClick={() => onQuickContext('Please include this context: ')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6M16 6l6 6-6 6" /></svg></button>
-          <button className={isRecording ? 'is-recording' : ''} aria-label={isRecording ? 'Stop voice recording' : 'Start voice recording'} aria-pressed={isRecording} onClick={toggleRecording}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8" /></svg></button>
-          <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={(event) => { attachFile(event.target.files?.[0], 'image'); event.currentTarget.value = ''; }} />
-          <input ref={audioInputRef} type="file" accept="audio/*" capture hidden onChange={(event) => { attachFile(event.target.files?.[0], 'audio'); event.currentTarget.value = ''; }} />
-          <button className="ask-send-button" aria-label="Send message" disabled={isRecording || (!value.trim() && !attachment)} onClick={send}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button>
-        </div>
-      </div>
+function AskPage({ onPetsNavigate, petName, petAvatar, messages, messageEndRef, noPetYet, busy, pending, live }: { onPetsNavigate: () => void; petName: string; petAvatar: string; messages: AskMessage[]; messageEndRef: RefObject<HTMLDivElement | null>; noPetYet: boolean; busy: boolean; pending: AskMessage | null; live: boolean }) {
+  return <div className="ask-page">
+    <MainHeader eyebrow="ASK AI · OBSERVATION DIALOGUE" title="Ask Pawsona" onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
+    <p className="ask-ai-notice">{!live ? 'Log in to chat with Pawsona. Guest conversations are available to review only.' : noPetYet ? 'Add your pet profile to start a conversation.' : 'Ask a question or share a photo. Your messages, photos and pet basics are sent to OpenAI to generate replies. AI observations can be mistaken.'}</p>
+    <section className="ask-thread" aria-label="Conversation with Pawsona" aria-busy={busy}>
+      {messages.length === 0 && <article className="chat-message ai">Hi! What would you like to know about {petName}? You can ask a question or attach a photo. I can help describe what is visible, but a photo alone cannot tell me how your pet feels or establish a diagnosis.</article>}
+      {[...messages, ...(pending ? [pending] : [])].map((message, index) => <article className={`chat-message ${message.role === 'user' ? 'owner' : 'ai dynamic-answer'}`} key={index}>
+        {message.attachment && (message.attachment.kind === 'image' ? <img className="chat-attachment" src={message.attachment.url} alt={message.attachment.name} /> : <audio src={message.attachment.url} controls aria-label={message.attachment.name} />)}
+        <span>{message.text}</span>
+      </article>)}
+      {busy && <article className="chat-message ai ask-thinking" role="status"><span className="loading-ring" /> Pawsona is thinking…</article>}
+      <div ref={messageEndRef} />
     </section>
-  );
+  </div>;
 }
 
+function AskComposer({ value, onValue, onSend, onQuickContext, saveError, busy, enabled }: { value: string; onValue: (value: string) => void; onSend: (attachment?: AskAttachment) => Promise<boolean>; onQuickContext: (value: string) => void; saveError: string; busy: boolean; enabled: boolean }) {
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const dockRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const dock = dockRef.current; const phone = dock?.closest<HTMLElement>('.phone');
+    if (!dock || !phone) return;
+    const observer = new ResizeObserver(() => phone.style.setProperty('--ask-dock-height', `${dock.offsetHeight}px`));
+    observer.observe(dock);
+    return () => { observer.disconnect(); phone.style.removeProperty('--ask-dock-height'); };
+  }, []);
+  const [attachment, setAttachment] = useState<AskAttachment | undefined>();
+  const [attachmentError, setAttachmentError] = useState('');
+  const sendingRef = useRef(false);
+  const [reading, setReading] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  async function attach(file?: File) {
+    if (!file) return;
+    setAttachmentError('');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 1024 * 1024) {
+      setAttachmentError('Choose a JPEG, PNG or WebP image smaller than 1 MB.'); return;
+    }
+    setReading(true);
+    try {
+      const url = await mediaDataUrl(file);
+      if (mounted.current) setAttachment({ kind: 'image', name: file.name, type: file.type, url });
+    } catch { if (mounted.current) setAttachmentError('Could not read this image. Please try another one.'); }
+    finally { if (mounted.current) setReading(false); }
+  }
+  async function send() {
+    if (busy || reading || !enabled || sendingRef.current) return;
+    sendingRef.current = true;
+    try { if (await onSend(attachment) && mounted.current) setAttachment(undefined); }
+    finally { sendingRef.current = false; }
+  }
+  const disabled = busy || reading || !enabled;
+  const notice = Boolean(attachment || attachmentError || saveError);
+  return <section ref={dockRef} className={`ask-dock${notice ? ' has-attachment' : ''}`} aria-label="Ask Pawsona a question">
+    <div className="quick-context-label">Quick questions</div>
+    <div className="quick-chips">{['What can you observe?', 'What should I watch for?', 'Help me understand'].map(text => <button key={text} disabled={disabled} onClick={() => onQuickContext(text)}>{text}</button>)}</div>
+    <div className={`ask-input-box${notice ? ' has-attachment' : ''}`}>
+      {attachment && <div className="ask-attachment-preview"><div className="ask-attachment-tile image"><img src={attachment.url} alt={attachment.name} /><button type="button" disabled={busy} aria-label="Remove image attachment" onClick={() => { setAttachment(undefined); setAttachmentError(''); }}>×</button></div></div>}
+      {(attachmentError || saveError) && <div className="ask-recording-error" role="alert"><span>{attachmentError || saveError}</span></div>}
+      <textarea aria-label="What would you like to ask Pawsona?" placeholder={!enabled ? 'Log in and add a pet to start chatting' : 'Ask a question or share a photo…'} value={value} disabled={disabled} maxLength={4000} onChange={event => onValue(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
+      <div className="ask-input-tools">
+        <button aria-label="Attach an image" disabled={disabled} onClick={() => imageInputRef.current?.click()}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" /><circle cx="9" cy="9" r="1.5" /><path d="m5 17 5-5 3 3 2-2 5 5" /></svg></button>
+        <small className="ask-image-hint">{reading ? 'Reading image…' : 'JPG, PNG, WebP · up to 1 MB'}</small>
+        <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={event => { void attach(event.target.files?.[0]); event.currentTarget.value = ''; }} />
+        <button className="ask-send-button" aria-label={busy ? 'Waiting for reply' : saveError ? 'Retry message' : 'Send message'} disabled={disabled || (!value.trim() && !attachment)} onClick={() => void send()}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button>
+      </div>
+    </div>
+  </section>;
+}
 
 function AccountSwitcher({ accounts, activeAccountId, onClose, onSwitch, onRegister, onRequestSignOut }: { accounts: PrototypeAccount[]; activeAccountId: string; onClose: () => void; onSwitch: (id: string) => void; onRegister: (name: string, email: string, petName: string) => string; onRequestSignOut: () => void }) {
   const [creating, setCreating] = useState(false);
@@ -2139,6 +2044,7 @@ function CareMemberDetailsPage({ member, ownerName, ownerRole, ownerAvatar, owne
 }
 
 type AppProps = {
+  notice?: ReactNode;
   cloud?: { initialSession: PrototypeSession; save: (session: PrototypeSession) => void; signOut: () => void };
   guest?: boolean;
   onExit?: () => void;
@@ -2150,7 +2056,7 @@ export function createCloudSession(id: string, email: string, name: string): Pro
     pets: [{ id: petId, name: 'My pet', breed: 'Mixed breed', age: '1', avatar: '', hasDemoMoments: false, isEmptyProfile: true, workspace: emptyPetWorkspace(name) }] }] };
 }
 
-export default function App({ cloud, guest = false, onExit }: AppProps) {
+export default function App({ cloud, guest = false, onExit, notice }: AppProps) {
   function persistPrototypeSession(session: PrototypeSession) {
     if (cloud) cloud.save(session);
     else persistLocalPrototypeSession(session);
@@ -2241,6 +2147,9 @@ export default function App({ cloud, guest = false, onExit }: AppProps) {
   const [askInput, setAskInput] = useState('');
   const [askMessages, setAskMessages] = useState<AskMessage[]>(() => privateAskMessagesFor(initialPet, initialAccount?.id));
   const [askSaveError, setAskSaveError] = useState('');
+  const [askBusy, setAskBusy] = useState(false);
+  const [askPending, setAskPending] = useState<AskMessage | null>(null);
+  const askRequest = useRef<AbortController | null>(null);
   const [accountActionError, setAccountActionError] = useState('');
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showPetSwitcher, setShowPetSwitcher] = useState(false);
@@ -2252,6 +2161,16 @@ export default function App({ cloud, guest = false, onExit }: AppProps) {
   const contextReturnView = useRef<View>('momentDetail');
   const activeAccount = prototypeSession.accounts.find((account) => account.id === prototypeSession.activeAccountId) ?? null;
   const activePetRecord = activeAccount?.pets.find((pet) => pet.id === activeAccount.activePetId) ?? activeAccount?.pets[0] ?? null;
+  const latestSessionRef = useRef(prototypeSession);
+  latestSessionRef.current = prototypeSession;
+  const askIdentity = `${activeAccount?.id}:${activePetRecord?.id}`;
+  const askIdentityRef = useRef(askIdentity);
+  askIdentityRef.current = askIdentity;
+  useEffect(() => {
+    askRequest.current?.abort(); askRequest.current = null;
+    setAskBusy(false); setAskPending(null); setAskSaveError('');
+    return () => { askRequest.current?.abort(); };
+  }, [askIdentity]);
   const groupOwnerAccountId = activePetRecord?.sharedOwnerAccountId ?? (activePetRecord?.sharedGroupId ? activePetRecord.sharedGroupId.split(':')[0] : undefined);
   const groupOwnerAccount = prototypeSession.accounts.find((account) => account.id === groupOwnerAccountId) ?? activeAccount;
   const groupOwnerPet = activePetRecord?.sharedGroupId ? groupOwnerAccount?.pets.find((pet) => pet.sharedGroupId === activePetRecord.sharedGroupId) : activePetRecord;
@@ -2785,10 +2704,10 @@ export default function App({ cloud, guest = false, onExit }: AppProps) {
   }, [storyDraftSavedNotice]);
 
   useEffect(() => {
-    if (view === 'ask' && askMessages.length && scrollRef.current) {
+    if (view === 'ask' && scrollRef.current) {
       scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
     }
-  }, [askMessages, view]);
+  }, [askMessages, view, askBusy, askPending]);
 
   const selectedMoment = resolveMoment(selectedMomentId, storyObservations);
   const selectedMomentContexts = savedContexts.filter((context) => context.momentId === selectedMomentId);
@@ -2991,18 +2910,39 @@ export default function App({ cloud, guest = false, onExit }: AppProps) {
     navigateTo('addSaved');
   }
 
-  function sendAskMessage(attachment?: AskAttachment): boolean {
+  async function sendAskMessage(attachment?: AskAttachment): Promise<boolean> {
     const text = askInput.trim();
-    if (!text && !attachment) return false;
-    const next: AskMessage[] = [...askMessages, { role: 'user', text, attachment }, { role: 'assistant', text: 'Thanks for sharing. I’ll keep that in context. Would you like to review the linked observations together?' }];
-    if (!persistWorkspacePatch({ askMessages: next, askOwnerAccountId: activeAccount?.id })) {
-      setAskSaveError('This message could not be saved on this device. Remove the attachment or free some browser storage, then try again.');
+    if ((!text && !attachment) || askRequest.current || !cloud || !activePetRecord || activePetRecord.isEmptyProfile || !activeAccount) return false;
+    if (attachment?.kind === 'audio') { setAskSaveError('Please send text or an image. Audio is not supported yet.'); return false; }
+    const identity = askIdentity;
+    const accountId = activeAccount.id;
+    const petId = activePetRecord.id;
+    const controller = new AbortController();
+    askRequest.current = controller;
+    setAskBusy(true); setAskSaveError('');
+    const userMessage: AskMessage = { role: 'user', text, attachment };
+    setAskPending(userMessage);
+    const timer = setTimeout(() => controller.abort(), 60_000);
+    try {
+      const answer = await requestAskAI(petId, [...askMessages, userMessage], controller.signal);
+      if (controller.signal.aborted || askIdentityRef.current !== identity) return false;
+      const next: AskMessage[] = [...askMessages, userMessage, { role: 'assistant', text: answer }];
+      // Use the latest workspace after awaiting: profile edits during a reply must survive.
+      const current = latestSessionRef.current;
+      const nextSession: PrototypeSession = { ...current, accounts: current.accounts.map(account => account.id !== accountId ? account : {
+        ...account, pets: account.pets.map(pet => pet.id !== petId ? pet : { ...pet, workspace: { ...pet.workspace, askMessages: next, askOwnerAccountId: accountId } }),
+      }) };
+      persistPrototypeSession(nextSession);
+      latestSessionRef.current = nextSession;
+      setPrototypeSession(nextSession); setAskMessages(next); setAskInput('');
+      return true;
+    } catch (error) {
+      if (askIdentityRef.current === identity) setAskSaveError(controller.signal.aborted ? 'The reply took too long. Your message is still here; please retry.' : error instanceof Error ? error.message : 'Could not get a reply. Please try again.');
       return false;
+    } finally {
+      clearTimeout(timer);
+      if (askRequest.current === controller) { askRequest.current = null; setAskBusy(false); setAskPending(null); }
     }
-    setAskMessages(next);
-    setAskInput('');
-    setAskSaveError('');
-    return true;
   }
 
   const mainView = (['today', 'story', 'ask', 'pets', 'you'] as View[]).includes(view);
@@ -3234,6 +3174,7 @@ export default function App({ cloud, guest = false, onExit }: AppProps) {
   return (
     <div className="app-stage">
       <div className="phone">
+        {notice}
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <StatusBar />
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
@@ -3259,13 +3200,13 @@ export default function App({ cloud, guest = false, onExit }: AppProps) {
             {view === 'confirm' && <ConfirmPage moment={selectedMoment} note={note} interpretation={interpretation} attachments={contextAttachments} petName={petName} ownerName={ownerName} ownerRole={ownerRole} saveError={contextSaveError} onBack={() => goBack('context')} onSave={saveContext} />}
             {view === 'saved' && lastSavedContext && <SavedPage saved={lastSavedContext} onBack={() => goBack('confirm')} onReturnStory={() => navigateTo('story')} onUndo={() => undoContext(lastSavedContext.id)} onEvidence={() => openMomentDetail(lastSavedContext.momentId)} onEdit={() => startContextForMoment(lastSavedContext.momentId, lastSavedContext)} petName={petName} ownerName={ownerName} />}
             {view === 'undone' && <UndonePage onBack={() => goBack('saved')} onReturnToday={() => navigateTo('today')} onReview={() => navigateTo('overview')} petName={petName} />}
-            {view === 'ask' && <AskPage onEvidence={() => navigateTo('overview')} onContext={() => startContextForMoment('window')} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} messages={askMessages} messageEndRef={askEndRef} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} />}
+            {view === 'ask' && <AskPage onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} messages={askMessages} messageEndRef={askEndRef} noPetYet={activePetRecord.isEmptyProfile ?? false} busy={askBusy} pending={askPending} live={Boolean(cloud)} />}
             {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} accounts={prototypeSession.accounts} onPetsNavigate={() => navigateTo('pets')} onSettingsNavigate={() => navigateTo('settings')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={activePetRecord.isEmptyProfile ? openAddPetForm : () => setShowPetSwitcher(true)} careMembers={orderedCareMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} patterns={typicalPatterns} lifeEvents={lifeCareEvents} mediaSources={mediaSources} onPatternHistory={() => openPatternKnowledge()} onPattern={(id) => openPatternKnowledge(id)} onLifeCare={openLifeCare} onConnectedMedia={openConnectedMedia} invitations={view === 'you' ? receivedCareInvitations : []} onAcceptInvitation={acceptCareInvitation} onDeclineInvitation={(id) => updateInvitationStatus(id, 'declined')} careOwnerName={groupOwnerAccount?.name ?? ownerName} careOwnerAvatar={groupOwnerAccount?.avatar ?? ownerAvatar} careOwnerRole="Primary caregiver" groupName={activeGroupName} canManageCareGroup={isPrimaryCaregiver} canEditPetDetails={isPrimaryCaregiver} canAddLifeCare={canManageLongTermCare} canManageConnectedMedia={canManageLongTermCare} noPetYet={activePetRecord.isEmptyProfile ?? false} />}
             {view === 'connectedMedia' && <ConnectedMediaPage petName={petName} sources={mediaSources} initialSourceId={selectedMediaSourceId} onBack={() => goBack('you')} onUpdate={saveMediaSource} onDelete={deleteMediaSource} />}
             {view === 'patternHistory' && <PatternKnowledgePage petName={petName} ownerName={ownerName} patterns={typicalPatterns} initialPatternId={selectedPatternId} canManage={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveTypicalPattern} onDelete={deleteTypicalPattern} />}
             {view === 'careEvent' && <LifeCarePage petName={petName} ownerName={ownerName} primaryOwnerName={groupOwnerAccount?.name ?? ownerName} currentAccountId={activeAccount.id} events={lifeCareEvents} initialCategory={lifeCareInitialCategory} startAdding={lifeCareStartAdding} canAdd={canManageLongTermCare} canManageAll={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveLifeCareEvent} onDelete={deleteLifeCareEvent} />}
             {view === 'settings' && !cloud && <SettingsHubPage accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onBack={() => goBack('you')} onSwitchAccount={switchAccount} onRegister={registerAccount} onDeleteAccount={deleteSavedAccount} onSignOut={() => setShowSignOutConfirm(true)} onAction={(title, detail) => setProfileAction({ title, detail })} />}
-            {view === 'settings' && cloud && <section className="settings-page"><header className="settings-header"><button className="back-button" aria-label="Go back" onClick={() => goBack('you')}>←</button><h1>Settings</h1></header><section className="settings-summary"><h2>{ownerName}</h2><p>Username: {activeAccount.email.endsWith('@users.pawsona.invalid') ? activeAccount.email.split('@')[0] : activeAccount.email}</p><p>Your personal records sync to your cloud account. Shared care and AI replies are still prototype features.</p><button className="primary-button" onClick={() => setShowSignOutConfirm(true)}>Sign out</button></section></section>}
+            {view === 'settings' && cloud && <section className="settings-page"><header className="settings-header"><button className="back-button" aria-label="Go back" onClick={() => goBack('you')}>←</button><h1>Settings</h1></header><section className="settings-summary"><h2>{ownerName}</h2><p>Username: {activeAccount.email.endsWith('@users.pawsona.invalid') ? activeAccount.email.split('@')[0] : activeAccount.email}</p><p>Your personal records sync to your cloud account. Ask AI supports text and photos. Shared care remains a prototype feature.</p><button className="primary-button" onClick={() => setShowSignOutConfirm(true)}>Sign out</button></section></section>}
             {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} initialAvatar={petAvatar} initialBreed={petBreed} initialAge={petAge} onSaved={setPetName} onPetSaved={({ name, breed, age, avatar }) => { setPetName(name); setPetBreed(breed); setPetAge(age); setPetAvatar(avatar); updateActivePetRecord({ name, breed, age, avatar }); setProfileSaveNotice('Pet details saved successfully'); }} onBack={() => goBack('pets')} />}
             {view === 'profile' && <SettingsPage kind="profile" initialName={ownerName} initialAvatar={ownerAvatar} initialPreference={ownerPreference} onSaved={setOwnerName} onProfileSaved={({ name, avatar, preference }) => { setOwnerName(name); setOwnerAvatar(avatar); setOwnerPreference(preference); updateActiveAccountRecord({ name, avatar, preference }); setProfileSaveNotice('Profile saved successfully'); }} onBack={() => goBack('you')} />}
             {view === 'memberDetails' && selectedCareMember && <CareMemberDetailsPage member={selectedCareMember} ownerName={groupOwnerAccount?.name ?? ownerName} ownerRole={groupOwnerAccount?.role ?? ownerRole} ownerAvatar={groupOwnerAccount?.avatar ?? ownerAvatar} ownerPreference={groupOwnerAccount?.preference ?? ownerPreference} memberAvatar={selectedMemberAccount?.avatar ?? ''} memberPreference={selectedMemberAccount?.preference ?? ''} primaryMemberId={primaryMemberId} isPrimaryCaregiver={isPrimaryCaregiver} petName={petName} onBack={() => goBack('careMembers')} />}
@@ -3311,7 +3252,7 @@ export default function App({ cloud, guest = false, onExit }: AppProps) {
         </main>
         {view === 'story' && canContributeToSharedPet && <button className={`floating-add ${showStoryAddOptions ? 'is-open' : ''}`} aria-expanded={showStoryAddOptions} onClick={() => setShowStoryAddOptions((open) => !open)}><span className="add-icon" aria-hidden="true">+</span><span className="add-label">Add</span></button>}
         {view === 'story' && canContributeToSharedPet && showStoryAddOptions && <div className="story-add-menu-backdrop" role="presentation" onClick={() => setShowStoryAddOptions(false)}><div className="story-add-choices" role="menu" aria-label="Add to Story" onClick={(event) => event.stopPropagation()}><button className="story-add-choice story-add-choice-new" role="menuitem" onClick={() => { setShowStoryAddOptions(false); startStoryObservation(); }}>New moment</button><button className="story-add-choice story-add-choice-drafts" role="menuitem" onClick={() => { setShowStoryAddOptions(false); navigateTo('drafts'); }}>Drafts{storyDrafts.length > 0 ? ` (${storyDrafts.length})` : ''}</button></div></div>}
-        {view === 'ask' && <AskComposer value={askInput} onValue={(value) => { setAskInput(value); if (askSaveError) setAskSaveError(''); }} onSend={sendAskMessage} saveError={askSaveError} onQuickContext={(value) => { setAskSaveError(''); setAskInput((current) => current ? `${current} ${value}` : value); }} />}
+        {view === 'ask' && <AskComposer key={askIdentity} busy={askBusy} enabled={Boolean(cloud && activePetRecord && !activePetRecord.isEmptyProfile)} value={askInput} onValue={(value) => { setAskInput(value); if (askSaveError) setAskSaveError(''); }} onSend={sendAskMessage} saveError={askSaveError} onQuickContext={(value) => { setAskSaveError(''); setAskInput((current) => current ? `${current} ${value}` : value); }} />}
         {profileAction && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setProfileAction(null)}><section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-dialog-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={() => setProfileAction(null)}>×</button><h2 id="profile-dialog-title">{profileAction.title}</h2><p>{profileAction.detail}</p><button className="primary-button" onClick={() => setProfileAction(null)}>Done</button></section></div>}
         {showAccountSwitcher && <AccountSwitcher accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onClose={() => setShowAccountSwitcher(false)} onSwitch={switchAccount} onRegister={registerAccount} onRequestSignOut={() => { setShowAccountSwitcher(false); setShowSignOutConfirm(true); }} />}
         {showPetSwitcher && <PetSwitcher pets={activeAccount.pets} activePetId={activePetRecord.id} initialAdding={petSwitcherStartsAdding} onClose={() => { setShowPetSwitcher(false); setPetSwitcherStartsAdding(false); }} onSwitch={switchPet} onAdd={addPet} onDelete={deletePet} />}

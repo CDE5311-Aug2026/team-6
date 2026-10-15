@@ -9,3 +9,9 @@ dist/
 .env.*
 !.env.example
 *.local.*
+
+# Local CLI cache and visual verification outputs
+supabase/.temp/
+/cloud-live-proof.png
+/username-registration-live.png
+/welcome-live.png

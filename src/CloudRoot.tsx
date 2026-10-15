@@ -28,6 +28,14 @@ export default function CloudRoot() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [syncState, setSyncState] = useState<SyncState>('saved');
   const [syncError, setSyncError] = useState('');
+  const [syncNoticeVisible, setSyncNoticeVisible] = useState(false);
+  useEffect(() => {
+    if (mode !== 'cloud' || !workspace) { setSyncNoticeVisible(false); return; }
+    setSyncNoticeVisible(true);
+    if (syncState !== 'saved') return;
+    const timer = window.setTimeout(() => setSyncNoticeVisible(false), 2500);
+    return () => window.clearTimeout(timer);
+  }, [syncState, mode, workspace?.id]);
   const current = useRef<Workspace | null>(null);
   const generation = useRef(0);
   const choice = useRef<'guest' | null>(null);
@@ -119,13 +127,13 @@ export default function CloudRoot() {
   }
 
   if (mode === 'guest') return <App guest onExit={() => { choice.current = null; setMode('entry'); }} />;
-  if (mode === 'cloud' && workspace) return <div className="cloud-app">
-    <div className={'cloud-sync-bar ' + syncState} role="status">
+  if (mode === 'cloud' && workspace) return <App key={workspace.id}
+    cloud={{ initialSession: workspace.initialSession, save, signOut: () => { void signOut(); } }}
+    notice={syncNoticeVisible && <div className={'cloud-sync-bar ' + syncState} role="status">
       <span>{syncState === 'saving' ? 'Saving to your account…' : syncState === 'error' ? 'Not synced · ' + syncError : 'Saved to your account'}</span>
       {syncState === 'error' && <><button onClick={() => { void workspace.sync.retry().catch(() => {}); }}>Retry</button><button onClick={downloadBackup}>Download backup</button></>}
-    </div>
-    <App key={workspace.id} cloud={{ initialSession: workspace.initialSession, save, signOut: () => { void signOut(); } }} />
-  </div>;
+    </div>}
+  />;
   return <>{loading && <div className="cloud-loading" role="status">Loading your account…</div>}
     <Welcome cloud error={error}
       onGuest={() => { choice.current = 'guest'; ++generation.current; setLoading(false); setError(''); setMode('guest'); }}

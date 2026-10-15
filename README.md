@@ -39,7 +39,7 @@ Expected URL after Pages is enabled and deployment succeeds: https://cde5311-aug
 4. Type or edit a note, choose how Pawsona should treat it, and review before saving.
 5. Save, return to Today, reopen the pattern, and use **View or undo** to remove the correction.
 
-Story, Ask AI, Pets, and You are navigable. Guest mode uses local Luna sample observations and scripted AI copy. With Supabase configured, verified accounts save private pet workspaces to the database and media to a private Storage bucket. Camera feeds and a live AI service are not connected.
+Story, Ask AI, Pets, and You are navigable. Guest mode uses local Luna sample observations and scripted AI copy. With Supabase configured, verified accounts save private pet workspaces to the database and media to a private Storage bucket. Ask AI supports authenticated text and photo conversations through the `ask-ai` Edge Function. Camera feeds are not connected.
 
 The project is a working draft. Keep it in the personal repository during the workshop; move approved artifacts into the team's shared deliverables only after review.
 
@@ -54,7 +54,7 @@ personalized observations and insights.
 
 Continue as guest opens the existing Luna sample workspace in local storage. Create account and Log in use a username and password. Usernames are case-insensitive and contain 3–24 ASCII letters, digits or underscores. A rate-limited Edge Function creates an internal Auth identifier; no real email is collected or sent. Passwords remain managed by Supabase Auth. Cloud profiles start empty, are isolated from Guest data, and save private workspaces across devices. Nothing from previous local simulated accounts is automatically uploaded.
 
-Cloud status is shown at the top: Saving, Saved, or Not synced. Save failures preserve edits for explicit retry; revision checks reject stale-device overwrites. Account switching/deletion and care-circle invitations remain disabled in cloud mode. Live AI and real device connections are not implemented.
+Cloud status appears inside the phone: Saving, Saved, or Not synced. Successful saves dismiss after 2.5 seconds; errors remain available for retry. Save failures preserve edits for explicit retry; revision checks reject stale-device overwrites. Account switching/deletion and care-circle invitations remain disabled in cloud mode. Ask AI supports text and photos after server-side OPENAI_API_KEY configuration. Real device connections are not implemented.
 
 ## Supabase setup
 
@@ -65,3 +65,7 @@ Cloud status is shown at the top: Saving, Saved, or Not synced. Save failures pr
 5. Run pnpm build. VITE_* values are compiled into the static build; rebuild when changing them.
 
 Validation: node --test tests/cloudSync.test.mjs. See supabase/接入与验收.md for integration checks and limits.
+
+## Ask AI: text and photos
+
+See [接入与验收](supabase/Ask_AI_接入与验收.md) for server-side secrets, limits, and test steps. Never put an OpenAI key in VITE_* variables.

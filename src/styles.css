@@ -1031,10 +1031,26 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .entrance button:focus-visible { outline: 2px solid #1a2921; outline-offset: 3px; }
 @media (max-height: 700px) { .entrance { padding-top: 35px; } .entrance-brand { margin-top: 24px; } .entrance-intro { padding: 32px 0; } .entrance-form-heading { margin-top: 30px; } }
 
-.cloud-sync-bar { position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: min(100%,390px); z-index: 100; background: #eef4eb; padding: 5px 12px; color: #38503c; font: 11px/17px Roboto,sans-serif; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; text-align: center; }
+.cloud-sync-bar { position: absolute; top: 58px; left: 12px; right: 12px; width: auto; z-index: 100; border-radius: 12px; box-shadow: 0 3px 12px #00000012; background: #eef4eb; padding: 5px 12px; color: #38503c; font: 11px/17px Roboto,sans-serif; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; text-align: center; }
 .cloud-sync-bar.error { background: #fff0d3; color: #793b20; }
 .cloud-sync-bar button, .cloud-entry-recovery button { border: 0; background: transparent; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
 .cloud-loading { position: fixed; z-index: 150; inset: 0; display: grid; place-items: center; background: #fbf9f3; color: #1a2921; }
 .cloud-entry-recovery { position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; padding: 10px; background: #fff0a7; border-radius: 12px; font-size: 12px; }
 
 .entrance-field-hint { font: 400 11px/17px Roboto,sans-serif; color: #667069; }
+
+/* Live Ask AI */
+.ask-ai-notice { margin: 12px 24px 18px; color: var(--color-text-secondary, #666); font: 400 12px/18px 'Roboto', sans-serif; }
+.ask-thinking { display: flex; align-items: center; gap: 10px; }
+.chat-message > span { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ask-image-hint { flex: 1; font: 400 10px/14px 'Roboto', sans-serif; color: #666; }
+.ask-dock button:disabled { opacity: .45; cursor: default; }
+.ask-input-box textarea:disabled { opacity: .7; }
+
+.ask-dock, .ask-dock.has-attachment { height: auto; background: #fbf9f4; }
+.ask-input-box, .ask-input-box.has-attachment { height: auto; min-height: 104px; }
+.ask-input-box textarea { flex: none; height: 58px; }
+.ask-recording-error { min-height: 44px; padding-bottom: 4px; }
+.ask-recording-error > span { max-width: none; overflow-wrap: anywhere; }
+.main-content.ask-content { padding-bottom: calc(var(--ask-dock-height, 198px) + 24px); }
+.ask-dock .ask-send-button:disabled { opacity: .45; }

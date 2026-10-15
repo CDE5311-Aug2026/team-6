@@ -2,3 +2,7 @@
 # No existing account JWT is required to create a username/password account.
 [functions.register-username]
 verify_jwt = false
+
+# The handler validates the bearer token with Auth.getUser before any AI call.
+[functions.ask-ai]
+verify_jwt = false
