@@ -1,0 +1,916 @@
+{
+  "id": "pet-synthetic-sunny-20261009-v1",
+  "name": "Sunny（测试金毛）",
+  "breed": "Golden Retriever",
+  "species": "Dog",
+  "age": "3",
+  "avatar": "",
+  "hasDemoMoments": false,
+  "isEmptyProfile": false,
+  "testData": {
+    "datasetId": "golden-week-20261009-v1",
+    "synthetic": true,
+    "description": "仅用于Pawsona功能与baseline测试；不是照片中真实犬只的生活史。",
+    "timezone": "Asia/Singapore",
+    "periodStart": "2026-10-09",
+    "periodEnd": "2026-10-15",
+    "photoUsage": "用户提供照片仅用于头像；不代表各事件的照片证据。",
+    "fictionalProfile": {
+      "sex": "Female",
+      "weightKg": 28,
+      "traits": [
+        "喜欢嗅闻和取物游戏",
+        "主人在家时常选择附近的固定垫子休息",
+        "有访客时先靠近嗅闻再退回垫子"
+      ],
+      "routine": "通常早晚各一次散步、两顿日常餐，午后有稳定休息时段。",
+      "healthContext": "未设置疾病情节；所有个体特征均为编造。"
+    },
+    "dailySummaries": [
+      {
+        "date": "2026-10-09",
+        "timezone": "Asia/Singapore",
+        "coverage": "complete-day",
+        "synthetic": true,
+        "morningWalkMinutes": 30,
+        "eveningWalkMinutes": 32,
+        "totalWalkMinutes": 62,
+        "afternoonRestMinutes": 88,
+        "foodConsumedGrams": 320,
+        "nightSleepHours": 12.6,
+        "missingMetrics": [],
+        "context": "平常工作日，照护节奏一致。",
+        "baselineRole": "reference"
+      },
+      {
+        "date": "2026-10-10",
+        "timezone": "Asia/Singapore",
+        "coverage": "complete-day",
+        "synthetic": true,
+        "morningWalkMinutes": 31,
+        "eveningWalkMinutes": 33,
+        "totalWalkMinutes": 64,
+        "afternoonRestMinutes": 95,
+        "foodConsumedGrams": 320,
+        "nightSleepHours": 12.9,
+        "missingMetrics": [],
+        "context": "平常工作日，照护节奏一致。",
+        "baselineRole": "reference"
+      },
+      {
+        "date": "2026-10-11",
+        "timezone": "Asia/Singapore",
+        "coverage": "complete-day",
+        "synthetic": true,
+        "morningWalkMinutes": 29,
+        "eveningWalkMinutes": 31,
+        "totalWalkMinutes": 60,
+        "afternoonRestMinutes": null,
+        "foodConsumedGrams": 315,
+        "nightSleepHours": 12.5,
+        "missingMetrics": [
+          "afternoonRestMinutes"
+        ],
+        "context": "午后无人记录休息时长，数据缺失，不表示没有休息。",
+        "baselineRole": "reference"
+      },
+      {
+        "date": "2026-10-12",
+        "timezone": "Asia/Singapore",
+        "coverage": "complete-day",
+        "synthetic": true,
+        "morningWalkMinutes": 30,
+        "eveningWalkMinutes": 33,
+        "totalWalkMinutes": 63,
+        "afternoonRestMinutes": 90,
+        "foodConsumedGrams": 320,
+        "nightSleepHours": 13.0,
+        "missingMetrics": [],
+        "context": "平常工作日，照护节奏一致。",
+        "baselineRole": "reference"
+      },
+      {
+        "date": "2026-10-13",
+        "timezone": "Asia/Singapore",
+        "coverage": "complete-day",
+        "synthetic": true,
+        "morningWalkMinutes": 31,
+        "eveningWalkMinutes": 34,
+        "totalWalkMinutes": 65,
+        "afternoonRestMinutes": 92,
+        "foodConsumedGrams": 325,
+        "nightSleepHours": 12.7,
+        "missingMetrics": [],
+        "context": "平常工作日，照护节奏一致。",
+        "baselineRole": "reference"
+      },
+      {
+        "date": "2026-10-14",
+        "timezone": "Asia/Singapore",
+        "coverage": "complete-day",
+        "synthetic": true,
+        "morningWalkMinutes": 15,
+        "eveningWalkMinutes": 16,
+        "totalWalkMinutes": 31,
+        "afternoonRestMinutes": 120,
+        "foodConsumedGrams": 320,
+        "nightSleepHours": 13.4,
+        "missingMetrics": [],
+        "context": "虚构情境：持续下雨，两次散步缩短，室内嗅闻游戏替代部分活动。",
+        "baselineRole": "holdout-context-change"
+      },
+      {
+        "date": "2026-10-15",
+        "timezone": "Asia/Singapore",
+        "coverage": "partial-until-16:30",
+        "synthetic": true,
+        "morningWalkMinutes": 29,
+        "eveningWalkMinutes": null,
+        "totalWalkMinutes": null,
+        "afternoonRestMinutes": 105,
+        "foodConsumedGrams": null,
+        "nightSleepHours": null,
+        "missingMetrics": [
+          "eveningWalkMinutes",
+          "totalWalkMinutes",
+          "foodConsumedGrams",
+          "nightSleepHours"
+        ],
+        "context": "虚构情境：13:30–14:15家中有访客；仅收录16:30前内容，不能与整日总量直接比较。",
+        "baselineRole": "holdout-context-change"
+      }
+    ]
+  },
+  "workspace": {
+    "groupName": "Sunny 测试照护空间",
+    "contexts": [],
+    "observations": [
+      {
+        "id": "sunny-2026-10-15-indoor-play",
+        "title": "室内互动",
+        "note": "与照护者玩10分钟取物/嗅闻游戏，结束后自行走回垫子。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】虚构情境：13:30–14:15家中有访客；仅收录16:30前内容，不能与整日总量直接比较。",
+        "privateRecord": false,
+        "savedAt": "2026-10-15T16:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "play",
+        "metrics": {
+          "durationMinutes": 10
+        }
+      },
+      {
+        "id": "sunny-2026-10-15-afternoon-rest",
+        "title": "午后休息",
+        "note": "在固定垫子上间歇休息约105分钟，期间短暂抬头后继续趴卧；休息不等同于已确认睡眠。 家中访客在场；无法只靠这条记录确定休息变化的原因。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】虚构情境：13:30–14:15家中有访客；仅收录16:30前内容，不能与整日总量直接比较。",
+        "privateRecord": false,
+        "savedAt": "2026-10-15T13:45:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "rest",
+        "metrics": {
+          "durationMinutes": 105
+        }
+      },
+      {
+        "id": "sunny-2026-10-15-breakfast",
+        "title": "早餐记录",
+        "note": "吃下约160克日常食物，用时8分钟。份量为虚构记录，不是喂食建议。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】虚构情境：13:30–14:15家中有访客；仅收录16:30前内容，不能与整日总量直接比较。",
+        "privateRecord": false,
+        "savedAt": "2026-10-15T08:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "meal",
+        "metrics": {
+          "consumedGrams": 160,
+          "durationMinutes": 8
+        }
+      },
+      {
+        "id": "sunny-2026-10-15-morning-walk",
+        "title": "晨间散步",
+        "note": "晨间散步约29分钟，途中多次停下嗅闻；回家后能安静趴下。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】虚构情境：13:30–14:15家中有访客；仅收录16:30前内容，不能与整日总量直接比较。",
+        "privateRecord": false,
+        "savedAt": "2026-10-15T07:10:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "walk",
+        "metrics": {
+          "durationMinutes": 29
+        }
+      },
+      {
+        "id": "sunny-2026-10-14-settling",
+        "title": "晚间安定",
+        "note": "照护者收起玩具后，在客厅垫子上安静趴卧。夜间睡眠时长另列为虚构汇总估计。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】虚构情境：持续下雨，两次散步缩短，室内嗅闻游戏替代部分活动。",
+        "privateRecord": false,
+        "savedAt": "2026-10-14T21:15:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "settle",
+        "metrics": {
+          "settlingMinutes": 12
+        }
+      },
+      {
+        "id": "sunny-2026-10-14-dinner",
+        "title": "晚餐记录",
+        "note": "吃下约160克日常食物，饮水后离开食盆，没有继续守着食盆。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】虚构情境：持续下雨，两次散步缩短，室内嗅闻游戏替代部分活动。",
+        "privateRecord": false,
+        "savedAt": "2026-10-14T19:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "meal",
+        "metrics": {
+          "consumedGrams": 160,
+          "durationMinutes": 8
+        }
+      },
+      {
+        "id": "sunny-2026-10-14-evening-walk",
+        "title": "傍晚散步",
+        "note": "傍晚散步约16分钟，以慢走与嗅闻为主，没有追求固定速度。 当天下雨，照护者主动缩短外出，不据此推断身体不适。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】虚构情境：持续下雨，两次散步缩短，室内嗅闻游戏替代部分活动。",
+        "privateRecord": false,
+        "savedAt": "2026-10-14T18:15:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "walk",
+        "metrics": {
+          "durationMinutes": 16
+        }
+      },
+      {
+        "id": "sunny-2026-10-14-indoor-play",
+        "title": "室内互动",
+        "note": "与照护者玩22分钟取物/嗅闻游戏，结束后自行走回垫子。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】虚构情境：持续下雨，两次散步缩短，室内嗅闻游戏替代部分活动。",
+        "privateRecord": false,
+        "savedAt": "2026-10-14T16:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "play",
+        "metrics": {
+          "durationMinutes": 22
+        }
+      },
+      {
+        "id": "sunny-2026-10-14-afternoon-rest",
+        "title": "午后休息",
+        "note": "在固定垫子上间歇休息约120分钟，期间短暂抬头后继续趴卧；休息不等同于已确认睡眠。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】虚构情境：持续下雨，两次散步缩短，室内嗅闻游戏替代部分活动。",
+        "privateRecord": false,
+        "savedAt": "2026-10-14T13:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "rest",
+        "metrics": {
+          "durationMinutes": 120
+        }
+      },
+      {
+        "id": "sunny-2026-10-14-breakfast",
+        "title": "早餐记录",
+        "note": "吃下约160克日常食物，用时7分钟。份量为虚构记录，不是喂食建议。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】虚构情境：持续下雨，两次散步缩短，室内嗅闻游戏替代部分活动。",
+        "privateRecord": false,
+        "savedAt": "2026-10-14T08:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "meal",
+        "metrics": {
+          "consumedGrams": 160,
+          "durationMinutes": 7
+        }
+      },
+      {
+        "id": "sunny-2026-10-14-morning-walk",
+        "title": "晨间散步",
+        "note": "晨间散步约15分钟，途中多次停下嗅闻；回家后能安静趴下。 当天下雨，照护者主动缩短外出，不据此推断身体不适。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】虚构情境：持续下雨，两次散步缩短，室内嗅闻游戏替代部分活动。",
+        "privateRecord": false,
+        "savedAt": "2026-10-14T07:10:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "walk",
+        "metrics": {
+          "durationMinutes": 15
+        }
+      },
+      {
+        "id": "sunny-2026-10-13-settling",
+        "title": "晚间安定",
+        "note": "照护者收起玩具后，在客厅垫子上安静趴卧。夜间睡眠时长另列为虚构汇总估计。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-13T21:15:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "settle",
+        "metrics": {
+          "settlingMinutes": 8
+        }
+      },
+      {
+        "id": "sunny-2026-10-13-dinner",
+        "title": "晚餐记录",
+        "note": "吃下约160克日常食物，饮水后离开食盆，没有继续守着食盆。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-13T19:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "meal",
+        "metrics": {
+          "consumedGrams": 160,
+          "durationMinutes": 7
+        }
+      },
+      {
+        "id": "sunny-2026-10-13-evening-walk",
+        "title": "傍晚散步",
+        "note": "傍晚散步约34分钟，以慢走与嗅闻为主，没有追求固定速度。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-13T18:15:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "walk",
+        "metrics": {
+          "durationMinutes": 34
+        }
+      },
+      {
+        "id": "sunny-2026-10-13-indoor-play",
+        "title": "室内互动",
+        "note": "与照护者玩12分钟取物/嗅闻游戏，结束后自行走回垫子。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-13T16:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "play",
+        "metrics": {
+          "durationMinutes": 12
+        }
+      },
+      {
+        "id": "sunny-2026-10-13-afternoon-rest",
+        "title": "午后休息",
+        "note": "在固定垫子上间歇休息约92分钟，期间短暂抬头后继续趴卧；休息不等同于已确认睡眠。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-13T13:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "rest",
+        "metrics": {
+          "durationMinutes": 92
+        }
+      },
+      {
+        "id": "sunny-2026-10-13-breakfast",
+        "title": "早餐记录",
+        "note": "吃下约165克日常食物，用时7分钟。份量为虚构记录，不是喂食建议。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-13T08:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "meal",
+        "metrics": {
+          "consumedGrams": 165,
+          "durationMinutes": 7
+        }
+      },
+      {
+        "id": "sunny-2026-10-13-morning-walk",
+        "title": "晨间散步",
+        "note": "晨间散步约31分钟，途中多次停下嗅闻；回家后能安静趴下。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-13T07:10:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "walk",
+        "metrics": {
+          "durationMinutes": 31
+        }
+      },
+      {
+        "id": "sunny-2026-10-12-settling",
+        "title": "晚间安定",
+        "note": "照护者收起玩具后，在客厅垫子上安静趴卧。夜间睡眠时长另列为虚构汇总估计。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-12T21:15:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "settle",
+        "metrics": {
+          "settlingMinutes": 9
+        }
+      },
+      {
+        "id": "sunny-2026-10-12-dinner",
+        "title": "晚餐记录",
+        "note": "吃下约160克日常食物，饮水后离开食盆，没有继续守着食盆。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-12T19:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "meal",
+        "metrics": {
+          "consumedGrams": 160,
+          "durationMinutes": 7
+        }
+      },
+      {
+        "id": "sunny-2026-10-12-evening-walk",
+        "title": "傍晚散步",
+        "note": "傍晚散步约33分钟，以慢走与嗅闻为主，没有追求固定速度。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-12T18:15:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "walk",
+        "metrics": {
+          "durationMinutes": 33
+        }
+      },
+      {
+        "id": "sunny-2026-10-12-indoor-play",
+        "title": "室内互动",
+        "note": "与照护者玩14分钟取物/嗅闻游戏，结束后自行走回垫子。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-12T16:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "play",
+        "metrics": {
+          "durationMinutes": 14
+        }
+      },
+      {
+        "id": "sunny-2026-10-12-afternoon-rest",
+        "title": "午后休息",
+        "note": "在固定垫子上间歇休息约90分钟，期间短暂抬头后继续趴卧；休息不等同于已确认睡眠。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-12T13:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "rest",
+        "metrics": {
+          "durationMinutes": 90
+        }
+      },
+      {
+        "id": "sunny-2026-10-12-breakfast",
+        "title": "早餐记录",
+        "note": "吃下约160克日常食物，用时8分钟。份量为虚构记录，不是喂食建议。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-12T08:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "meal",
+        "metrics": {
+          "consumedGrams": 160,
+          "durationMinutes": 8
+        }
+      },
+      {
+        "id": "sunny-2026-10-12-morning-walk",
+        "title": "晨间散步",
+        "note": "晨间散步约30分钟，途中多次停下嗅闻；回家后能安静趴下。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-12T07:10:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "walk",
+        "metrics": {
+          "durationMinutes": 30
+        }
+      },
+      {
+        "id": "sunny-2026-10-11-settling",
+        "title": "晚间安定",
+        "note": "照护者收起玩具后，在客厅垫子上安静趴卧。夜间睡眠时长另列为虚构汇总估计。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】午后无人记录休息时长，数据缺失，不表示没有休息。",
+        "privateRecord": false,
+        "savedAt": "2026-10-11T21:15:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "settle",
+        "metrics": {
+          "settlingMinutes": 7
+        }
+      },
+      {
+        "id": "sunny-2026-10-11-dinner",
+        "title": "晚餐记录",
+        "note": "吃下约160克日常食物，饮水后离开食盆，没有继续守着食盆。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】午后无人记录休息时长，数据缺失，不表示没有休息。",
+        "privateRecord": false,
+        "savedAt": "2026-10-11T19:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "meal",
+        "metrics": {
+          "consumedGrams": 160,
+          "durationMinutes": 8
+        }
+      },
+      {
+        "id": "sunny-2026-10-11-evening-walk",
+        "title": "傍晚散步",
+        "note": "傍晚散步约31分钟，以慢走与嗅闻为主，没有追求固定速度。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】午后无人记录休息时长，数据缺失，不表示没有休息。",
+        "privateRecord": false,
+        "savedAt": "2026-10-11T18:15:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "walk",
+        "metrics": {
+          "durationMinutes": 31
+        }
+      },
+      {
+        "id": "sunny-2026-10-11-indoor-play",
+        "title": "室内互动",
+        "note": "与照护者玩13分钟取物/嗅闻游戏，结束后自行走回垫子。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】午后无人记录休息时长，数据缺失，不表示没有休息。",
+        "privateRecord": false,
+        "savedAt": "2026-10-11T16:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "play",
+        "metrics": {
+          "durationMinutes": 13
+        }
+      },
+      {
+        "id": "sunny-2026-10-11-breakfast",
+        "title": "早餐记录",
+        "note": "吃下约155克日常食物，用时6分钟。份量为虚构记录，不是喂食建议。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】午后无人记录休息时长，数据缺失，不表示没有休息。",
+        "privateRecord": false,
+        "savedAt": "2026-10-11T08:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "meal",
+        "metrics": {
+          "consumedGrams": 155,
+          "durationMinutes": 6
+        }
+      },
+      {
+        "id": "sunny-2026-10-11-morning-walk",
+        "title": "晨间散步",
+        "note": "晨间散步约29分钟，途中多次停下嗅闻；回家后能安静趴下。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】午后无人记录休息时长，数据缺失，不表示没有休息。",
+        "privateRecord": false,
+        "savedAt": "2026-10-11T07:10:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "walk",
+        "metrics": {
+          "durationMinutes": 29
+        }
+      },
+      {
+        "id": "sunny-2026-10-10-settling",
+        "title": "晚间安定",
+        "note": "照护者收起玩具后，在客厅垫子上安静趴卧。夜间睡眠时长另列为虚构汇总估计。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-10T21:15:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "settle",
+        "metrics": {
+          "settlingMinutes": 10
+        }
+      },
+      {
+        "id": "sunny-2026-10-10-dinner",
+        "title": "晚餐记录",
+        "note": "吃下约160克日常食物，饮水后离开食盆，没有继续守着食盆。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-10T19:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "meal",
+        "metrics": {
+          "consumedGrams": 160,
+          "durationMinutes": 6
+        }
+      },
+      {
+        "id": "sunny-2026-10-10-evening-walk",
+        "title": "傍晚散步",
+        "note": "傍晚散步约33分钟，以慢走与嗅闻为主，没有追求固定速度。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-10T18:15:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "walk",
+        "metrics": {
+          "durationMinutes": 33
+        }
+      },
+      {
+        "id": "sunny-2026-10-10-indoor-play",
+        "title": "室内互动",
+        "note": "与照护者玩15分钟取物/嗅闻游戏，结束后自行走回垫子。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-10T16:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "play",
+        "metrics": {
+          "durationMinutes": 15
+        }
+      },
+      {
+        "id": "sunny-2026-10-10-afternoon-rest",
+        "title": "午后休息",
+        "note": "在固定垫子上间歇休息约95分钟，期间短暂抬头后继续趴卧；休息不等同于已确认睡眠。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-10T13:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "rest",
+        "metrics": {
+          "durationMinutes": 95
+        }
+      },
+      {
+        "id": "sunny-2026-10-10-breakfast",
+        "title": "早餐记录",
+        "note": "吃下约160克日常食物，用时7分钟。份量为虚构记录，不是喂食建议。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-10T08:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "meal",
+        "metrics": {
+          "consumedGrams": 160,
+          "durationMinutes": 7
+        }
+      },
+      {
+        "id": "sunny-2026-10-10-morning-walk",
+        "title": "晨间散步",
+        "note": "晨间散步约31分钟，途中多次停下嗅闻；回家后能安静趴下。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-10T07:10:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "walk",
+        "metrics": {
+          "durationMinutes": 31
+        }
+      },
+      {
+        "id": "sunny-2026-10-09-settling",
+        "title": "晚间安定",
+        "note": "照护者收起玩具后，在客厅垫子上安静趴卧。夜间睡眠时长另列为虚构汇总估计。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-09T21:15:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "settle",
+        "metrics": {
+          "settlingMinutes": 8
+        }
+      },
+      {
+        "id": "sunny-2026-10-09-dinner",
+        "title": "晚餐记录",
+        "note": "吃下约160克日常食物，饮水后离开食盆，没有继续守着食盆。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-09T19:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "meal",
+        "metrics": {
+          "consumedGrams": 160,
+          "durationMinutes": 7
+        }
+      },
+      {
+        "id": "sunny-2026-10-09-evening-walk",
+        "title": "傍晚散步",
+        "note": "傍晚散步约32分钟，以慢走与嗅闻为主，没有追求固定速度。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-09T18:15:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "walk",
+        "metrics": {
+          "durationMinutes": 32
+        }
+      },
+      {
+        "id": "sunny-2026-10-09-indoor-play",
+        "title": "室内互动",
+        "note": "与照护者玩12分钟取物/嗅闻游戏，结束后自行走回垫子。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-09T16:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "play",
+        "metrics": {
+          "durationMinutes": 12
+        }
+      },
+      {
+        "id": "sunny-2026-10-09-afternoon-rest",
+        "title": "午后休息",
+        "note": "在固定垫子上间歇休息约88分钟，期间短暂抬头后继续趴卧；休息不等同于已确认睡眠。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-09T13:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "rest",
+        "metrics": {
+          "durationMinutes": 88
+        }
+      },
+      {
+        "id": "sunny-2026-10-09-breakfast",
+        "title": "早餐记录",
+        "note": "吃下约160克日常食物，用时6分钟。份量为虚构记录，不是喂食建议。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-09T08:00:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "meal",
+        "metrics": {
+          "consumedGrams": 160,
+          "durationMinutes": 6
+        }
+      },
+      {
+        "id": "sunny-2026-10-09-morning-walk",
+        "title": "晨间散步",
+        "note": "晨间散步约30分钟，途中多次停下嗅闻；回家后能安静趴下。",
+        "image": "",
+        "momentCount": 1,
+        "context": "【虚构测试数据】平常工作日，照护节奏一致。",
+        "privateRecord": false,
+        "savedAt": "2026-10-09T07:10:00+08:00",
+        "authorName": "测试照护者",
+        "synthetic": true,
+        "observationKind": "walk",
+        "metrics": {
+          "durationMinutes": 30
+        }
+      }
+    ],
+    "drafts": [],
+    "visibility": null,
+    "askMessages": [],
+    "careMembers": [],
+    "careEvent": null,
+    "mediaSources": [],
+    "patterns": [],
+    "lifeEvents": [
+      {
+        "id": "sunny-rain-20261014",
+        "category": "life",
+        "type": "Routine change",
+        "title": "【测试】雨天缩短外出",
+        "startDate": "2026-10-14",
+        "endDate": "2026-10-14",
+        "ongoing": false,
+        "note": "虚构情境：当天持续下雨，照护者将早晚散步缩短并增加室内嗅闻游戏。",
+        "useForAsk": true,
+        "savedAt": "2026-10-14T19:30:00+08:00"
+      },
+      {
+        "id": "sunny-visitors-20261015",
+        "category": "life",
+        "type": "Routine change",
+        "title": "【测试】午后有访客",
+        "startDate": "2026-10-15",
+        "endDate": "2026-10-15",
+        "ongoing": false,
+        "note": "虚构情境：13:30–14:15访客在家，Sunny先靠近嗅闻，后退回垫子；没有给出情绪或疾病结论。",
+        "useForAsk": true,
+        "savedAt": "2026-10-15T16:00:00+08:00"
+      }
+    ]
+  }
+}
