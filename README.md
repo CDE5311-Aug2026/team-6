@@ -50,3 +50,8 @@ The project is a working draft. Keep it in the personal repository during the wo
 Pawsona is an AI-powered pet care application designed
 to help pet owners better understand their pets through
 personalized observations and insights.
+
+
+## Welcome and guest access
+
+The app opens with a simple welcome screen. Continue as guest opens the existing Luna sample workspace. Create account creates an empty local profile; Log in restores a profile by email in the same browser. These are prototype flows, not verified authentication: no passwords are collected, and no cloud database is connected. Signing out returns to the welcome screen without deleting local data.
