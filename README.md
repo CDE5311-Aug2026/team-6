@@ -2,7 +2,7 @@
 
 **[Click here to explore our interactive prototype](https://pawsona-team-6.vercel.app/)**
 
-是我测试用的链接（目前最新的不是这个）<(￣︶￣)↗ **[test prototype](https://team-6-main-3-2.vercel.app/)**
+是我测试用的链接（目前最新的不这个）<(￣︶￣)↗ **[test prototype](https://team-6-main-1-2.vercel.app/)**
 
 
 The prototype is deployed on Vercel and can be accessed
