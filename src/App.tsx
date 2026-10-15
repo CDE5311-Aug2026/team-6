@@ -560,22 +560,38 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
   return { ...base, image: asset(base.image) };
 }
 
-function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, petName, petAvatar, saved, hasDemoMoments, noPetYet }: { onStory: () => void; onMoment: (momentId: string) => void; onEvidence: () => void; onPetsNavigate: () => void; onAddPet: () => void; petName: string; petAvatar: string; saved: OwnerContext | null; hasDemoMoments: boolean; noPetYet: boolean }) {
+function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, petName, petAvatar, saved, hasDemoMoments, noPetYet, observations, includedMoments }: { onStory: () => void; onMoment: (momentId: string) => void; onEvidence: () => void; onPetsNavigate: () => void; onAddPet: () => void; petName: string; petAvatar: string; saved: OwnerContext | null; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null }) {
+  const displayName = petName.replace(/\s*\(Test[^)]*\)$/, '');
+  const visibleRecords = observations.filter(record => !record.privateRecord && (!includedMoments || includedMoments.includes(record.id)))
+    .sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime());
+  const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
+  const featured = todayRecords.length ? todayRecords : visibleRecords.filter(record => new Date(record.savedAt).toDateString() === new Date(visibleRecords[0]?.savedAt).toDateString());
+  const first = featured.at(-1);
+  const last = featured[0];
+  const clock = (value: string) => formatObservationTime(value).split('\n').at(-1);
+  const storyHeading = `${featured.length} ${featured.length === 1 ? 'moment' : 'moments'} from ${displayName}’s day.`;
+  const reviewRecord = featured.find(record => /rest/i.test(record.title)) ?? last;
+
   return (
     <>
-      <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${petName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${petName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
-      {!hasDemoMoments ? noPetYet ? <section className="today-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section> : <>
+      <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
+      {!hasDemoMoments && !visibleRecords.length ? noPetYet ? <section className="today-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section> : <>
       <section className="today-hero">
-        <span className="story-badge">✦ &nbsp; TODAY’S STORY</span>
+        <span className="story-badge">✦ &nbsp; {hasDemoMoments || todayRecords.length ? 'TODAY’S STORY' : 'LATEST STORY'}</span>
         <img className="hero-sparkle" src={asset('sparkle.svg')} alt="" />
-        <h2>Sunny naps, a playful afternoon, and one very good toy.</h2>
-        <p>9:00 AM–6:00 PM</p>
-        <button className="primary-button" onClick={onStory}>Read {petName}’s story →</button>
+        <h2>{hasDemoMoments ? 'Sunny naps, a playful afternoon, and one very good toy.' : storyHeading}</h2>
+        <p>{hasDemoMoments ? '9:00 AM–6:00 PM' : first && last ? `${todayRecords.length ? '' : formatPageDate(new Date(last.savedAt)) + ' · '}${clock(first.savedAt)}–${clock(last.savedAt)}` : ''}</p>
+        <button className="primary-button" onClick={onStory}>Read {displayName}’s story →</button>
       </section>
 
       <section className="today-section">
         <h2>Moments you might love</h2>
         <div className="moment-grid">
+          {!hasDemoMoments ? featured.slice(0, 2).map(record => <button className="moment-card" key={record.id} onClick={() => onMoment(record.id)}>
+            {observationHasPrimaryMedia(record) ? <StoryMediaView src={record.image} type={record.mediaType} alt={record.title} /> : <span className="moment-text-preview" aria-hidden="true">✦</span>}
+            <span className="moment-card-copy"><strong>{record.title}</strong><small>{observationHasPrimaryMedia(record) ? record.mediaType?.startsWith('video/') ? 'Video' : record.mediaType?.startsWith('audio/') ? 'Audio' : 'Photo' : 'Written observation'} · {clock(record.savedAt)}</small></span>
+          </button>) : <>
+
           <button className="moment-card" onClick={() => onMoment('toy')}>
             <img src={asset('toy-chase.png')} alt={`${petName} with a toy on a blue background`} />
             <span className="moment-card-copy"><strong>The toy chase</strong><small>Video · 0:18 · 4:20 PM</small></span>
@@ -584,14 +600,15 @@ function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, pe
             <img src={asset('sunny-nap.png')} alt={`${petName} resting on a yellow background`} />
             <span className="moment-card-copy"><strong>A sunny window nap</strong><small>Photo · 11:35 AM</small></span>
           </button>
+        </>}
         </div>
       </section>
 
       <section className="today-section closer-look">
         <h2>Worth a closer look</h2>
-        <button className="notice-card" onClick={onEvidence}>
+        <button className="notice-card" onClick={hasDemoMoments ? onEvidence : () => reviewRecord && onMoment(reviewRecord.id)}>
           <img src={asset('warning.png')} alt="" />
-          <span><strong>{saved ? 'Your context is now linked' : 'Afternoon rest looked a little longer'}</strong><small>{saved ? 'Review the clips and your note.' : 'It may be ordinary. Review the clips.'}</small></span>
+          <span><strong>{!hasDemoMoments ? `Review ${reviewRecord?.title.toLowerCase() ?? 'today’s moments'}` : saved ? 'Your context is now linked' : 'Afternoon rest looked a little longer'}</strong><small>{!hasDemoMoments ? 'Explore the observation and its owner context.' : saved ? 'Review the clips and your note.' : 'It may be ordinary. Review the clips.'}</small></span>
         </button>
       </section>
       </>}
@@ -680,10 +697,10 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
       <section className="timeline-section">
         <div className="section-heading"><h2>Today’s timeline</h2>{canEdit && <button className="text-link" onClick={onEditStory}>Edit story ✎</button>}</div>
         <div className="timeline-list">
-          {todayTimelineItems.map((item, index) => { const clockTime = item.time.split('\n').at(-1); const showTime = !todayTimelineItems.slice(0, index).some((previous) => previous.time.split('\n').at(-1) === clockTime); return <StoryTimelineRow key={item.id} item={item} showTime={showTime} canEdit={canEdit} menuOpen={openMenuId === item.id} onMenuToggle={() => setOpenMenuId(openMenuId === item.id ? null : item.id)} onView={() => { setOpenMenuId(null); onMoment(item.id); }} onEdit={() => { setOpenMenuId(null); onEditMoment(item); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(item); }} />; })}
+          {todayTimelineItems.map((item) => { return <StoryTimelineRow key={item.id} item={item} canEdit={canEdit} menuOpen={openMenuId === item.id} onMenuToggle={() => setOpenMenuId(openMenuId === item.id ? null : item.id)} onView={() => { setOpenMenuId(null); onMoment(item.id); }} onEdit={() => { setOpenMenuId(null); onEditMoment(item); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(item); }} />; })}
         </div>
       </section>
-      {earlierTimelineItems.length > 0 && <section className="timeline-section earlier-timeline-section"><div className="section-heading"><h2>Earlier moments</h2></div><div className="timeline-list">{earlierTimelineItems.map((item, index) => { const clockTime = item.time.split('\n').at(-1); const showTime = !earlierTimelineItems.slice(0, index).some((previous) => previous.time.split('\n').at(-1) === clockTime); return <StoryTimelineRow key={item.id} item={item} showTime={showTime} canEdit={canEdit} menuOpen={openMenuId === item.id} onMenuToggle={() => setOpenMenuId(openMenuId === item.id ? null : item.id)} onView={() => { setOpenMenuId(null); onMoment(item.id); }} onEdit={() => { setOpenMenuId(null); onEditMoment(item); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(item); }} />; })}</div></section>}
+      {earlierTimelineItems.length > 0 && <section className="timeline-section earlier-timeline-section"><div className="section-heading"><h2>Earlier moments</h2></div><div className="timeline-list">{earlierTimelineItems.map((item) => { return <StoryTimelineRow key={item.id} item={item} canEdit={canEdit} menuOpen={openMenuId === item.id} onMenuToggle={() => setOpenMenuId(openMenuId === item.id ? null : item.id)} onView={() => { setOpenMenuId(null); onMoment(item.id); }} onEdit={() => { setOpenMenuId(null); onEditMoment(item); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(item); }} />; })}</div></section>}
       {openMenuId && <button className="timeline-menu-dismiss" aria-label="Close moment actions" onClick={() => setOpenMenuId(null)} />}
       {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-story-moment-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-story-moment-title">Delete “{pendingDelete.title}”?</h2><p>{observations.some((entry) => entry.id === pendingDelete.id) ? 'This permanently removes this moment and its linked owner context from this pet’s Story.' : 'This removes this moment from the current Story. You can add it again later from Edit story.'}</p>{deleteError && <p className="inline-save-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete</button></div></section></div>}
       </>}
@@ -3178,7 +3195,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <StatusBar />
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
-            {view === 'today' && <TodayPage petName={petName} petAvatar={petAvatar} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onEvidence={() => navigateTo('overview')} onPetsNavigate={() => navigateTo('pets')} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} />}
+            {view === 'today' && <TodayPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onEvidence={() => navigateTo('overview')} onPetsNavigate={() => navigateTo('pets')} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} />}
             {view === 'story' && <StoryPage onMoment={openMomentDetail} onEditStory={() => navigateTo('storyEdit')} onEditMoment={(item) => editStoryRow({ id: item.id, image: item.image, mediaType: item.mediaType, title: item.title, meta: `${item.time} · story moment`, note: item.note })} onDeleteMoment={deleteStoryMoment} onPetsNavigate={() => navigateTo('pets')} onAddPet={openAddPetForm} petName={petName} petAvatar={petAvatar} ownerName={ownerName} accounts={prototypeSession.accounts} contexts={savedContexts} observations={storyObservations} includedMoments={includedStoryMoments} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} canEdit={canContributeToSharedPet} />}
             {view === 'storyEdit' && <StoryEditPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} hasDemoMoments={activePetRecord.hasDemoMoments} onBack={() => goBack('story')} onEdit={editStoryRow} onDelete={deleteStoryRow} onSave={(ids) => { if (!persistWorkspacePatch({ visibility: ids })) return; setIncludedStoryMoments(ids); if (!cloud) try {
               localStorage.setItem(

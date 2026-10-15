@@ -1054,3 +1054,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .ask-recording-error > span { max-width: none; overflow-wrap: anywhere; }
 .main-content.ask-content { padding-bottom: calc(var(--ask-dock-height, 198px) + 24px); }
 .ask-dock .ask-send-button:disabled { opacity: .45; }
+
+/* Real-pet home uses the same cards as the demo without fabricating media. */
+.moment-text-preview { display: grid; place-items: center; width: 100%; height: 152px; background: #fff0a7; color: #e7b100; font-size: 48px; }
+.moment-card:nth-child(even) .moment-text-preview { background: #e7efe8; color: #658d75; }
+.today-hero .primary-button, .today-empty-state .primary-button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
