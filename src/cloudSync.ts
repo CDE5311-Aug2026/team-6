@@ -32,7 +32,7 @@ export class CloudSync<T extends object> {
         try { this.revision = await this.writer(payload, this.revision); }
         catch (cause) {
           this.pending = this.pending ?? payload;
-          this.failure = cause instanceof Error ? cause : new Error('Cloud save failed.');
+          this.failure = cause instanceof Error ? cause : new Error(cause && typeof cause === 'object' && 'message' in cause ? String(cause.message) : 'Cloud save failed.');
           if (!this.stopped) this.onState('error', this.failure.message);
           throw this.failure;
         }

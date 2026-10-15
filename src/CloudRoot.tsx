@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import App, { createCloudSession, type PrototypeSession } from './App';
 import Welcome from './Welcome';
-import { createCloudAccount, loginCloudAccount, logoutCloudAccount, readCloudWorkspace, supabase, verifiedUser, writeCloudWorkspace, saveCloudProfile } from './cloud';
+import { createCloudAccount, loginCloudAccount, logoutCloudAccount, readCloudWorkspace, supabase, verifiedUser, writeCloudWorkspace, saveCloudProfile, initializeCloudWorkspace } from './cloud';
 import { CloudMedia } from './cloudMedia';
 import { CloudSync, type SyncState } from './cloudSync';
 
@@ -43,15 +43,15 @@ export default function CloudRoot() {
     try {
       const user = await verifiedUser();
       if (ticket !== generation.current) return;
-      const row = await readCloudWorkspace<PrototypeSession>();
+      const row = await readCloudWorkspace<PrototypeSession>() ?? await initializeCloudWorkspace(
+        createCloudSession(user.id, user.email ?? '', String(user.user_metadata.display_name ?? 'Pet caregiver').slice(0, 120)), user.id,
+      );
       if (row && !validSession(row.payload, user.id)) throw new Error('Your workspace could not be read safely. Please contact the project team.');
       media = new CloudMedia(user.id);
-      const initialSession = row
-        ? await media.decode(row.payload)
-        : createCloudSession(user.id, user.email ?? '', String(user.user_metadata.display_name ?? 'Pet caregiver').slice(0, 120));
+      const initialSession = await media.decode(row.payload);
       if (ticket !== generation.current) { media.dispose(); return; }
       const codec = media;
-      const sync = new CloudSync(row?.revision ?? null, initialSession, async (payload, revision) => {
+      const sync = new CloudSync(row.revision, initialSession, async (payload, revision) => {
         if (!validSession(payload, user.id)) throw new Error('Account mismatch. Reload before saving.');
         const encoded = await codec.encode(payload);
         await saveCloudProfile(encoded.accounts[0].name, user.id);

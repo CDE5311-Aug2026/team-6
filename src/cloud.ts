@@ -55,6 +55,21 @@ export async function readCloudWorkspace<T>(): Promise<CloudWorkspace<T> | null>
   return { payload: data.payload as T, revision: data.revision };
 }
 
+export async function initializeCloudWorkspace<T extends object>(payload: T, expectedUserId: string): Promise<CloudWorkspace<T>> {
+  const user = await verifiedUser();
+  if (user.id !== expectedUserId) throw new Error('Your signed-in account changed. Reload before saving.');
+  // Multiple tabs can open a brand-new account together. Insert only if absent;
+  // every tab then reads the same canonical workspace instead of overwriting it.
+  const { error } = await client().from('personal_workspaces').upsert(
+    { user_id: user.id, payload, revision: 1 },
+    { onConflict: 'user_id', ignoreDuplicates: true },
+  );
+  if (error) throw error;
+  const result = await readCloudWorkspace<T>();
+  if (!result) throw new Error('Could not initialize your cloud workspace. Please try again.');
+  return result;
+}
+
 export async function writeCloudWorkspace<T extends object>(payload: T, expectedRevision: number | null, expectedUserId: string): Promise<number> {
   const user = await verifiedUser();
   if (user.id !== expectedUserId) throw new Error('Your signed-in account changed. Reload before saving.');
