@@ -497,6 +497,43 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .moment-context-actions .text-link, .moment-context-actions .moment-context-delete { min-width: 58px; min-height: 30px; margin: 0; padding: 5px 10px; border: 1px solid var(--color-border); border-radius: 999px; background: #fff; font: 600 10px/16px 'Poppins', sans-serif; text-align: center; }
 .moment-context-actions .text-link { color: var(--color-action-text, #9a7200); }
 .moment-context-actions .moment-context-delete { border-color: #f1dbd6; background: #fff5f2; color: #963a34; }
+.context-social-actions { display: flex; align-items: center; gap: 14px; min-height: 33px; margin-top: 12px; padding-top: 7px; border-top: 1px solid var(--color-border); }
+.context-social-actions button { min-width: 24px; min-height: 26px; padding: 2px 0; border: 0; background: transparent; color: var(--color-text-muted); cursor: pointer; }
+.context-social-actions .context-like-button, .context-social-actions .context-comment-count { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+.context-like-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.context-social-actions .context-like-button.liked { color: #e24d5b; }
+.context-like-button.liked svg { fill: currentColor; }
+.context-like-button b, .context-comment-count b { color: inherit; font: 500 10px/16px 'Roboto', sans-serif; }
+.context-comment-count svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.context-social-actions .context-comment-count.active { color: var(--color-action-text, #9a7200); }
+.context-social-actions .text-link, .context-social-actions .moment-context-delete { min-width: 0; min-height: 26px; margin-left: auto; padding: 2px 7px; border: 1px solid var(--color-border); border-radius: 999px; background: #fff; font: 600 10px/16px 'Poppins', sans-serif; }
+.context-social-actions .moment-context-delete { margin-left: 0; border-color: #f1dbd6; background: #fff5f2; color: #963a34; }
+.context-comment-thread { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.context-comment { padding: 0 0 0 10px; border-left: 2px solid #f2dfa0; background: transparent; }
+.context-comment.own-context-comment { position: relative; }
+.context-comment.own-context-comment .context-comment-body { -webkit-user-select: none; user-select: none; }
+.context-comment-body { display: flex; width: 100%; flex-direction: column; align-items: flex-start; gap: 3px; padding: 5px 2px; border: 0; background: transparent; color: var(--color-text-primary); text-align: left; }
+.context-comment-meta { display: flex; align-items: baseline; gap: 7px; }
+.context-comment strong { color: var(--color-text-primary); font: 600 10px/15px 'Poppins', sans-serif; }
+.context-comment time { color: var(--color-text-muted); font: 400 9px/14px 'Roboto', sans-serif; }
+.context-comment-text { color: var(--color-text-primary); font: 400 12px/17px 'Roboto', sans-serif; overflow-wrap: anywhere; }
+.context-comment-menu { position: absolute; z-index: 6; top: calc(100% - 1px); left: 9px; display: flex; align-items: center; gap: 4px; min-width: 132px; padding: 5px; border: 1px solid var(--color-border); border-radius: 13px; background: #fff; box-shadow: 0 8px 22px #17251d1c; }
+.context-comment-menu::before { position: absolute; top: -5px; left: 13px; width: 8px; height: 8px; border-top: 1px solid var(--color-border); border-left: 1px solid var(--color-border); background: #fff; content: ''; transform: rotate(45deg); }
+.context-comment-menu button { position: relative; min-width: 55px; min-height: 30px; padding: 0 9px; border: 0; border-radius: 9px; background: transparent; color: var(--color-text-primary); font: 600 10px/16px 'Poppins', sans-serif; cursor: pointer; }
+.context-comment-menu button:hover { background: var(--color-page); }
+.context-comment-menu button:last-child { color: #963a34; }
+.context-comment-edit-form { display: flex; width: 100%; align-items: center; gap: 5px; margin-top: 3px; }
+.context-comment-edit-form input { flex: 1; min-width: 0; height: 31px; padding: 0 9px; border: 1px solid var(--color-border); border-radius: 9px; background: #fff; color: var(--color-text-primary); font: 400 11px/16px 'Roboto', sans-serif; }
+.context-comment-edit-form button { min-height: 28px; padding: 0 8px; border: 0; border-radius: 8px; background: var(--color-accent-soft); color: var(--color-text-primary); font: 600 10px/15px 'Poppins', sans-serif; cursor: pointer; }
+.context-comment-edit-form button:last-child { background: transparent; color: var(--color-text-muted); }
+.context-comment-edit-form button:disabled { opacity: .5; cursor: default; }
+.context-comment-form { display: flex; flex-direction: column; gap: 5px; }
+.context-comment-form > div:last-child { display: flex; align-items: center; gap: 7px; }
+.context-comment-form input { flex: 1; min-width: 0; height: 36px; padding: 0 11px; border: 1px solid var(--color-border); border-radius: 999px; outline: none; background: #fff; color: var(--color-text-primary); font: 400 11px/16px 'Roboto', sans-serif; }
+.context-comment-form input:focus { border-color: #d9c06a; }
+.context-comment-form > div:last-child > button { display: grid; width: 34px; min-width: 34px; height: 34px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: var(--color-accent-soft); color: var(--color-text-primary); cursor: pointer; }
+.context-comment-form > div:last-child > button svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.context-comment-form > div:last-child > button:disabled { opacity: .5; cursor: default; }
 .moment-context-delete { border: 0; background: transparent; color: #963a34; font: 600 12px/18px 'Poppins', sans-serif; }
 .empty-context-state { margin: 0 20px 18px; padding: 10px 14px 16px; color: var(--color-text-muted); text-align: center; }
 .empty-context-state strong { font: 500 12px/18px 'Poppins', sans-serif; }
@@ -960,5 +997,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 
 @media (min-width: 600px) { .phone { margin: 24px 0; height: min(calc(100dvh - 48px), 1079px); border-radius: 24px; } }
 @media (max-width: 370px) { .main-header h1 { font-size: 30px; } .today-hero h2 { font-size: 20px; line-height: 27px; } .quick-chips button { padding: 6px 7px; } }
+
 
 
