@@ -27,9 +27,7 @@ Open the local address printed by Vite. To check the production build:
 pnpm build
 ```
 
-GitHub Pages automatic deployment is configured in `.github/workflows/deploy-pages.yml`. Every push to `main` runs tests and `pnpm build:pages`, then deploys the `/team-6/` site. A repository administrator must first enable **Settings → Pages → Source: GitHub Actions**. See [GitHub Pages 部署说明](docs/GitHub-Pages部署说明.md) for setup and cloud account configuration.
-
-Expected URL after Pages is enabled and deployment succeeds: https://cde5311-aug2026.github.io/team-6/ . This URL is not live until the first deployment succeeds.
+GitHub Pages automatic deployment has been removed. Pushing to `main` does not trigger a Pages deployment.
 
 ## Workshop path
 
