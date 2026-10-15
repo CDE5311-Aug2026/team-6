@@ -128,7 +128,7 @@ export default function CloudRoot() {
 
   if (mode === 'guest') return <App guest onExit={() => { choice.current = null; setMode('entry'); }} />;
   if (mode === 'cloud' && workspace) return <App key={workspace.id}
-    cloud={{ synced: syncState === 'saved', initialSession: workspace.initialSession, save, signOut: () => { void signOut(); } }}
+    cloud={{ initialSession: workspace.initialSession, save, signOut: () => { void signOut(); } }}
     notice={syncNoticeVisible && <div className={'cloud-sync-bar ' + syncState} role="status">
       <span>{syncState === 'saving' ? 'Saving to your account…' : syncState === 'error' ? 'Not synced · ' + syncError : 'Saved to your account'}</span>
       {syncState === 'error' && <><button onClick={() => { void workspace.sync.retry().catch(() => {}); }}>Retry</button><button onClick={downloadBackup}>Download backup</button></>}
