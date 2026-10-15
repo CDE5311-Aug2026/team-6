@@ -1,0 +1,4 @@
+# Public registration endpoint: validates the project API key and input itself.
+# No existing account JWT is required to create a username/password account.
+[functions.register-username]
+verify_jwt = false

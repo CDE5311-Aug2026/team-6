@@ -1036,3 +1036,5 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .cloud-sync-bar button, .cloud-entry-recovery button { border: 0; background: transparent; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
 .cloud-loading { position: fixed; z-index: 150; inset: 0; display: grid; place-items: center; background: #fbf9f3; color: #1a2921; }
 .cloud-entry-recovery { position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; padding: 10px; background: #fff0a7; border-radius: 12px; font-size: 12px; }
+
+.entrance-field-hint { font: 400 11px/17px Roboto,sans-serif; color: #667069; }

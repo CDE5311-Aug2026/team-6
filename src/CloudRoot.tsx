@@ -129,13 +129,13 @@ export default function CloudRoot() {
   return <>{loading && <div className="cloud-loading" role="status">Loading your account…</div>}
     <Welcome cloud error={error}
       onGuest={() => { choice.current = 'guest'; ++generation.current; setLoading(false); setError(''); setMode('guest'); }}
-      onRegister={async (name, email, password) => {
+      onRegister={async (_name, username, password) => {
         if (!supabase) return 'Cloud accounts are not configured yet. Continue as guest.';
-        const result = await createCloudAccount(name, email, password);
-        if (!result.needsEmailConfirmation) await openCloud();
-        return result.needsEmailConfirmation ? 'Check your email to confirm your account, then return here to log in.' : '';
+        await createCloudAccount(username, password);
+        await openCloud();
+        return '';
       }}
-      onLogin={async (email, password) => { await loginCloudAccount(email, password); await openCloud(); return ''; }} />
+      onLogin={async (username, password) => { await loginCloudAccount(username, password); await openCloud(); return ''; }} />
     {error && <div className="cloud-entry-recovery"><button onClick={() => { void openCloud(); }}>Retry loading</button><button onClick={() => { void logoutCloudAccount().catch(() => {}); }}>Sign out</button></div>}
   </>;
 }
