@@ -2,6 +2,8 @@
 
 **[Click here to explore our interactive prototype](https://pawsona-team6-preview.vercel.app/)**
 
+修改了settings部分的新连接**[点这里](https://pawsona-team-6-2mpcrxzqh-wwastrelhaha.vercel.app/)**
+
 是我测试用的链接（目前最新的是这个）<(￣︶￣)↗ **[test prototype](https://team-6-main-1-2.vercel.app/)**
 
 
