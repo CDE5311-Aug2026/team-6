@@ -54,7 +54,7 @@ personalized observations and insights.
 
 ## Welcome and cloud accounts
 
-Continue as guest opens the existing Luna sample workspace in local storage. Create account and Log in use Supabase email/password authentication; new users must confirm their email. Cloud profiles start empty, are isolated from Guest data, and save private workspaces across devices. Nothing from previous local simulated accounts is automatically uploaded.
+Continue as guest opens the existing Luna sample workspace in local storage. Create account and Log in use a username and password. Usernames are case-insensitive and contain 3–24 ASCII letters, digits or underscores. A rate-limited Edge Function creates an internal Auth identifier; no real email is collected or sent. Passwords remain managed by Supabase Auth. Cloud profiles start empty, are isolated from Guest data, and save private workspaces across devices. Nothing from previous local simulated accounts is automatically uploaded.
 
 Cloud status is shown at the top: Saving, Saved, or Not synced. Save failures preserve edits for explicit retry; revision checks reject stale-device overwrites. Account switching/deletion and care-circle invitations remain disabled in cloud mode. Live AI and real device connections are not implemented.
 
@@ -63,7 +63,7 @@ Cloud status is shown at the top: Saving, Saved, or Not synced. Save failures pr
 1. Install locked dependencies with pnpm install --frozen-lockfile.
 2. Copy .env.example to .env.local and fill in the project URL and public publishable key. Never use a secret/service_role key in a browser environment variable.
 3. Apply supabase/migrations/202610150001_personal_workspaces.sql to a fresh project after checking for existing tables.
-4. Set Auth Site URL and allowed redirects to your deployed origin. Configure custom SMTP before opening email registration to arbitrary testers; Supabase's built-in email service is restricted.
+4. Deploy supabase/functions/register-username with its shared username helper and server-side quota migration. This pre-login endpoint validates the project publishable API key itself, restricts the operation to username registration, and applies server-side limits. Admin credentials stay in the Edge Function environment. SMTP is not required for username accounts; password recovery is not implemented.
 5. Run pnpm build. VITE_* values are compiled into the static build; rebuild when changing them.
 
 Validation: node --test tests/cloudSync.test.mjs. See supabase/接入与验收.md for integration checks and limits.

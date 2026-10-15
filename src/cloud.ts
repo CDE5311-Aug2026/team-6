@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { normalizeUsername, usernameEmail } from '../supabase/functions/_shared/username';
 
 const url = import.meta.env.VITE_SUPABASE_URL?.trim();
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
@@ -17,18 +18,24 @@ export async function verifiedUser() {
   return data.user;
 }
 
-export async function createCloudAccount(name: string, email: string, password: string) {
-  const { data, error } = await client().auth.signUp({
-    email, password,
-    options: { data: { display_name: name }, emailRedirectTo: window.location.origin + '/' },
-  });
-  if (error) throw error;
-  return { needsEmailConfirmation: !data.session };
+export async function createCloudAccount(username: string, password: string) {
+  const normalized = normalizeUsername(username);
+  const { data, error } = await client().functions.invoke('register-username', { body: { username: normalized, password } });
+  if (error) {
+    const response = 'context' in error ? error.context : null;
+    if (response instanceof Response) {
+      const body = await response.json().catch(() => null);
+      if (body?.error) throw new Error(body.error);
+    }
+    throw new Error('Could not register. Please try again.');
+  }
+  if (!data?.ok) throw new Error('Could not create this account.');
+  await loginCloudAccount(normalized, password);
 }
 
-export async function loginCloudAccount(email: string, password: string) {
-  const { error } = await client().auth.signInWithPassword({ email, password });
-  if (error) throw error;
+export async function loginCloudAccount(username: string, password: string) {
+  const { error } = await client().auth.signInWithPassword({ email: usernameEmail(username), password });
+  if (error) throw new Error(error.code === 'invalid_credentials' ? 'Incorrect username or password.' : error.message);
 }
 
 export async function logoutCloudAccount() {
