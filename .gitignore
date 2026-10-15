@@ -3,3 +3,9 @@ dist/
 *.local
 *.tsbuildinfo
 .vercel
+
+
+.env
+.env.*
+!.env.example
+*.local.*

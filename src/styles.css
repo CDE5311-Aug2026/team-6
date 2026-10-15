@@ -1030,3 +1030,9 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .entrance-switch button { border: 0; padding: 6px; background: transparent; text-decoration: underline; color: #1a2921; font-weight: 600; }
 .entrance button:focus-visible { outline: 2px solid #1a2921; outline-offset: 3px; }
 @media (max-height: 700px) { .entrance { padding-top: 35px; } .entrance-brand { margin-top: 24px; } .entrance-intro { padding: 32px 0; } .entrance-form-heading { margin-top: 30px; } }
+
+.cloud-sync-bar { position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: min(100%,390px); z-index: 100; background: #eef4eb; padding: 5px 12px; color: #38503c; font: 11px/17px Roboto,sans-serif; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; text-align: center; }
+.cloud-sync-bar.error { background: #fff0d3; color: #793b20; }
+.cloud-sync-bar button, .cloud-entry-recovery button { border: 0; background: transparent; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
+.cloud-loading { position: fixed; z-index: 150; inset: 0; display: grid; place-items: center; background: #fbf9f3; color: #1a2921; }
+.cloud-entry-recovery { position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; padding: 10px; background: #fff0a7; border-radius: 12px; font-size: 12px; }
