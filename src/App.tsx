@@ -1,3 +1,4 @@
+import Welcome from './Welcome';
 import { useEffect, useRef, useState, type FormEvent, type ReactElement, type RefObject } from 'react';
 
 type View =
@@ -1585,38 +1586,6 @@ function AskComposer({ value, onValue, onSend, onQuickContext, saveError }: { va
   );
 }
 
-function AccountAccessPage({ accounts, error, onSignIn, onRegister, onDelete }: { accounts: PrototypeAccount[]; error: string; onSignIn: (id: string) => void; onRegister: (name: string, email: string, petName: string) => string; onDelete: (id: string) => string }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [petName, setPetName] = useState('');
-  const [formError, setFormError] = useState('');
-  const [pendingDelete, setPendingDelete] = useState<PrototypeAccount | null>(null);
-
-  function register(event: FormEvent) {
-    event.preventDefault();
-    setFormError(onRegister(name.trim(), email.trim(), petName.trim()));
-  }
-
-  function confirmDelete() {
-    if (!pendingDelete) return;
-    setFormError(onDelete(pendingDelete.id));
-    setPendingDelete(null);
-  }
-
-  return <section className="account-access-page">
-    <div className="account-brand"><span className="account-brand-mark">♥</span><p className="eyebrow">PAWSONA PROTOTYPE</p><h1>Welcome back</h1><p>Your locally saved accounts and pet spaces stay on this device.</p></div>
-    {accounts.length > 0 && <section className="account-access-section"><h2>Continue with a saved account</h2><div className="account-choice-list">{accounts.map((account) => <div className="account-choice-row" key={account.id}><button className="account-choice-button" onClick={() => onSignIn(account.id)}><OwnerAvatar src={account.avatar} name={account.name} /><span><strong>{account.name}</strong><small>{account.email}</small></span><i>›</i></button><button className="account-delete-button" aria-label={`Delete ${account.name} account`} onClick={() => { setFormError(''); setPendingDelete(account); }}>Delete</button></div>)}</div></section>}
-    <form className="account-register-card" onSubmit={register}>
-      <div><h2>Create an account</h2><small>Prototype only · no password or cloud account is created.</small></div>
-      <label><span>Your name</span><input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" placeholder="e.g. Anna" /></label>
-      <label><span>Email</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" placeholder="anna@example.com" /></label>
-      <label><span>First pet (optional)</span><input value={petName} onChange={(event) => setPetName(event.target.value)} placeholder="You can add a pet later" /></label>
-      {(formError || error) && <p className="account-form-error" role="alert">{formError || error}</p>}
-      <button className="primary-button full" disabled={!name.trim() || !email.trim()}>Create local account</button>
-    </form>
-    {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-account-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-account-title">Delete {pendingDelete.name}?</h2><p>This permanently removes this local account and every pet, timeline, Story, context and Ask AI conversation saved inside it. Other accounts will not be changed.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete account</button></div></section></div>}
-  </section>;
-}
 
 function AccountSwitcher({ accounts, activeAccountId, onClose, onSwitch, onRegister, onRequestSignOut }: { accounts: PrototypeAccount[]; activeAccountId: string; onClose: () => void; onSwitch: (id: string) => void; onRegister: (name: string, email: string, petName: string) => string; onRequestSignOut: () => void }) {
   const [creating, setCreating] = useState(false);
@@ -2170,6 +2139,7 @@ function CareMemberDetailsPage({ member, ownerName, ownerRole, ownerAvatar, owne
 }
 
 export default function App() {
+  const [entranceOpen, setEntranceOpen] = useState(true);
   const [prototypeSession, setPrototypeSession] = useState<PrototypeSession>(readPrototypeSession);
   const [view, setView] = useState<View>('today');
   const initialAccount = prototypeSession.accounts.find((entry) => entry.id === prototypeSession.activeAccountId);
@@ -2584,6 +2554,7 @@ export default function App() {
       return;
     }
     setPrototypeSession(next);
+    setEntranceOpen(true);
     setShowAccountSwitcher(false);
     setShowSignOutConfirm(false);
     navigationHistory.current = [];
@@ -3200,8 +3171,31 @@ export default function App() {
     navigateTo(view);
   }
 
-  if (!activeAccount || !activePetRecord) {
-    return <div className="app-stage"><div className="phone"><main className="screen-scroll account-access-scroll"><StatusBar /><AccountAccessPage accounts={prototypeSession.accounts} error={accountActionError} onSignIn={switchAccount} onRegister={registerAccount} onDelete={deleteSavedAccount} /></main></div></div>;
+  if (entranceOpen || !activeAccount || !activePetRecord) {
+    return <Welcome error={accountActionError} onGuest={() => {
+      const captured = captureCurrentSpace(prototypeSession);
+      let demo = captured.accounts.find(account => account.pets.some(pet => pet.hasDemoMoments));
+      if (!demo) {
+        demo = createInitialPrototypeSession().accounts[0];
+        demo = { ...demo, id: `guest-${Date.now()}`, name: 'Emily', email: 'guest@pawsona.local', pets: demo.pets.map(pet => ({ ...pet, name: 'Luna', hasDemoMoments: true })) };
+        captured.accounts = [...captured.accounts, demo];
+      }
+      const pet = demo.pets.find(pet => pet.hasDemoMoments)!;
+      const error = applyAccountSpace(captured, demo.id, pet.id);
+      setAccountActionError(error);
+      if (!error) setEntranceOpen(false);
+    }} onRegister={(name, email, petName) => {
+      const error = registerAccount(name, email, petName);
+      if (!error) setEntranceOpen(false);
+      return error;
+    }} onLogin={email => {
+      const account = prototypeSession.accounts.find(entry => entry.email.toLowerCase() === email.toLowerCase());
+      if (!account) return 'No profile with this email is saved in this browser. Create an account or continue as guest.';
+      const error = applyAccountSpace(captureCurrentSpace(prototypeSession), account.id, account.activePetId);
+      setAccountActionError(error);
+      if (!error) setEntranceOpen(false);
+      return error;
+    }} />;
   }
 
   return (
@@ -3297,6 +3291,7 @@ export default function App() {
     </div>
   );
 }
+
 
 
 

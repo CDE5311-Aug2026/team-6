@@ -1000,3 +1000,33 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 
 
 
+
+
+/* Welcome and local account entry */
+.entrance-phone { background: #fbf9f3; }
+.entrance { position: relative; flex: 1; overflow-y: auto; padding: max(64px, env(safe-area-inset-top)) 28px 24px; display: flex; flex-direction: column; color: #1a2921; }
+.entrance-brand { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 40px 0 0; }
+.entrance-brand h1 { font: 400 49px/1.2 'Rubik Bubbles', cursive; margin: 0; letter-spacing: -1.5px; }
+.entrance-dot { width: 11px; height: 11px; border-radius: 50%; background: #ffcf29; align-self: flex-start; margin-top: 9px; }
+.entrance-intro { margin: auto 0; padding: 55px 0; text-align: center; }
+.entrance-eyebrow { font: 600 10px/18px 'Poppins',sans-serif; letter-spacing: 1.6px; color: #78644a; margin: 0 0 18px; }
+.entrance h2 { font: 600 26px/1.4 'Poppins',sans-serif; letter-spacing: -.7px; margin: 0 0 14px; }
+.entrance-intro > p:last-child, .entrance-form-heading > p { color: #78644a; font-size: 14px; line-height: 22px; margin: 0; }
+.entrance-actions { display: flex; flex-direction: column; gap: 12px; }
+.entrance .primary-button.full, .entrance-secondary { min-height: 52px; height: auto; font: 600 14px/22px 'Poppins',sans-serif; }
+.entrance-secondary { width: 100%; border: 1px solid #1a2921; border-radius: 999px; background: transparent; color: #1a2921; }
+.entrance-guest { align-self: center; min-height: 48px; padding: 12px 8px; border: 0; background: transparent; color: #1a2921; font: 600 13px/22px 'Poppins',sans-serif; }
+.entrance-guest span { margin-left: 7px; }
+.entrance-hint { text-align: center; color: #667069; font-size: 11px; line-height: 18px; margin: -6px 0 8px; }
+.entrance-footer { text-align: center; font-size: 10px; line-height: 18px; color: #78644a; margin: 30px 0 0; }
+.entrance-back { position: absolute; top: 24px; left: 20px; width: 44px; height: 44px; border: 0; background: transparent; color: #1a2921; font-size: 25px; }
+.entrance-form-heading { margin: 52px 0 30px; }
+.entrance-form { display: flex; flex-direction: column; gap: 22px; }
+.entrance-form label { display: flex; flex-direction: column; gap: 10px; font: 600 13px/20px 'Poppins',sans-serif; }
+.entrance-form input { width: 100%; min-height: 52px; border: 1px solid #dce2d8; border-radius: 14px; padding: 14px 16px; background: #fff; color: #1a2921; font: 400 14px/22px 'Roboto',sans-serif; }
+.entrance-local-note { background: #fff0a7; border-radius: 14px; padding: 14px; font-size: 12px; line-height: 19px; color: #66583f; margin: 0; }
+.entrance-error { color: #963a34; font-size: 12px; line-height: 19px; margin: 0; }
+.entrance-switch { text-align: center; color: #78644a; font-size: 12px; line-height: 22px; margin: 24px 0 5px; }
+.entrance-switch button { border: 0; padding: 6px; background: transparent; text-decoration: underline; color: #1a2921; font-weight: 600; }
+.entrance button:focus-visible { outline: 2px solid #1a2921; outline-offset: 3px; }
+@media (max-height: 700px) { .entrance { padding-top: 35px; } .entrance-brand { margin-top: 24px; } .entrance-intro { padding: 32px 0; } .entrance-form-heading { margin-top: 30px; } }
