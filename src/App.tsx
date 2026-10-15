@@ -257,7 +257,7 @@ type PrototypeAccount = {
   pets: PrototypePet[];
   activePetId: string;
 };
-type PrototypeSession = {
+export type PrototypeSession = {
   activeAccountId: string | null;
   accounts: PrototypeAccount[];
 };
@@ -1406,7 +1406,7 @@ function readPrototypeSession(): PrototypeSession {
   }
 }
 
-function persistPrototypeSession(session: PrototypeSession) {
+function persistLocalPrototypeSession(session: PrototypeSession) {
   const serialized = JSON.stringify(session);
   try {
     localStorage.setItem(prototypeSessionKey, serialized);
@@ -2138,9 +2138,36 @@ function CareMemberDetailsPage({ member, ownerName, ownerRole, ownerAvatar, owne
   </section>;
 }
 
-export default function App() {
-  const [entranceOpen, setEntranceOpen] = useState(true);
-  const [prototypeSession, setPrototypeSession] = useState<PrototypeSession>(readPrototypeSession);
+type AppProps = {
+  cloud?: { initialSession: PrototypeSession; save: (session: PrototypeSession) => void; signOut: () => void };
+  guest?: boolean;
+  onExit?: () => void;
+};
+
+export function createCloudSession(id: string, email: string, name: string): PrototypeSession {
+  const petId = 'pet-' + crypto.randomUUID();
+  return { activeAccountId: id, accounts: [{ id, email, name, role: 'Primary caregiver', avatar: '', preference: '', activePetId: petId,
+    pets: [{ id: petId, name: 'My pet', breed: 'Mixed breed', age: '1', avatar: '', hasDemoMoments: false, isEmptyProfile: true, workspace: emptyPetWorkspace(name) }] }] };
+}
+
+export default function App({ cloud, guest = false, onExit }: AppProps) {
+  function persistPrototypeSession(session: PrototypeSession) {
+    if (cloud) cloud.save(session);
+    else persistLocalPrototypeSession(session);
+  }
+  const [entranceOpen, setEntranceOpen] = useState(!cloud && !guest);
+  const [prototypeSession, setPrototypeSession] = useState<PrototypeSession>(() => {
+    if (cloud) return cloud.initialSession;
+    const session = readPrototypeSession();
+    if (guest) {
+      const demo = session.accounts.find(account => account.pets.some(pet => pet.hasDemoMoments));
+      if (demo) return { ...session, activeAccountId: demo.id, accounts: session.accounts.map(account => account.id === demo.id ? { ...account, activePetId: account.pets.find(pet => pet.hasDemoMoments)!.id } : account) };
+      const fresh = createInitialPrototypeSession();
+      fresh.accounts[0].pets[0].name = 'Luna';
+      return { ...fresh, accounts: [...session.accounts, ...fresh.accounts] };
+    }
+    return session;
+  });
   const [view, setView] = useState<View>('today');
   const initialAccount = prototypeSession.accounts.find((entry) => entry.id === prototypeSession.activeAccountId);
   const initialPet = initialAccount?.pets.find((entry) => entry.id === initialAccount.activePetId) ?? initialAccount?.pets[0];
@@ -2202,7 +2229,7 @@ export default function App() {
     { id: 'mom', name: 'Mom', role: 'Caregiver', detail: 'can add observations' },
     { id: 'dad', name: 'Dad', role: 'Caregiver', detail: 'can add observations' },
   ]);
-  const [careInvitations, setCareInvitations] = useState<CareInvitation[]>(readCareInvitations);
+  const [careInvitations, setCareInvitations] = useState<CareInvitation[]>(() => cloud ? [] : readCareInvitations());
   const [mediaSources, setMediaSources] = useState<MediaSource[]>(() => initialSharedWorkspace?.mediaSources ?? readMediaSources(true));
   const [typicalPatterns, setTypicalPatterns] = useState<TypicalPattern[]>(() => initialSharedWorkspace?.patterns ?? readTypicalPatterns(ownerName, true));
   const [lifeCareEvents, setLifeCareEvents] = useState<LifeCareEvent[]>(initialSharedWorkspace?.lifeEvents ?? readLifeCareEvents());
@@ -2241,7 +2268,7 @@ export default function App() {
       askMessages,
       askOwnerAccountId: activeAccount?.id,
       careMembers,
-      careEvent: activePetRecord?.workspace.careEvent ?? readCareEvent(),
+      careEvent: activePetRecord?.workspace.careEvent ?? (cloud ? null : readCareEvent()),
       mediaSources,
       patterns: typicalPatterns,
       lifeEvents: lifeCareEvents,
@@ -2444,6 +2471,7 @@ export default function App() {
   }
 
   function switchAccount(accountId: string) {
+    if (cloud) return;
     const captured = captureCurrentSpace(prototypeSession);
     const account = captured.accounts.find((entry) => entry.id === accountId);
     const error = account ? applyAccountSpace(captured, account.id, account.activePetId, true) : 'That saved account is no longer available.';
@@ -2451,6 +2479,7 @@ export default function App() {
   }
 
   function registerAccount(name: string, email: string, firstPetName: string): string {
+    if (cloud) return 'Sign out before creating a different cloud account.';
     const normalizedEmail = email.trim().toLowerCase();
     if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) return 'Enter a name and a valid email.';
     const captured = captureCurrentSpace(prototypeSession);
@@ -2472,6 +2501,7 @@ export default function App() {
   }
 
   function deleteSavedAccount(accountId: string): string {
+    if (cloud) return 'Cloud accounts cannot be deleted from this prototype.';
     if (!prototypeSession.accounts.some((account) => account.id === accountId)) return 'That saved account is no longer available.';
     const next: PrototypeSession = {
       ...prototypeSession,
@@ -2545,6 +2575,8 @@ export default function App() {
   }
 
   function signOut() {
+    if (cloud) { cloud.signOut(); return; }
+    if (onExit) { onExit(); return; }
     const captured = captureCurrentSpace(prototypeSession);
     const next = { ...captured, activeAccountId: null };
     try {
@@ -2713,6 +2745,7 @@ export default function App() {
   }
 
   function navigateTo(nextView: View) {
+    if (cloud && nextView === 'careMembers') { setProfileAction({ title: 'Shared care is coming later', detail: 'Your cloud workspace is private. Care-circle invitations and shared access are not connected yet.' }); return; }
     if (nextView !== view) navigationHistory.current.push(view);
     setView(nextView);
   }
@@ -3206,7 +3239,7 @@ export default function App() {
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
             {view === 'today' && <TodayPage petName={petName} petAvatar={petAvatar} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onEvidence={() => navigateTo('overview')} onPetsNavigate={() => navigateTo('pets')} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} />}
             {view === 'story' && <StoryPage onMoment={openMomentDetail} onEditStory={() => navigateTo('storyEdit')} onEditMoment={(item) => editStoryRow({ id: item.id, image: item.image, mediaType: item.mediaType, title: item.title, meta: `${item.time} · story moment`, note: item.note })} onDeleteMoment={deleteStoryMoment} onPetsNavigate={() => navigateTo('pets')} onAddPet={openAddPetForm} petName={petName} petAvatar={petAvatar} ownerName={ownerName} accounts={prototypeSession.accounts} contexts={savedContexts} observations={storyObservations} includedMoments={includedStoryMoments} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} canEdit={canContributeToSharedPet} />}
-            {view === 'storyEdit' && <StoryEditPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} hasDemoMoments={activePetRecord.hasDemoMoments} onBack={() => goBack('story')} onEdit={editStoryRow} onDelete={deleteStoryRow} onSave={(ids) => { setIncludedStoryMoments(ids);try {
+            {view === 'storyEdit' && <StoryEditPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} hasDemoMoments={activePetRecord.hasDemoMoments} onBack={() => goBack('story')} onEdit={editStoryRow} onDelete={deleteStoryRow} onSave={(ids) => { if (!persistWorkspacePatch({ visibility: ids })) return; setIncludedStoryMoments(ids); if (!cloud) try {
               localStorage.setItem(
                 storyVisibilityKey,
                 JSON.stringify(ids)
@@ -3231,7 +3264,8 @@ export default function App() {
             {view === 'connectedMedia' && <ConnectedMediaPage petName={petName} sources={mediaSources} initialSourceId={selectedMediaSourceId} onBack={() => goBack('you')} onUpdate={saveMediaSource} onDelete={deleteMediaSource} />}
             {view === 'patternHistory' && <PatternKnowledgePage petName={petName} ownerName={ownerName} patterns={typicalPatterns} initialPatternId={selectedPatternId} canManage={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveTypicalPattern} onDelete={deleteTypicalPattern} />}
             {view === 'careEvent' && <LifeCarePage petName={petName} ownerName={ownerName} primaryOwnerName={groupOwnerAccount?.name ?? ownerName} currentAccountId={activeAccount.id} events={lifeCareEvents} initialCategory={lifeCareInitialCategory} startAdding={lifeCareStartAdding} canAdd={canManageLongTermCare} canManageAll={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveLifeCareEvent} onDelete={deleteLifeCareEvent} />}
-            {view === 'settings' && <SettingsHubPage accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onBack={() => goBack('you')} onSwitchAccount={switchAccount} onRegister={registerAccount} onDeleteAccount={deleteSavedAccount} onSignOut={() => setShowSignOutConfirm(true)} onAction={(title, detail) => setProfileAction({ title, detail })} />}
+            {view === 'settings' && !cloud && <SettingsHubPage accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onBack={() => goBack('you')} onSwitchAccount={switchAccount} onRegister={registerAccount} onDeleteAccount={deleteSavedAccount} onSignOut={() => setShowSignOutConfirm(true)} onAction={(title, detail) => setProfileAction({ title, detail })} />}
+            {view === 'settings' && cloud && <section className="settings-page"><header className="settings-header"><button className="back-button" aria-label="Go back" onClick={() => goBack('you')}>←</button><h1>Settings</h1></header><section className="settings-summary"><h2>{ownerName}</h2><p>{activeAccount.email}</p><p>Your personal records sync to your cloud account. Shared care and AI replies are still prototype features.</p><button className="primary-button" onClick={() => setShowSignOutConfirm(true)}>Sign out</button></section></section>}
             {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} initialAvatar={petAvatar} initialBreed={petBreed} initialAge={petAge} onSaved={setPetName} onPetSaved={({ name, breed, age, avatar }) => { setPetName(name); setPetBreed(breed); setPetAge(age); setPetAvatar(avatar); updateActivePetRecord({ name, breed, age, avatar }); setProfileSaveNotice('Pet details saved successfully'); }} onBack={() => goBack('pets')} />}
             {view === 'profile' && <SettingsPage kind="profile" initialName={ownerName} initialAvatar={ownerAvatar} initialPreference={ownerPreference} onSaved={setOwnerName} onProfileSaved={({ name, avatar, preference }) => { setOwnerName(name); setOwnerAvatar(avatar); setOwnerPreference(preference); updateActiveAccountRecord({ name, avatar, preference }); setProfileSaveNotice('Profile saved successfully'); }} onBack={() => goBack('you')} />}
             {view === 'memberDetails' && selectedCareMember && <CareMemberDetailsPage member={selectedCareMember} ownerName={groupOwnerAccount?.name ?? ownerName} ownerRole={groupOwnerAccount?.role ?? ownerRole} ownerAvatar={groupOwnerAccount?.avatar ?? ownerAvatar} ownerPreference={groupOwnerAccount?.preference ?? ownerPreference} memberAvatar={selectedMemberAccount?.avatar ?? ''} memberPreference={selectedMemberAccount?.preference ?? ''} primaryMemberId={primaryMemberId} isPrimaryCaregiver={isPrimaryCaregiver} petName={petName} onBack={() => goBack('careMembers')} />}
@@ -3281,7 +3315,7 @@ export default function App() {
         {profileAction && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setProfileAction(null)}><section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-dialog-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={() => setProfileAction(null)}>×</button><h2 id="profile-dialog-title">{profileAction.title}</h2><p>{profileAction.detail}</p><button className="primary-button" onClick={() => setProfileAction(null)}>Done</button></section></div>}
         {showAccountSwitcher && <AccountSwitcher accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onClose={() => setShowAccountSwitcher(false)} onSwitch={switchAccount} onRegister={registerAccount} onRequestSignOut={() => { setShowAccountSwitcher(false); setShowSignOutConfirm(true); }} />}
         {showPetSwitcher && <PetSwitcher pets={activeAccount.pets} activePetId={activePetRecord.id} initialAdding={petSwitcherStartsAdding} onClose={() => { setShowPetSwitcher(false); setPetSwitcherStartsAdding(false); }} onSwitch={switchPet} onAdd={addPet} onDelete={deletePet} />}
-        {showSignOutConfirm && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setShowSignOutConfirm(false)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="signout-title" onClick={(event) => event.stopPropagation()}><h2 id="signout-title">Sign out of Pawsona?</h2><p>Your accounts, pet profiles and prototype data will remain saved on this device.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setShowSignOutConfirm(false)}>Cancel</button><button className="danger-button" onClick={signOut}>Sign out</button></div></section></div>}
+        {showSignOutConfirm && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setShowSignOutConfirm(false)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="signout-title" onClick={(event) => event.stopPropagation()}><h2 id="signout-title">Sign out of Pawsona?</h2><p>{cloud ? "Synced records remain in your cloud account. Pending changes must finish syncing before you sign out." : "Your guest records will remain in this browser."}</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setShowSignOutConfirm(false)}>Cancel</button><button className="danger-button" onClick={signOut}>Sign out</button></div></section></div>}
         {accountActionError && <button className="account-error-toast" role="alert" onClick={() => setAccountActionError('')}>{accountActionError}<span>Dismiss</span></button>}
         {contextSavedNotice && <div className="context-saved-toast" role="status"><span aria-hidden="true">✓</span> Context saved</div>}
         {storyDraftSavedNotice && <div className="context-saved-toast" role="status"><span aria-hidden="true">✓</span> Saved to drafts</div>}

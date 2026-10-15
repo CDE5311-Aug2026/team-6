@@ -41,7 +41,7 @@ An optional `pnpm build:pages` command is also available for GitHub Pages and us
 4. Type or edit a note, choose how Pawsona should treat it, and review before saving.
 5. Save, return to Today, reopen the pattern, and use **View or undo** to remove the correction.
 
-Story, Ask AI, Pets, and You are navigable. The prototype uses fixed sample observations and scripted AI copy. Owner context is stored in this browser's local storage, so it survives a refresh on the same device; Undo removes it. No account, camera feed, or AI service is connected.
+Story, Ask AI, Pets, and You are navigable. Guest mode uses local Luna sample observations and scripted AI copy. With Supabase configured, verified accounts save private pet workspaces to the database and media to a private Storage bucket. Camera feeds and a live AI service are not connected.
 
 The project is a working draft. Keep it in the personal repository during the workshop; move approved artifacts into the team's shared deliverables only after review.
 
@@ -52,6 +52,18 @@ to help pet owners better understand their pets through
 personalized observations and insights.
 
 
-## Welcome and guest access
+## Welcome and cloud accounts
 
-The app opens with a simple welcome screen. Continue as guest opens the existing Luna sample workspace. Create account creates an empty local profile; Log in restores a profile by email in the same browser. These are prototype flows, not verified authentication: no passwords are collected, and no cloud database is connected. Signing out returns to the welcome screen without deleting local data.
+Continue as guest opens the existing Luna sample workspace in local storage. Create account and Log in use Supabase email/password authentication; new users must confirm their email. Cloud profiles start empty, are isolated from Guest data, and save private workspaces across devices. Nothing from previous local simulated accounts is automatically uploaded.
+
+Cloud status is shown at the top: Saving, Saved, or Not synced. Save failures preserve edits for explicit retry; revision checks reject stale-device overwrites. Account switching/deletion and care-circle invitations remain disabled in cloud mode. Live AI and real device connections are not implemented.
+
+## Supabase setup
+
+1. Install locked dependencies with pnpm install --frozen-lockfile.
+2. Copy .env.example to .env.local and fill in the project URL and public publishable key. Never use a secret/service_role key in a browser environment variable.
+3. Apply supabase/migrations/202610150001_personal_workspaces.sql to a fresh project after checking for existing tables.
+4. Set Auth Site URL and allowed redirects to your deployed origin. Configure custom SMTP before opening email registration to arbitrary testers; Supabase's built-in email service is restricted.
+5. Run pnpm build. VITE_* values are compiled into the static build; rebuild when changing them.
+
+Validation: node --test tests/cloudSync.test.mjs. See supabase/接入与验收.md for integration checks and limits.
