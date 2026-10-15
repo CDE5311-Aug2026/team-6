@@ -37,7 +37,7 @@ try {
     }
     const originalPets = structuredClone(account.pets);
     for (const collection of ['observations', 'lifeEvents', 'contexts']) for (const record of pet.workspace[collection]) {
-      record.authorId = auth.user.id; record.authorName = '测试照护者';
+      record.authorId = auth.user.id; record.authorName = 'Test caregiver';
     }
     pet.workspace.askOwnerAccountId = auth.user.id;
     pet.workspace.careMembers = [{ id: auth.user.id, name: account.name, role: 'Primary owner', detail: 'manages the test profile' }];
@@ -56,5 +56,5 @@ try {
     console.log(JSON.stringify({ result: 'saved-and-read-back', pet: saved.name, petId: saved.id, days: 7, observations: 45, lifeEvents: 2, existingPetsPreserved: originalPets.length, photoStoredPrivately: Boolean(saved.avatar), revision: verified.data.revision }));
   }
 } finally {
-  await db.auth.signOut();
+  await db.auth.signOut({ scope: 'local' });
 }
