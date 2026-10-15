@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactElement, type RefObject } from 'react';
 
 type View =
   | 'today'
@@ -49,6 +49,17 @@ type OwnerContext = {
   authorName?: string;
   authorAvatar?: string;
   attachments?: ContextAttachment[];
+  likes?: string[];
+  comments?: ContextComment[];
+};
+
+type ContextComment = {
+  id: string;
+  authorId: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
+  replyTo?: string;
 };
 
 type CareMember = { id: string; name: string; role: string; detail: string; email?: string; access?: 'editor' | 'viewer'; expiresAt?: string };
@@ -954,7 +965,76 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   </div>;
 }
 
-function MomentDetailPage({ moment, contexts, accounts, ownerName, ownerAvatar, currentAccountId, groupOwnerAccountId, petName, canContribute, onBack, onAddContext, onEditContext, onDeleteContext }: { moment: MomentRecord; contexts: OwnerContext[]; accounts: PrototypeAccount[]; ownerName: string; ownerAvatar: string; currentAccountId: string; groupOwnerAccountId?: string; petName: string; canContribute: boolean; onBack: () => void; onAddContext: () => void; onEditContext: (context: OwnerContext) => void; onDeleteContext: (id: string) => boolean }) {
+function MomentContextCard({ context, accounts, ownerName, ownerAvatar, currentAccountId, groupOwnerAccountId, canContribute, canInteract, onEditContext, onDeleteContext, onToggleLike, onAddComment, onEditOwnComment, onDeleteOwnComment }: { context: OwnerContext; accounts: PrototypeAccount[]; ownerName: string; ownerAvatar: string; currentAccountId: string; groupOwnerAccountId?: string; canContribute: boolean; canInteract: boolean; onEditContext: (context: OwnerContext) => void; onDeleteContext: () => void; onToggleLike: (id: string) => void; onAddComment: (id: string, body: string) => boolean; onEditOwnComment: (contextId: string, commentId: string, body: string) => boolean; onDeleteOwnComment: (contextId: string, commentId: string) => boolean }) {
+  const [comment, setComment] = useState('');
+  const [showCommentComposer, setShowCommentComposer] = useState(false);
+  const [showCommentMenuId, setShowCommentMenuId] = useState<string | null>(null);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState('');
+  const commentInputRef = useRef<HTMLInputElement>(null);
+  const commentPressTimer = useRef<number | null>(null);
+  const authorAccount = context.authorId ? accounts.find((account) => account.id === context.authorId) : undefined;
+  const authorName = authorAccount?.name ?? context.authorName ?? ownerName;
+  const authorAvatar = authorAccount ? authorAccount.avatar : context.authorAvatar ?? (context.authorId ? '' : ownerAvatar);
+  const isAuthor = context.authorId ? context.authorId === currentAccountId : (!groupOwnerAccountId || groupOwnerAccountId === currentAccountId);
+  const canDelete = canContribute && (isAuthor || (!!groupOwnerAccountId && currentAccountId === groupOwnerAccountId));
+  const likes = context.likes ?? [];
+  const comments = context.comments ?? [];
+  const commentAuthorName = (entry: ContextComment) => accounts.find((account) => account.id === entry.authorId)?.name ?? entry.authorName;
+  useEffect(() => {
+    if (showCommentComposer) commentInputRef.current?.focus();
+  }, [showCommentComposer]);
+  function submitComment(event: FormEvent) {
+    event.preventDefault();
+    if (!comment.trim() || !onAddComment(context.id, comment.trim())) return;
+    setComment('');
+  }
+  function saveCommentEdit(event: FormEvent, entry: ContextComment) {
+    event.preventDefault();
+    if (!editingCommentText.trim() || !onEditOwnComment(context.id, entry.id, editingCommentText.trim())) return;
+    setEditingCommentId(null);
+    setEditingCommentText('');
+  }
+  function startCommentLongPress(entry: ContextComment) {
+    if (entry.authorId !== currentAccountId) return;
+    if (commentPressTimer.current !== null) window.clearTimeout(commentPressTimer.current);
+    commentPressTimer.current = window.setTimeout(() => setShowCommentMenuId(entry.id), 500);
+  }
+  function cancelCommentLongPress() {
+    if (commentPressTimer.current !== null) window.clearTimeout(commentPressTimer.current);
+    commentPressTimer.current = null;
+  }
+  function deleteOwnComment(entry: ContextComment) {
+    if (onDeleteOwnComment(context.id, entry.id)) setShowCommentMenuId(null);
+  }
+  function renderComment(entry: ContextComment): ReactElement {
+    const isOwnComment = entry.authorId === currentAccountId;
+    return <div className={`context-comment ${isOwnComment ? 'own-context-comment' : ''}`} key={entry.id} onPointerDown={() => startCommentLongPress(entry)} onPointerUp={cancelCommentLongPress} onPointerLeave={cancelCommentLongPress} onPointerCancel={cancelCommentLongPress} onContextMenu={(event) => { if (isOwnComment) { event.preventDefault(); cancelCommentLongPress(); setShowCommentMenuId(entry.id); } }}>
+      <div className="context-comment-body">
+        <span className="context-comment-meta"><strong>{commentAuthorName(entry)}</strong><time>{formatObservationTime(entry.createdAt)}</time></span>
+        {editingCommentId === entry.id ? <form className="context-comment-edit-form" onSubmit={(event) => saveCommentEdit(event, entry)}><input autoFocus aria-label="Edit your comment" value={editingCommentText} onChange={(event) => setEditingCommentText(event.target.value)} maxLength={300} /><button type="submit" disabled={!editingCommentText.trim()}>Save</button><button type="button" onClick={() => { setEditingCommentId(null); setEditingCommentText(''); }}>Cancel</button></form> : <span className="context-comment-text">{entry.body}</span>}
+      </div>
+      {isOwnComment && showCommentMenuId === entry.id && editingCommentId !== entry.id && <div className="context-comment-menu" role="menu"><button type="button" role="menuitem" onClick={() => { setEditingCommentId(entry.id); setEditingCommentText(entry.body); setShowCommentMenuId(null); }}>Edit</button><button type="button" role="menuitem" onClick={() => deleteOwnComment(entry)}>Delete</button></div>}
+    </div>;
+  }
+
+  return <article className="detail-card moment-context-card">
+    <div className="moment-context-head"><div className="moment-context-author"><OwnerAvatar src={authorAvatar} name={authorName} className="moment-context-avatar" /><span><strong>{authorName}</strong><small>{formatObservationTime(context.savedAt).replace('\n', ' · ')}</small></span></div><span className={`context-kind-tag ${context.interpretation}`}>{interpretationLabels[context.interpretation]}</span></div>
+    <p>{context.note}</p><ContextAttachmentList attachments={context.attachments ?? []} />
+    {(canInteract || canDelete || (isAuthor && canContribute)) && <div className="context-social-actions">
+      {canInteract && <button type="button" className={`context-like-button ${likes.includes(currentAccountId) ? 'liked' : ''}`} aria-label={likes.includes(currentAccountId) ? 'Unlike context' : 'Like context'} aria-pressed={likes.includes(currentAccountId)} onClick={() => onToggleLike(context.id)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.9a5.5 5.5 0 0 0-7.8 0L12 5.9l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.3 1-1a5.5 5.5 0 0 0 0-7.8Z" /></svg>{likes.length > 0 && <b>{likes.length}</b>}</button>}
+      {canInteract && <button type="button" className={`context-comment-count ${showCommentComposer ? 'active' : ''}`} aria-label={`${showCommentComposer ? 'Hide' : 'Show'} comment field; ${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}`} aria-expanded={showCommentComposer} onClick={() => setShowCommentComposer((open) => !open)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-8 7.5 8.7 8.7 0 0 1-3.7-.8L3 20l1.7-4.4A7.2 7.2 0 0 1 4 11.5 7.5 7.5 0 0 1 12 4a7.5 7.5 0 0 1 8 7.5Z" /><path d="M8 12h.01M12 12h.01M16 12h.01" /></svg>{comments.length > 0 && <b>{comments.length}</b>}</button>}
+      {isAuthor && canContribute && <button className="text-link" onClick={() => onEditContext(context)}>Edit</button>}
+      {canDelete && <button className="moment-context-delete" onClick={onDeleteContext}>Delete</button>}
+    </div>}
+    {canInteract && (comments.length > 0 || showCommentComposer) && <div className="context-comment-thread">
+      {comments.map(renderComment)}
+      {showCommentComposer && <form className="context-comment-form" onSubmit={submitComment}><div><input ref={commentInputRef} aria-label="Write a comment" value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Write a comment…" maxLength={300} /><button type="submit" disabled={!comment.trim()} aria-label="Send comment"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12 16-8-5 16-3-6-8-2Zm8 2 8-10" /></svg></button></div></form>}
+    </div>}
+  </article>;
+}
+
+function MomentDetailPage({ moment, contexts, accounts, ownerName, ownerAvatar, currentAccountId, groupOwnerAccountId, petName, canContribute, canInteract, onBack, onAddContext, onEditContext, onDeleteContext, onToggleLike, onAddComment, onEditOwnComment, onDeleteOwnComment }: { moment: MomentRecord; contexts: OwnerContext[]; accounts: PrototypeAccount[]; ownerName: string; ownerAvatar: string; currentAccountId: string; groupOwnerAccountId?: string; petName: string; canContribute: boolean; canInteract: boolean; onBack: () => void; onAddContext: () => void; onEditContext: (context: OwnerContext) => void; onDeleteContext: (id: string) => boolean; onToggleLike: (contextId: string) => void; onAddComment: (contextId: string, body: string) => boolean; onEditOwnComment: (contextId: string, commentId: string, body: string) => boolean; onDeleteOwnComment: (contextId: string, commentId: string) => boolean }) {
   const [pendingDelete, setPendingDelete] = useState<OwnerContext | null>(null);
   const [deleteError, setDeleteError] = useState('');
 
@@ -983,7 +1063,7 @@ function MomentDetailPage({ moment, contexts, accounts, ownerName, ownerAvatar, 
       {moment.observationContext && <section className="observation-context-summary"><strong>Context saved with this observation</strong><span>{moment.observationContext}</span></section>}
       <section className="moment-context-section">
         <div className="section-heading"><h2>Owner context</h2>{contexts.length > 0 && <span>{contexts.length} saved</span>}</div>
-        {contexts.length ? <div className="moment-context-list">{contexts.map((context) => { const authorAccount = context.authorId ? accounts.find((account) => account.id === context.authorId) : undefined; const authorName = authorAccount?.name ?? context.authorName ?? ownerName; const authorAvatar = authorAccount ? authorAccount.avatar : context.authorAvatar ?? (context.authorId ? '' : ownerAvatar); const isAuthor = context.authorId ? context.authorId === currentAccountId : (!groupOwnerAccountId || groupOwnerAccountId === currentAccountId); const canDelete = canContribute && (isAuthor || (!!groupOwnerAccountId && currentAccountId === groupOwnerAccountId)); return <article className="detail-card moment-context-card" key={context.id}><div className="moment-context-head"><div className="moment-context-author"><OwnerAvatar src={authorAvatar} name={authorName} className="moment-context-avatar" /><span><strong>{authorName}</strong><small>{formatObservationTime(context.savedAt).replace('\n', ' · ')}</small></span></div><span className={`context-kind-tag ${context.interpretation}`}>{interpretationLabels[context.interpretation]}</span></div><p>{context.note}</p><ContextAttachmentList attachments={context.attachments ?? []} />{canContribute && (isAuthor || canDelete) && <div className="moment-context-actions">{isAuthor && <button className="text-link" onClick={() => onEditContext(context)}>Edit</button>}{canDelete && <button className="moment-context-delete" onClick={() => { setDeleteError(''); setPendingDelete(context); }}>Delete</button>}</div>}</article>; })}</div> : <div className="empty-context-state"><strong>No context has been added</strong><p>Add what was happening around this specific moment. It will stay attached here.</p></div>}
+        {contexts.length ? <div className="moment-context-list">{contexts.map((context) => <MomentContextCard key={context.id} context={context} accounts={accounts} ownerName={ownerName} ownerAvatar={ownerAvatar} currentAccountId={currentAccountId} groupOwnerAccountId={groupOwnerAccountId} canContribute={canContribute} canInteract={canInteract} onEditContext={onEditContext} onDeleteContext={() => { setDeleteError(''); setPendingDelete(context); }} onToggleLike={onToggleLike} onAddComment={onAddComment} onEditOwnComment={onEditOwnComment} onDeleteOwnComment={onDeleteOwnComment} />)}</div> : <div className="empty-context-state"><strong>No context has been added</strong><p>Add what was happening around this specific moment. It will stay attached here.</p></div>}
       </section>
       {canContribute && <StickyAction className="moment-detail-action" label="Add context to this moment" onClick={onAddContext} />}
       {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={closeDeleteDialog}><section className="profile-dialog context-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-context-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-context-title">Delete this context?</h2><p>This removes the owner context from “{moment.title}”. This action cannot be undone.</p>{deleteError && <p className="inline-save-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={closeDeleteDialog}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete context</button></div></section></div>}
@@ -2769,6 +2849,49 @@ export default function App() {
     return true;
   }
 
+  function toggleContextLike(contextId: string) {
+    if (!activeAccount) return;
+    const next = savedContexts.map((context) => {
+      if (context.id !== contextId) return context;
+      const likes = context.likes ?? [];
+      return { ...context, likes: likes.includes(activeAccount.id) ? likes.filter((id) => id !== activeAccount.id) : [...likes, activeAccount.id] };
+    });
+    saveContextsToCurrentGroup(next);
+  }
+
+  function addContextComment(contextId: string, body: string): boolean {
+    if (!activeAccount || !body.trim()) return false;
+    const next = savedContexts.map((context) => context.id !== contextId ? context : {
+      ...context,
+      comments: [...(context.comments ?? []), { id: `context-comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, authorId: activeAccount.id, authorName: activeAccount.name, body: body.trim(), createdAt: new Date().toISOString() }],
+    });
+    return saveContextsToCurrentGroup(next);
+  }
+
+  function editOwnContextComment(contextId: string, commentId: string, body: string): boolean {
+    if (!activeAccount || !body.trim()) return false;
+    const context = savedContexts.find((entry) => entry.id === contextId);
+    const comment = context?.comments?.find((entry) => entry.id === commentId);
+    if (!comment || comment.authorId !== activeAccount.id) return false;
+    const next = savedContexts.map((entry) => entry.id !== contextId ? entry : {
+      ...entry,
+      comments: (entry.comments ?? []).map((item) => item.id === commentId ? { ...item, body: body.trim() } : item),
+    });
+    return saveContextsToCurrentGroup(next);
+  }
+
+  function deleteOwnContextComment(contextId: string, commentId: string): boolean {
+    if (!activeAccount) return false;
+    const context = savedContexts.find((entry) => entry.id === contextId);
+    const comment = context?.comments?.find((entry) => entry.id === commentId);
+    if (!comment || comment.authorId !== activeAccount.id) return false;
+    const next = savedContexts.map((entry) => entry.id !== contextId ? entry : {
+      ...entry,
+      comments: (entry.comments ?? []).filter((item) => item.id !== commentId),
+    });
+    return saveContextsToCurrentGroup(next);
+  }
+
   function startStoryObservation() {
     if (!canContributeToSharedPet) return;
     setStorySaveError('');
@@ -2884,6 +3007,7 @@ export default function App() {
   const currentCareMember = activeAccount ? careMembers.find((member) => member.id === activeAccount.id || (!!member.email && member.email.toLowerCase() === activeAccount.email.toLowerCase())) : undefined;
   const temporaryAccessExpired = currentCareMember?.role === 'Temporary caregiver' && !!currentCareMember.expiresAt && currentCareMember.expiresAt < new Date().toISOString().slice(0, 10);
   const canContributeToSharedPet = isPrimaryCaregiver || !activePetRecord?.sharedGroupId || (currentCareMember?.access === 'editor' && !temporaryAccessExpired);
+  const canInteractWithGroupContext = isPrimaryCaregiver || (!!activePetRecord?.sharedGroupId && !!currentCareMember && !temporaryAccessExpired);
   const canManageLongTermCare = isPrimaryCaregiver || !activePetRecord?.sharedGroupId || (currentCareMember?.access === 'editor' && currentCareMember.role !== 'Temporary caregiver');
   const orderedCareMembers = [...careMembers].sort((left, right) => {
     const rank = (member: CareMember) => member.id === activeAccount?.id ? 0 : member.id === primaryMemberId ? 1 : 2;
@@ -3101,7 +3225,7 @@ export default function App() {
             {view === 'addCompose' && <StoryAddPage step="compose" saveError={storySaveError} onBack={() => goBack('addMoments')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addPreview')} />}
             {view === 'addPreview' && <StoryAddPage step="preview" saveError={storySaveError} onBack={() => goBack('addCompose')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
             {view === 'addSaved' && <StoryAddPage step="saved" saveError={storySaveError} onBack={() => goBack('addPreview')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
-            {view === 'momentDetail' && <MomentDetailPage moment={selectedMoment} contexts={selectedMomentContexts} accounts={prototypeSession.accounts} ownerName={ownerName} ownerAvatar={ownerAvatar} currentAccountId={activeAccount.id} groupOwnerAccountId={activePetRecord.sharedGroupId ? groupOwnerAccountId : undefined} petName={petName} canContribute={canContributeToSharedPet} onBack={() => goBack('story')} onAddContext={() => startContextForMoment(selectedMoment.id)} onEditContext={(context) => startContextForMoment(selectedMoment.id, context)} onDeleteContext={deleteOwnerContext} />}
+            {view === 'momentDetail' && <MomentDetailPage moment={selectedMoment} contexts={selectedMomentContexts} accounts={prototypeSession.accounts} ownerName={ownerName} ownerAvatar={ownerAvatar} currentAccountId={activeAccount.id} groupOwnerAccountId={activePetRecord.sharedGroupId ? groupOwnerAccountId : undefined} petName={petName} canContribute={canContributeToSharedPet} canInteract={canInteractWithGroupContext} onBack={() => goBack('story')} onAddContext={() => startContextForMoment(selectedMoment.id)} onEditContext={(context) => startContextForMoment(selectedMoment.id, context)} onDeleteContext={deleteOwnerContext} onToggleLike={toggleContextLike} onAddComment={addContextComment} onEditOwnComment={editOwnContextComment} onDeleteOwnComment={deleteOwnContextComment} />}
             {view === 'overview' && <OverviewPage onBack={() => goBack('today')} onClip={() => { setSelectedMomentId('window'); navigateTo('clip'); }} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} onSaved={() => openMomentDetail('window')} petName={petName}/>}
             {view === 'clip' && <ClipPage onBack={() => goBack('overview')} onContext={() => startContextForMoment('window')} petName={petName} ownerName={ownerName} canContribute={canContributeToSharedPet} />}
             {view === 'context' && <ContextPage moment={selectedMoment} petName={petName} note={note} setNote={setNote} interpretation={interpretation} setInterpretation={setInterpretation} attachments={contextAttachments} setAttachments={setContextAttachments} onBack={() => goBack('momentDetail')} onReview={() => navigateTo('confirm')} />}
@@ -3173,5 +3297,6 @@ export default function App() {
     </div>
   );
 }
+
 
 
