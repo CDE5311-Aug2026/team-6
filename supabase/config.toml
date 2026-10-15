@@ -6,3 +6,7 @@ verify_jwt = false
 # The handler validates the bearer token with Auth.getUser before any AI call.
 [functions.ask-ai]
 verify_jwt = false
+
+# Auth.getUser validates the bearer token before reading records or calling OpenAI.
+[functions.patterns-ai]
+verify_jwt = false

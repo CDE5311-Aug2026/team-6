@@ -1,3 +1,4 @@
+import PatternAssistant, { type PatternAnalysis } from './PatternAssistant';
 import Welcome from './Welcome';
 import { requestAskAI } from './askAI';
 import { useEffect, useRef, useState, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
@@ -88,7 +89,11 @@ type TypicalPattern = {
   evidence: string;
   confirmedBy: string;
   updatedAt: string;
-  status: 'confirmed' | 'archived';
+  status: 'suggested' | 'confirmed' | 'archived' | 'dismissed';
+  source?: 'ai' | 'manual';
+  sourceFingerprint?: string;
+  recordIds?: string[];
+  userEdited?: boolean;
 };
 
 type LifeCareEvent = {
@@ -233,6 +238,7 @@ type PetWorkspace = {
   careEvent: CareEvent | null;
   mediaSources: MediaSource[];
   patterns: TypicalPattern[];
+  patternAnalysis?: PatternAnalysis;
   lifeEvents: LifeCareEvent[];
 };
 type PrototypePet = {
@@ -1328,6 +1334,7 @@ function normalizeWorkspace(value: unknown, ownerName: string, hasDemoData: bool
     careMembers: Array.isArray(workspace.careMembers) ? withoutExampleCareMembers(workspace.careMembers) : fallback.careMembers,
     careEvent: typeof workspace.careEvent === 'object' ? workspace.careEvent ?? null : null,
     mediaSources: Array.isArray(workspace.mediaSources) ? workspace.mediaSources : defaultMediaSources(hasDemoData),
+    patternAnalysis: workspace.patternAnalysis,
     patterns: Array.isArray(workspace.patterns) ? workspace.patterns : defaultTypicalPatterns(ownerName, hasDemoData),
     lifeEvents: Array.isArray(workspace.lifeEvents) ? workspace.lifeEvents : [],
   };
@@ -1574,7 +1581,7 @@ function PetSwitcher({ pets, activePetId, onClose, onSwitch, onAdd, onDelete, in
   return <div className="profile-dialog-backdrop" role="presentation" onClick={onClose}><section className="profile-dialog switcher-dialog" role="dialog" aria-modal="true" aria-labelledby="pet-switcher-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={onClose}>×</button><h2 id="pet-switcher-title">Pet profiles</h2><p>{visiblePets.length ? 'Choose which pet’s Today, Story and context you want to view.' : 'Add a pet profile to continue to Today, Story and context.'}</p>{visiblePets.length > 0 && <div className="switcher-list pet-switcher-list">{visiblePets.map((pet) => <div key={pet.id} className={`pet-switcher-row ${pet.id === activePetId ? 'selected' : ''}`}><button className="pet-switcher-choice" onClick={() => { if (pet.id !== activePetId) onSwitch(pet.id); onClose(); }}><Avatar name={pet.name} src={pet.avatar} /><span><strong>{pet.name}</strong><small>{pet.breed} · {formatPetAge(pet.age)}</small></span><em>{pet.id === activePetId ? 'Current' : 'Switch'}</em></button><button className="pet-profile-delete" disabled={visiblePets.length === 1} aria-label={visiblePets.length === 1 ? `${pet.name} is the only pet and cannot be deleted` : `Delete ${pet.name}`} title={visiblePets.length === 1 ? 'Add another pet before deleting this one' : `Delete ${pet.name}`} onClick={() => { setError(''); setPendingDelete(pet); }}>Delete</button></div>)}</div>}{visiblePets.length === 1 && <p className="pet-delete-help">Add another pet before deleting this profile.</p>}{error && !adding && <p className="account-form-error" role="alert">{error}</p>}{adding ? <form className="switcher-form" onSubmit={add}><div className="pet-photo-field"><label className="profile-avatar-upload" aria-label="Upload pet photo">{avatar ? <img className="profile-edit-avatar pet-edit-avatar" src={avatar} alt={name || 'Pet'} /> : <span className="profile-edit-avatar pet-edit-avatar pet-photo-placeholder" aria-hidden="true">＋</span>}<span className="avatar-edit-badge" aria-hidden="true">✎</span><input type="file" accept="image/*" aria-label="Choose pet photo" onChange={(event) => readPetAvatar(event.target.files?.[0])} /></label><span>Add a pet photo</span></div><fieldset className="pet-species-field"><legend>Pet type</legend><div className="pet-species-options">{(['Dog', 'Cat'] as const).map((option) => <button key={option} type="button" aria-pressed={species === option} className={species === option ? 'selected' : ''} onClick={() => setSpecies(option)}>{option === 'Dog' ? '🐕 Dog' : '🐈 Cat'}</button>)}</div></fieldset><label><span>Pet name</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label><label><span>Breed</span><input value={breed} onChange={(event) => setBreed(event.target.value)} placeholder="Mixed breed" /></label><label><span>Age</span><input type="number" min="0" max="40" value={age} onChange={(event) => setAge(event.target.value)} /></label>{error && <p className="account-form-error" role="alert">{error}</p>}<div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => { setAdding(false); setError(''); }}>Cancel</button><button className="primary-button" disabled={!name.trim() || !breed.trim() || !age.trim()}>Add pet</button></div></form> : <button className="cancel-button full" onClick={() => setAdding(true)}>Add a pet</button>}{pendingDelete && <div className="nested-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog pet-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-pet-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-pet-title">Delete {pendingDelete.name}?</h2><p>This permanently removes this pet profile and its timeline, Story, context and Ask AI history from this device. Other pets will not be changed.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={() => { setPendingDelete(null); confirmDelete(); }}>Delete pet</button></div></section></div>}</section></div>;
 }
 
-function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', ownerPreference = 'Manage your profile details here.', pets, activePetId, onPetsNavigate, onSettingsNavigate, onPetEdit, onProfileEdit, onPetSwitcher, careMembers, accounts, primaryMemberId, onMemberClick, onCareMembers, patterns, lifeEvents, mediaSources, onPatternHistory, onPattern, onLifeCare, onConnectedMedia, invitations = [], onAcceptInvitation, onDeclineInvitation, careOwnerName = ownerName, careOwnerAvatar = ownerAvatar, careOwnerRole = ownerRole, groupName = 'Care circle', canManageCareGroup = primaryMemberId === 'emily', canEditPetDetails = true, canAddLifeCare = true, canManageConnectedMedia = true, noPetYet = false }: { kind: 'pets' | 'you'; petName: string; petAvatar: string; petBreed: string; petAge: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; ownerPreference?: string; pets: PrototypePet[]; activePetId: string; accounts: PrototypeAccount[]; onPetsNavigate: () => void; onSettingsNavigate: () => void; onPetEdit: () => void; onProfileEdit: () => void; onPetSwitcher: () => void; careMembers: CareMember[]; primaryMemberId: string; onMemberClick: (id: string) => void; onCareMembers: () => void; patterns: TypicalPattern[]; lifeEvents: LifeCareEvent[]; mediaSources: MediaSource[]; onPatternHistory: () => void; onPattern: (id: string) => void; onLifeCare: (category?: 'life' | 'health') => void; onConnectedMedia: (sourceId?: string) => void; invitations?: CareInvitation[]; onAcceptInvitation?: (invite: CareInvitation) => void; onDeclineInvitation?: (inviteId: string) => void; careOwnerName?: string; careOwnerAvatar?: string; careOwnerRole?: string; groupName?: string; canManageCareGroup?: boolean; canEditPetDetails?: boolean; canAddLifeCare?: boolean; canManageConnectedMedia?: boolean; noPetYet?: boolean }) {
+function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', ownerPreference = 'Manage your profile details here.', pets, activePetId, onPetsNavigate, onSettingsNavigate, onPetEdit, onProfileEdit, onPetSwitcher, careMembers, accounts, primaryMemberId, onMemberClick, onCareMembers, patterns, lifeEvents, mediaSources, onPatternHistory, onPattern, onLifeCare, onConnectedMedia, invitations = [], onAcceptInvitation, onDeclineInvitation, careOwnerName = ownerName, careOwnerAvatar = ownerAvatar, careOwnerRole = ownerRole, groupName = 'Care circle', canManageCareGroup = primaryMemberId === 'emily', canEditPetDetails = true, canAddLifeCare = true, canManageConnectedMedia = true, noPetYet = false, patternAssistant }: { patternAssistant?: ReactNode; kind: 'pets' | 'you'; petName: string; petAvatar: string; petBreed: string; petAge: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; ownerPreference?: string; pets: PrototypePet[]; activePetId: string; accounts: PrototypeAccount[]; onPetsNavigate: () => void; onSettingsNavigate: () => void; onPetEdit: () => void; onProfileEdit: () => void; onPetSwitcher: () => void; careMembers: CareMember[]; primaryMemberId: string; onMemberClick: (id: string) => void; onCareMembers: () => void; patterns: TypicalPattern[]; lifeEvents: LifeCareEvent[]; mediaSources: MediaSource[]; onPatternHistory: () => void; onPattern: (id: string) => void; onLifeCare: (category?: 'life' | 'health') => void; onConnectedMedia: (sourceId?: string) => void; invitations?: CareInvitation[]; onAcceptInvitation?: (invite: CareInvitation) => void; onDeclineInvitation?: (inviteId: string) => void; careOwnerName?: string; careOwnerAvatar?: string; careOwnerRole?: string; groupName?: string; canManageCareGroup?: boolean; canEditPetDetails?: boolean; canAddLifeCare?: boolean; canManageConnectedMedia?: boolean; noPetYet?: boolean }) {
   const petDetailsLabel = `${petBreed} · ${formatPetAge(petAge)}`;
   const displayPets = pets.filter((pet) => !pet.isEmptyProfile);
   const confirmedPatterns = patterns.filter((pattern) => pattern.status === 'confirmed');
@@ -1598,7 +1605,7 @@ function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, own
       <section className="profile-section">
         <div className="profile-section-heading"><h2>Typical patterns</h2><button className="profile-link" onClick={onPatternHistory}>View history →</button></div>
         <div className="profile-card pattern-card">
-          <strong className="card-caption">Owner-confirmed knowledge</strong>
+          <strong className="card-caption">Owner-confirmed knowledge</strong>{patternAssistant}{patterns.some(p => p.status === 'suggested') && <button className="profile-link" onClick={onPatternHistory}>Review {patterns.filter(p => p.status === 'suggested').length} suggested patterns →</button>}
           {confirmedPatterns.map((pattern, index) => <button className="knowledge-row" key={pattern.id} onClick={() => onPattern(pattern.id)}><span className="knowledge-icon">{index % 3 === 0 ? '☼' : index % 3 === 1 ? '☁' : '♥'}</span><span><strong>{pattern.title}</strong><small>{pattern.evidence}</small></span><i>›</i></button>)}
           {!confirmedPatterns.length && <div className="knowledge-empty"><strong>No confirmed patterns yet</strong><small>Patterns appear only after an owner confirms them.</small></div>}
         </div>
@@ -1681,9 +1688,9 @@ function ConnectedMediaPage({ petName, sources, initialSourceId, onBack, onUpdat
   </section>;
 }
 
-function PatternKnowledgePage({ petName, ownerName, patterns, initialPatternId, canManage, onBack, onSave, onDelete }: { petName: string; ownerName: string; patterns: TypicalPattern[]; initialPatternId: string | null; canManage: boolean; onBack: () => void; onSave: (pattern: TypicalPattern) => string; onDelete: (id: string) => string }) {
+function PatternKnowledgePage({ patternAssistant, petName, ownerName, patterns, initialPatternId, canManage, onBack, onSave, onDelete }: { patternAssistant?: ReactNode; petName: string; ownerName: string; patterns: TypicalPattern[]; initialPatternId: string | null; canManage: boolean; onBack: () => void; onSave: (pattern: TypicalPattern) => string; onDelete: (id: string) => string }) {
   const [selectedId, setSelectedId] = useState(initialPatternId);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(initialPatternId?.startsWith('new-') ?? false);
   const [editing, setEditing] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [draftTitle, setDraftTitle] = useState('');
@@ -1691,20 +1698,20 @@ function PatternKnowledgePage({ petName, ownerName, patterns, initialPatternId, 
   const [draftEvidence, setDraftEvidence] = useState('');
   const [pendingDelete, setPendingDelete] = useState<TypicalPattern | null>(null);
   const [saveError, setSaveError] = useState('');
-  const visible = patterns.filter((pattern) => showArchived || pattern.status === 'confirmed');
+  const visible = patterns.filter((pattern) => showArchived || ['confirmed', 'suggested'].includes(pattern.status));
   const selected = patterns.find((pattern) => pattern.id === selectedId) ?? null;
   function startAdd() { setAdding(true); setSelectedId(null); setEditing(false); setDraftTitle(''); setDraftDetail(''); setDraftEvidence(''); setSaveError(''); }
   function startEdit(pattern: TypicalPattern) { setDraftTitle(pattern.title); setDraftDetail(pattern.detail); setDraftEvidence(pattern.evidence); setEditing(true); setAdding(false); setSaveError(''); }
   function addPattern(event: FormEvent) {
     event.preventDefault();
     if (!draftTitle.trim() || !draftDetail.trim()) return;
-    const pattern: TypicalPattern = { id: `pattern-${Date.now()}`, title: draftTitle.trim(), detail: draftDetail.trim(), evidence: draftEvidence.trim() || 'Added directly by the owner', confirmedBy: ownerName, updatedAt: new Date().toISOString(), status: 'confirmed' };
+    const pattern: TypicalPattern = { id: `pattern-${Date.now()}`, title: draftTitle.trim(), detail: draftDetail.trim(), evidence: draftEvidence.trim() || 'Added directly by the owner', confirmedBy: ownerName, updatedAt: new Date().toISOString(), status: 'confirmed', source: 'manual' };
     const error = onSave(pattern); setSaveError(error);
     if (!error) { setSelectedId(pattern.id); setAdding(false); setDraftTitle(''); setDraftDetail(''); setDraftEvidence(''); }
   }
   function saveEdit() {
     if (!selected || !draftTitle.trim() || !draftDetail.trim()) return;
-    const error = onSave({ ...selected, title: draftTitle.trim(), detail: draftDetail.trim(), evidence: draftEvidence.trim() || selected.evidence, updatedAt: new Date().toISOString() });
+    const error = onSave({ ...selected, title: draftTitle.trim(), detail: draftDetail.trim(), evidence: draftEvidence.trim() || selected.evidence, userEdited: true, updatedAt: new Date().toISOString() });
     setSaveError(error); if (!error) setEditing(false);
   }
   function toggleArchive(pattern: TypicalPattern) {
@@ -1720,9 +1727,10 @@ function PatternKnowledgePage({ petName, ownerName, patterns, initialPatternId, 
     <header className="settings-header"><button className="back-button" aria-label="Back to pet profile" onClick={onBack}>←</button><h1>Typical patterns</h1></header>
     <div className="settings-eyebrow-row"><p className="settings-eyebrow">OWNER-CONFIRMED KNOWLEDGE</p>{canManage && <div className="settings-eyebrow-actions"><button className="profile-link" onClick={startAdd}>Add pattern +</button><button className="profile-link" onClick={() => setShowArchived(!showArchived)}>{showArchived ? 'Current only' : 'Show archived'}</button></div>}</div>
     <section className="settings-summary"><strong>Patterns over time</strong><p>Only patterns confirmed by a person appear as knowledge about {petName}.</p></section>
+    {patternAssistant}
     {adding && <form className="pattern-detail-card management-add-form" onSubmit={addPattern}><p className="settings-eyebrow">NEW PATTERN</p><label><span>Pattern name</span><input autoFocus value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} placeholder="e.g. Evening play burst" /></label><label><span>Description</span><textarea value={draftDetail} onChange={(event) => setDraftDetail(event.target.value)} placeholder="Describe what usually happens and when." /></label><label><span>Supporting information</span><textarea value={draftEvidence} onChange={(event) => setDraftEvidence(event.target.value)} placeholder="Owner notes or selected records" /></label>{saveError && <p className="inline-save-error" role="alert">{saveError}</p>}<div className="source-detail-actions"><button type="button" className="cancel-button" onClick={() => setAdding(false)}>Cancel</button><button className="primary-button" disabled={!draftTitle.trim() || !draftDetail.trim()}>Add pattern</button></div></form>}
-    <div className="pattern-management-list">{visible.map((pattern) => <button key={pattern.id} className={`pattern-management-row ${selectedId === pattern.id ? 'selected' : ''}`} onClick={() => { setSelectedId(pattern.id); setAdding(false); setEditing(false); setSaveError(''); }}><span><strong>{pattern.title}</strong><small>{pattern.detail}</small></span><em className={pattern.status}>{pattern.status === 'archived' ? 'Archived' : 'Confirmed'}</em></button>)}{!visible.length && !adding && <div className="management-empty"><strong>No patterns here</strong><p>Add a pattern after an owner has confirmed it.</p></div>}</div>
-    {selected && <section className="pattern-detail-card">{editing && canManage ? <><label><span>Pattern name</span><input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} /></label><label><span>Description</span><textarea value={draftDetail} onChange={(event) => setDraftDetail(event.target.value)} /></label><label><span>Supporting information</span><textarea value={draftEvidence} onChange={(event) => setDraftEvidence(event.target.value)} /></label><div className="source-detail-actions"><button className="cancel-button" onClick={() => setEditing(false)}>Cancel</button><button className="primary-button" onClick={saveEdit}>Save changes</button></div></> : <><p className="settings-eyebrow">{selected.status.toUpperCase()}</p><h2>{selected.title}</h2><p>{selected.detail}</p><div className="pattern-evidence"><strong>Supporting information</strong><span>{selected.evidence}</span><small>Confirmed by {selected.confirmedBy} · {new Date(selected.updatedAt).toLocaleDateString('en-AU')}</small></div>{canManage && <div className="source-detail-actions"><button className="cancel-button" onClick={() => startEdit(selected)}>Edit pattern</button><button className="danger-outline-button" onClick={() => toggleArchive(selected)}>{selected.status === 'archived' ? 'Restore' : 'Archive'}</button><button className="danger-outline-button" onClick={() => setPendingDelete(selected)}>Delete</button></div>}</>}{saveError && <p className="inline-save-error" role="alert">{saveError}</p>}</section>}
+    <div className="pattern-management-list">{visible.map((pattern) => <button key={pattern.id} className={`pattern-management-row ${selectedId === pattern.id ? 'selected' : ''}`} onClick={() => { setSelectedId(pattern.id); setAdding(false); setEditing(false); setSaveError(''); }}><span><strong>{pattern.title}</strong><small>{pattern.detail}</small></span><em className={pattern.status}>{pattern.status === 'suggested' ? 'Suggested' : pattern.status === 'dismissed' ? 'Dismissed' : pattern.status === 'archived' ? 'Archived' : 'Confirmed'}</em></button>)}{!visible.length && !adding && <div className="management-empty"><strong>No patterns here</strong><p>Add a pattern after an owner has confirmed it.</p></div>}</div>
+    {selected && <section className="pattern-detail-card">{editing && canManage ? <><label><span>Pattern name</span><input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} /></label><label><span>Description</span><textarea value={draftDetail} onChange={(event) => setDraftDetail(event.target.value)} /></label><label><span>Supporting information</span><textarea value={draftEvidence} onChange={(event) => setDraftEvidence(event.target.value)} /></label><div className="source-detail-actions"><button className="cancel-button" onClick={() => setEditing(false)}>Cancel</button><button className="primary-button" onClick={saveEdit}>Save changes</button></div></> : <><p className="settings-eyebrow">{selected.status.toUpperCase()}</p><h2>{selected.title}</h2><p>{selected.detail}</p><div className="pattern-evidence"><strong>Supporting information</strong><span>{selected.evidence}</span><small>{selected.status === 'suggested' ? 'AI suggestion · Awaiting your review' : `Confirmed by ${selected.confirmedBy}`} · {new Date(selected.updatedAt).toLocaleDateString('en-AU')}</small></div>{canManage && <div className="source-detail-actions"><button className="cancel-button" onClick={() => startEdit(selected)}>Edit pattern</button>{selected.status === 'suggested' && <><button className="primary-button" onClick={() => setSaveError(onSave({ ...selected, status: 'confirmed', confirmedBy: ownerName, updatedAt: new Date().toISOString() }))}>Confirm pattern</button><button className="cancel-button" onClick={() => { const error = onSave({ ...selected, status: 'dismissed', updatedAt: new Date().toISOString() }); setSaveError(error); if (!error) setSelectedId(null); }}>Dismiss</button></>}{selected.status !== 'suggested' && <button className="danger-outline-button" onClick={() => toggleArchive(selected)}>{selected.status === 'archived' ? 'Restore' : 'Archive'}</button>}<button className="danger-outline-button" onClick={() => setPendingDelete(selected)}>Delete</button></div>}</>}{saveError && <p className="inline-save-error" role="alert">{saveError}</p>}</section>}
     {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-pattern-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-pattern-title">Delete “{pendingDelete.title}”?</h2><p>This permanently removes the pattern from {petName}’s owner-confirmed knowledge.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={deletePattern}>Delete pattern</button></div></section></div>}
   </section>;
 }
@@ -2062,7 +2070,7 @@ function CareMemberDetailsPage({ member, ownerName, ownerRole, ownerAvatar, owne
 
 type AppProps = {
   notice?: ReactNode;
-  cloud?: { initialSession: PrototypeSession; save: (session: PrototypeSession) => void; signOut: () => void };
+  cloud?: { synced?: boolean; initialSession: PrototypeSession; save: (session: PrototypeSession) => void; signOut: () => void };
   guest?: boolean;
   onExit?: () => void;
 };
@@ -2154,6 +2162,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   ]);
   const [careInvitations, setCareInvitations] = useState<CareInvitation[]>(() => cloud ? [] : readCareInvitations());
   const [mediaSources, setMediaSources] = useState<MediaSource[]>(() => initialSharedWorkspace?.mediaSources ?? readMediaSources(true));
+  const [patternAnalysis, setPatternAnalysis] = useState<PatternAnalysis | undefined>(initialSharedWorkspace?.patternAnalysis);
   const [typicalPatterns, setTypicalPatterns] = useState<TypicalPattern[]>(() => initialSharedWorkspace?.patterns ?? readTypicalPatterns(ownerName, true));
   const [lifeCareEvents, setLifeCareEvents] = useState<LifeCareEvent[]>(initialSharedWorkspace?.lifeEvents ?? readLifeCareEvents());
   const [selectedMediaSourceId, setSelectedMediaSourceId] = useState<string | null>(null);
@@ -2206,6 +2215,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       careMembers,
       careEvent: activePetRecord?.workspace.careEvent ?? (cloud ? null : readCareEvent()),
       mediaSources,
+      patternAnalysis,
       patterns: typicalPatterns,
       lifeEvents: lifeCareEvents,
     };
@@ -2255,7 +2265,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     return true;
   }
 
-  function persistSharedWorkspacePatch(patch: Partial<Pick<PetWorkspace, 'mediaSources' | 'patterns' | 'lifeEvents'>>): boolean {
+  function persistSharedWorkspacePatch(patch: Partial<Pick<PetWorkspace, 'mediaSources' | 'patterns' | 'lifeEvents' | 'patternAnalysis'>>): boolean {
     if (!activeAccount || !activePetRecord) return false;
     const captured = captureCurrentSpace(prototypeSession);
     const groupId = activePetRecord.sharedGroupId;
@@ -2393,6 +2403,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setCareMembers(sharedWorkspace.careMembers);
     setMediaSources(sharedWorkspace.mediaSources);
     setTypicalPatterns(sharedWorkspace.patterns);
+    setPatternAnalysis(sharedWorkspace.patternAnalysis);
     setLifeCareEvents(sharedWorkspace.lifeEvents);
     setEditingStoryObservationId(null);
     setActiveStoryDraftId(null);
@@ -3016,7 +3027,8 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
               askOwnerAccountId: account.id,
               careMembers: nextMembers,
               mediaSources,
-              patterns: typicalPatterns,
+              patternAnalysis,
+      patterns: typicalPatterns,
               lifeEvents: lifeCareEvents,
             },
           };
@@ -3110,6 +3122,15 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setMediaSources(next);
     return '';
   }
+  const patternAssistant = activePetRecord && <PatternAssistant key={askIdentity} identity={askIdentity} petId={activePetRecord.id} records={storyObservations} analysis={patternAnalysis} enabled={!!cloud && isPrimaryCaregiver} synced={cloud?.synced ?? false} onManual={() => { setSelectedPatternId(`new-${Date.now()}`); navigateTo('patternHistory'); }} onResult={(result) => {
+    if (!isPrimaryCaregiver) return 'Only the Primary caregiver can manage patterns.';
+    const retained = typicalPatterns.filter(p => p.status !== 'suggested' || p.userEdited);
+    const suggestions: TypicalPattern[] = (result.patterns ?? []).map((p, index) => ({ id: `ai-pattern-${result.fingerprint}-${index}`, title: p.title, detail: p.detail, evidence: p.evidence, recordIds: p.recordIds, confirmedBy: '', updatedAt: new Date().toISOString(), status: 'suggested', source: 'ai', sourceFingerprint: result.fingerprint }));
+    const next = result.patterns === null ? typicalPatterns : [...retained, ...suggestions.filter(p => !retained.some(r => r.id === p.id))];
+    const completed = { fingerprint: result.fingerprint, completedAt: new Date().toISOString(), count: next.filter(p => p.status === 'suggested').length };
+    if (!persistSharedWorkspacePatch({ patterns: next, patternAnalysis: completed })) return 'Could not save suggestions. Please retry.';
+    setTypicalPatterns(next); setPatternAnalysis(completed); return '';
+  }} />;
   function saveTypicalPattern(pattern: TypicalPattern): string {
     if (!isPrimaryCaregiver) return 'Only the Primary caregiver can manage Typical patterns.';
     const exists = typicalPatterns.some((entry) => entry.id === pattern.id);
@@ -3218,9 +3239,9 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
             {view === 'saved' && lastSavedContext && <SavedPage saved={lastSavedContext} onBack={() => goBack('confirm')} onReturnStory={() => navigateTo('story')} onUndo={() => undoContext(lastSavedContext.id)} onEvidence={() => openMomentDetail(lastSavedContext.momentId)} onEdit={() => startContextForMoment(lastSavedContext.momentId, lastSavedContext)} petName={petName} ownerName={ownerName} />}
             {view === 'undone' && <UndonePage onBack={() => goBack('saved')} onReturnToday={() => navigateTo('today')} onReview={() => navigateTo('overview')} petName={petName} />}
             {view === 'ask' && <AskPage onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} messages={askMessages} messageEndRef={askEndRef} noPetYet={activePetRecord.isEmptyProfile ?? false} busy={askBusy} pending={askPending} live={Boolean(cloud)} />}
-            {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} accounts={prototypeSession.accounts} onPetsNavigate={() => navigateTo('pets')} onSettingsNavigate={() => navigateTo('settings')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={activePetRecord.isEmptyProfile ? openAddPetForm : () => setShowPetSwitcher(true)} careMembers={orderedCareMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} patterns={typicalPatterns} lifeEvents={lifeCareEvents} mediaSources={mediaSources} onPatternHistory={() => openPatternKnowledge()} onPattern={(id) => openPatternKnowledge(id)} onLifeCare={openLifeCare} onConnectedMedia={openConnectedMedia} invitations={view === 'you' ? receivedCareInvitations : []} onAcceptInvitation={acceptCareInvitation} onDeclineInvitation={(id) => updateInvitationStatus(id, 'declined')} careOwnerName={groupOwnerAccount?.name ?? ownerName} careOwnerAvatar={groupOwnerAccount?.avatar ?? ownerAvatar} careOwnerRole="Primary caregiver" groupName={activeGroupName} canManageCareGroup={isPrimaryCaregiver} canEditPetDetails={isPrimaryCaregiver} canAddLifeCare={canManageLongTermCare} canManageConnectedMedia={canManageLongTermCare} noPetYet={activePetRecord.isEmptyProfile ?? false} />}
+            {(view === 'pets' || view === 'you') && <SimplePage patternAssistant={patternAssistant} kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} accounts={prototypeSession.accounts} onPetsNavigate={() => navigateTo('pets')} onSettingsNavigate={() => navigateTo('settings')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={activePetRecord.isEmptyProfile ? openAddPetForm : () => setShowPetSwitcher(true)} careMembers={orderedCareMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} patterns={typicalPatterns} lifeEvents={lifeCareEvents} mediaSources={mediaSources} onPatternHistory={() => openPatternKnowledge()} onPattern={(id) => openPatternKnowledge(id)} onLifeCare={openLifeCare} onConnectedMedia={openConnectedMedia} invitations={view === 'you' ? receivedCareInvitations : []} onAcceptInvitation={acceptCareInvitation} onDeclineInvitation={(id) => updateInvitationStatus(id, 'declined')} careOwnerName={groupOwnerAccount?.name ?? ownerName} careOwnerAvatar={groupOwnerAccount?.avatar ?? ownerAvatar} careOwnerRole="Primary caregiver" groupName={activeGroupName} canManageCareGroup={isPrimaryCaregiver} canEditPetDetails={isPrimaryCaregiver} canAddLifeCare={canManageLongTermCare} canManageConnectedMedia={canManageLongTermCare} noPetYet={activePetRecord.isEmptyProfile ?? false} />}
             {view === 'connectedMedia' && <ConnectedMediaPage petName={petName} sources={mediaSources} initialSourceId={selectedMediaSourceId} onBack={() => goBack('you')} onUpdate={saveMediaSource} onDelete={deleteMediaSource} />}
-            {view === 'patternHistory' && <PatternKnowledgePage petName={petName} ownerName={ownerName} patterns={typicalPatterns} initialPatternId={selectedPatternId} canManage={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveTypicalPattern} onDelete={deleteTypicalPattern} />}
+            {view === 'patternHistory' && <PatternKnowledgePage key={askIdentity + (selectedPatternId ?? '')} patternAssistant={patternAssistant} petName={petName} ownerName={ownerName} patterns={typicalPatterns} initialPatternId={selectedPatternId} canManage={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveTypicalPattern} onDelete={deleteTypicalPattern} />}
             {view === 'careEvent' && <LifeCarePage petName={petName} ownerName={ownerName} primaryOwnerName={groupOwnerAccount?.name ?? ownerName} currentAccountId={activeAccount.id} events={lifeCareEvents} initialCategory={lifeCareInitialCategory} startAdding={lifeCareStartAdding} canAdd={canManageLongTermCare} canManageAll={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveLifeCareEvent} onDelete={deleteLifeCareEvent} />}
             {view === 'settings' && !cloud && <SettingsHubPage accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onBack={() => goBack('you')} onSwitchAccount={switchAccount} onRegister={registerAccount} onDeleteAccount={deleteSavedAccount} onSignOut={() => setShowSignOutConfirm(true)} onAction={(title, detail) => setProfileAction({ title, detail })} />}
             {view === 'settings' && cloud && <section className="settings-page"><header className="settings-header"><button className="back-button" aria-label="Go back" onClick={() => goBack('you')}>←</button><h1>Settings</h1></header><section className="settings-summary"><h2>{ownerName}</h2><p>Username: {activeAccount.email.endsWith('@users.pawsona.invalid') ? activeAccount.email.split('@')[0] : activeAccount.email}</p><p>Your personal records sync to your cloud account. Ask AI supports text and photos. Shared care remains a prototype feature.</p><button className="primary-button" onClick={() => setShowSignOutConfirm(true)}>Sign out</button></section></section>}
