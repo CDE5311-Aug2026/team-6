@@ -4,7 +4,7 @@
 
 修改了settings部分的新连接**[点这里](https://pawsona-team-6-2mpcrxzqh-wwastrelhaha.vercel.app/)**
 
-是我测试用的链接（目前最新的是这个）<(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
+是我测试用的链接（目前修复了群组、邀请的功能）<(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
 
 
 The prototype is deployed on Vercel and can be accessed
