@@ -36,9 +36,11 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .screen-scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; }
 .screen-scroll::-webkit-scrollbar { display: none; }
 .home-screen { background: var(--color-home-bg); }
-.status-bar { position: sticky; z-index: 9; top: 0; height: var(--status-bar-height); flex: none; display: flex; align-items: flex-start; justify-content: space-between; padding-left: 39px; padding-right: 0; background: var(--color-page-bg); }
-.status-bar span { margin-top: 16px; font: 600 17px/22px -apple-system, BlinkMacSystemFont, sans-serif; color: #000; }
-.status-bar img { display: block; width: 143px; height: 54px; }
+.status-bar { position: sticky; z-index: 9; top: 0; height: var(--status-bar-height); flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 20px 0 28px; background: var(--color-page-bg); }
+.status-bar span { margin-top: 0; font: 600 17px/22px -apple-system, BlinkMacSystemFont, sans-serif; color: #000; }
+.status-bar .status-icons { display: block; width: 143px; height: 54px; flex: none; color: #000; fill: currentColor; }
+.status-bar .status-battery-outline { fill: none; }
+.status-bar .status-icons.is-offline > rect:not(.status-battery-outline), .status-bar .status-icons.is-offline .status-wifi { opacity: .3; }
 .screen-content { width: 100%; }
 .main-content { min-height: calc(100% - var(--status-bar-height)); padding: 0 20px 88px; position: relative; }
 .detail-content { min-height: calc(100% - var(--status-bar-height)); display: flex; flex-direction: column; padding-top: 0; }
@@ -107,6 +109,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .story-summary img { width: 54px; height: 46px; object-fit: contain; }
 .story-summary strong { font: 700 17px/23px 'Poppins', sans-serif; }
 .timeline-section { margin-top: 12px; }
+.timeline-empty-state { min-height: 72px; margin: 14px 0 0; display: grid; place-items: center; color: var(--color-text-muted); font: 400 12px/18px 'Roboto', sans-serif; text-align: center; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; }
 .timeline-list { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
 .timeline-row { border: 0; background: none; padding: 0; width: 100%; display: grid; grid-template-columns: 46px 1fr; gap: 10px; align-items: center; text-align: left; }
@@ -395,12 +398,22 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .detail-card strong { font: 600 14px/21px 'Poppins', sans-serif; }
 .detail-card p { margin: 12px 0 0; font: 400 16px/24px 'Roboto', sans-serif; }
 .moment-detail-card { overflow: hidden; margin: 0 20px 17px; border: 1px solid var(--color-border); border-radius: 22px; background: #fff; box-shadow: 0 2px 8px #1a29210a; }
+.moment-engagement-actions { display: flex; align-items: center; gap: 15px; margin: -8px 20px 18px; }
+.moment-engagement-button { display: inline-flex; min-width: 28px; min-height: 30px; align-items: center; justify-content: center; gap: 5px; padding: 3px 2px; border: 0; background: transparent; color: var(--color-text-muted); }
+.moment-engagement-button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.moment-engagement-button b { color: inherit; font: 500 11px/16px 'Roboto', sans-serif; }
+.moment-engagement-button.like.active { color: #e24d5b; }
+.moment-engagement-button.like.active svg { fill: currentColor; }
+.moment-engagement-button.favorite.active { color: #b58a00; }
+.moment-engagement-button.favorite.active svg { fill: var(--color-action); }
 .moment-summary-card { min-height: 0; display: flex; flex-direction: column; gap: 9px; padding: 10px; }
-.moment-summary-mini { min-width: 0; padding: 12px 13px; border-radius: 13px; }
+.moment-summary-mini { min-width: 0; padding: 13px 14px; border-radius: 15px; }
 .moment-source-mini { background: #f8f8f3; }
 .moment-description-mini { background: var(--color-accent-soft); }
-.moment-summary-mini strong { display: block; }
-.moment-summary-mini p { margin: 6px 0 0; color: var(--color-text-secondary); }
+.moment-summary-mini strong { display: block; font: 600 15px/22px 'Poppins', sans-serif; }
+.moment-summary-mini p { margin: 5px 0 0; color: var(--color-text-secondary); font: 400 14px/21px 'Roboto', sans-serif; }
+.moment-description-mini strong { font-size: 15px; line-height: 22px; }
+.moment-description-mini p { font-size: 14px; line-height: 21px; }
 
 .linked-evidence { display: flex; align-items: center; gap: 14px; height: 96px; margin: 0 20px; padding: 12px; border-radius: 18px; background: var(--color-accent-soft); }
 .linked-evidence-text-only { justify-content: center; padding: 16px 20px; }
@@ -430,13 +443,19 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .choice-card legend { float: left; width: 100%; margin-bottom: 11px; font: 600 14px/21px 'Poppins', sans-serif; }
 .choice-card label { clear: both; display: flex; align-items: center; gap: 5px; margin: 10px 0; font: 400 16px/24px 'Roboto', sans-serif; }
 .choice-card input { accent-color: var(--color-text-primary); }
-.confirm-card { margin: 0 20px 32px; min-height: 220px; height: auto; padding: 16px; overflow-wrap: anywhere; background: white; border: 1px solid var(--color-border); border-radius: 20px; }
+.confirm-card { margin: 0 20px 20px; min-height: 0; height: auto; padding: 18px 16px; overflow-wrap: anywhere; background: white; border: 1px solid var(--color-border); border-radius: 20px; }
 .confirm-card small, .saved-result > small { color: var(--color-action); font: 700 11px/17px 'Poppins', sans-serif; letter-spacing: .8px; }
-.confirm-card h2 { font: 600 20px/28px 'Poppins', sans-serif; margin: 18px 0; }
-.confirm-card p { margin: 0 0 16px; font: 400 16px/24px 'Roboto', sans-serif; }
+.confirm-card h2 { font: 600 20px/28px 'Poppins', sans-serif; margin: 12px 0; }
+.confirm-card p { margin: 0 0 12px; font: 400 16px/24px 'Roboto', sans-serif; }
 .confirm-card span { color: var(--color-text-muted); font: 400 13px/20px 'Roboto', sans-serif; }
-.effects-card { margin-top: 20px; }
-.effects-card p { border-top: 1px solid var(--color-border); padding-top: 12px; font-size: 14px; }
+.confirm-effects-card { margin: auto 20px 0; padding: 16px 15px 10px; border: 1px solid var(--color-border); border-radius: 20px; background: #fff; color: var(--color-text-primary); }
+.confirm-effects-card strong { display: block; margin-bottom: 8px; font: 600 14px/21px 'Poppins', sans-serif; }
+.confirm-effects-card p { min-height: 41px; margin: 0; padding: 10px 0; display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--color-border); font: 400 13px/20px 'Roboto', sans-serif; }
+.confirm-effect-icon { width: 17px; height: 17px; flex: 0 0 17px; display: grid; place-items: center; }
+.confirm-effect-icon svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.confirm-effect-icon.is-complete { border-radius: 50%; background: var(--color-accent-soft); color: var(--color-text-primary); }
+.confirm-effect-icon.is-unchanged { color: var(--color-text-muted); }
+.confirm-sticky-action { margin-top: 0; }
 .saved-banner { min-height: 104px; margin-bottom: 32px; }
 .saved-banner h2 { margin: 0; font: 600 20px/28px 'Poppins', sans-serif; }
 .saved-banner p { margin: 16px 0 0; color: var(--color-text-muted); font: 400 13px/20px 'Roboto', sans-serif; }
@@ -506,10 +525,18 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .context-like-button b, .context-comment-count b { color: inherit; font: 500 10px/16px 'Roboto', sans-serif; }
 .context-comment-count svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .context-social-actions .context-comment-count.active { color: var(--color-action-text, #9a7200); }
-.context-social-actions .text-link, .context-social-actions .moment-context-delete { min-width: 0; min-height: 26px; margin-left: auto; padding: 2px 7px; border: 1px solid var(--color-border); border-radius: 999px; background: #fff; font: 600 10px/16px 'Poppins', sans-serif; }
-.context-social-actions .moment-context-delete { margin-left: 0; border-color: #f1dbd6; background: #fff5f2; color: #963a34; }
+.context-more-wrap { position: relative; display: flex; align-items: center; margin-left: auto; }
+.context-social-actions .context-more-button { display: grid; width: 32px; min-width: 32px; height: 30px; min-height: 30px; place-items: center; border: 1px solid var(--color-border); border-radius: 999px; background: #fff; color: var(--color-text-secondary); }
+.context-more-button svg { width: 18px; height: 18px; fill: currentColor; }
+.context-more-button:hover { background: #fff9de; color: var(--color-text-primary); }
+.context-action-menu { position: absolute; z-index: 5; right: 0; bottom: calc(100% + 7px); display: flex; min-width: 116px; flex-direction: column; gap: 3px; padding: 5px; border: 1px solid var(--color-border); border-radius: 13px; background: #fff; box-shadow: 0 8px 24px rgb(26 41 33 / 14%); }
+.context-social-actions .context-action-menu button { width: 100%; min-height: 34px; padding: 7px 10px; border: 0; border-radius: 9px; background: transparent; color: var(--color-text-primary); font: 500 12px/18px 'Roboto',sans-serif; text-align: left; }
+.context-social-actions .context-action-menu button:hover { background: #f8f6ef; }
+.context-social-actions .context-action-menu button:last-child:first-child, .context-social-actions .context-action-menu button + button { color: #963a34; }
 .context-comment-thread { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
-.context-comment { padding: 0 0 0 10px; border-left: 2px solid #f2dfa0; background: transparent; }
+.context-comment-list { position: relative; display: flex; flex-direction: column; gap: 10px; }
+.context-comment-list::before { position: absolute; top: 0; bottom: 0; left: 0; width: 2px; border-radius: 2px; background: #f2dfa0; content: ''; }
+.context-comment { padding: 0 0 0 12px; border-left: 0; background: transparent; }
 .context-comment.own-context-comment { position: relative; }
 .context-comment.own-context-comment .context-comment-body { -webkit-user-select: none; user-select: none; }
 .context-comment-body { display: flex; width: 100%; flex-direction: column; align-items: flex-start; gap: 3px; padding: 5px 2px; border: 0; background: transparent; color: var(--color-text-primary); text-align: left; }
@@ -869,7 +896,9 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .care-invitation-pet > span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .care-invitation-pet strong { color: var(--color-text-primary); font: 600 12px/18px 'Poppins', sans-serif; }
 .care-invitation-pet small { overflow: hidden; color: var(--color-text-muted); font: 400 10px/15px 'Roboto', sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.care-invitation-pet small b { font-weight: 700; }
 .care-invitation-card > p { margin: 10px 0 12px; color: var(--color-text-secondary); font: 400 11px/16px 'Roboto', sans-serif; }
+.care-invitation-card > p strong { color: inherit; font-weight: 700; }
 .care-invitation-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .care-invitation-actions .cancel-button, .care-invitation-actions .primary-button { min-height: 36px; padding: 8px 12px; font-size: 10px; line-height: 15px; }
 .event-picker-wrap { position: relative; }
@@ -1026,6 +1055,13 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .entrance-form { display: flex; flex-direction: column; gap: 22px; }
 .entrance-form label { display: flex; flex-direction: column; gap: 10px; font: 600 13px/20px 'Poppins',sans-serif; }
 .entrance-form input { width: 100%; min-height: 52px; border: 1px solid #dce2d8; border-radius: 14px; padding: 14px 16px; background: #fff; color: #1a2921; font: 400 14px/22px 'Roboto',sans-serif; }
+.entrance-form .password-entry { position: relative; display: block; width: 100%; }
+.entrance-form .password-entry input { padding-right: 54px; }
+.entrance-form .password-reveal-button { position: absolute; top: 0; right: 3px; display: grid; width: 48px; height: 100%; place-items: center; border: 0; border-radius: 12px; background: transparent; color: #64736a; cursor: pointer; touch-action: none; }
+.entrance-form .password-reveal-button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.entrance-form .password-reveal-button:focus-visible { outline: 2px solid #ffca20; outline-offset: -4px; }
+.entrance-form label.remember-me-option { min-height: 24px; flex-direction: row; align-items: center; gap: 9px; margin-top: -10px; font: 500 13px/20px 'Roboto',sans-serif; }
+.entrance-form .remember-me-option input { width: 18px; min-height: 18px; height: 18px; margin: 0; accent-color: #ffca20; }
 .entrance-local-note { background: #fff0a7; border-radius: 14px; padding: 14px; font-size: 12px; line-height: 19px; color: #66583f; margin: 0; }
 .entrance-error { color: #963a34; font-size: 12px; line-height: 19px; margin: 0; }
 .entrance-switch { text-align: center; color: #78644a; font-size: 12px; line-height: 22px; margin: 24px 0 5px; }
