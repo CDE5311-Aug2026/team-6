@@ -398,14 +398,16 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .detail-card strong { font: 600 14px/21px 'Poppins', sans-serif; }
 .detail-card p { margin: 12px 0 0; font: 400 16px/24px 'Roboto', sans-serif; }
 .moment-detail-card { overflow: hidden; margin: 0 20px 17px; border: 1px solid var(--color-border); border-radius: 22px; background: #fff; box-shadow: 0 2px 8px #1a29210a; }
-.moment-engagement-actions { display: flex; align-items: center; gap: 15px; margin: -8px 20px 18px; }
-.moment-engagement-button { display: inline-flex; min-width: 28px; min-height: 30px; align-items: center; justify-content: center; gap: 5px; padding: 3px 2px; border: 0; background: transparent; color: var(--color-text-muted); }
+.moment-engagement-actions { display: flex; align-items: center; gap: 4px; margin: 0; padding: 0 18px 14px; }
+.moment-engagement-button { display: inline-flex; flex: 0 0 36px; width: 36px; min-width: 36px; min-height: 30px; align-items: center; justify-content: flex-start; gap: 5px; padding: 3px 2px; border: 0; background: transparent; color: var(--color-text-muted); }
+.moment-engagement-button:focus { outline: none; }
+.moment-engagement-button:focus-visible { outline: 2px solid var(--color-action); outline-offset: 2px; border-radius: 6px; }
 .moment-engagement-button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .moment-engagement-button b { color: inherit; font: 500 11px/16px 'Roboto', sans-serif; }
 .moment-engagement-button.like.active { color: #e24d5b; }
 .moment-engagement-button.like.active svg { fill: currentColor; }
-.moment-engagement-button.favorite.active { color: #b58a00; }
-.moment-engagement-button.favorite.active svg { fill: var(--color-action); }
+.moment-engagement-button.favorite.active { color: var(--color-action); }
+.moment-engagement-button.favorite.active svg { fill: var(--color-action); stroke: var(--color-action); }
 .moment-summary-card { min-height: 0; display: flex; flex-direction: column; gap: 9px; padding: 10px; }
 .moment-summary-mini { min-width: 0; padding: 13px 14px; border-radius: 15px; }
 .moment-source-mini { background: #f8f8f3; }
@@ -589,7 +591,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .ask-input-box textarea { width: 100%; height: 48px; min-height: 0; flex: 1; resize: none; padding: 13px 14px 4px; border: 0; outline: 0; color: #1a2921; background: transparent; font: 400 14px/20px 'Roboto', sans-serif; }
 .ask-input-box textarea::placeholder { color: #adb0ae; opacity: 1; }
 .ask-input-box textarea:focus-visible { outline: 0; }
-.ask-input-tools { height: 39px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 12px 7px; }
+.ask-input-tools { height: 39px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 8px; }
 .ask-input-tools > button { width: 27px; height: 29px; display: grid; place-items: center; padding: 3px; border: 0; border-radius: 50%; color: #111; background: transparent; }
 .ask-input-tools > button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .ask-input-tools > button.is-recording { color: #fff; background: #c83b2d; animation: recording-pulse 1.15s ease-in-out infinite; }
@@ -657,6 +659,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .pattern-card .knowledge-empty { min-height: 190px; align-items: center; justify-content: center; padding: 12px 8px; text-align: center; }
 .pattern-card .knowledge-empty strong { color: #8c9991; font: 500 12px/18px 'Poppins', sans-serif; }
 .pattern-card .knowledge-empty small { color: #a0a9a3; font: 400 10px/16px 'Roboto', sans-serif; }
+.media-empty strong { color: #8c9991; font: 500 12px/18px 'Poppins', sans-serif; }
+.media-empty small { color: #a0a9a3; font: 400 10px/16px 'Roboto', sans-serif; }
 .knowledge-row { width: 100%; min-height: 66px; display: flex; align-items: center; gap: 13px; padding: 0; border: 0; border-bottom: 1px solid #f0efeb; background: transparent; color: #1a2921; text-align: left; }
 .knowledge-row:last-child { border-bottom: 0; }
 .knowledge-icon, .media-icon { width: 37px; height: 37px; flex: none; display: grid; place-items: center; border-radius: 13px; background: #fff0a7; color: #ffc313; font: 400 24px/1 'Roboto', sans-serif; }
@@ -714,6 +718,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .you-row em, .media-row em { margin-left: auto; border-radius: 99px; background: #ffcf29; padding: 4px 12px; color: #1a2921; font: 600 11px/15px 'Poppins', sans-serif; font-style: normal; white-space: nowrap; }
 .media-section { margin-top: 29px; }
 .media-list { height: auto; min-height: 202px; padding: 0 17px; }
+.media-empty { min-height: 202px; align-items: center; justify-content: center; padding: 18px 8px; text-align: center; }
 .media-row { width: 100%; height: 66px; display: flex; align-items: center; gap: 12px; padding: 0; border: 0; border-bottom: 1px solid #f0efeb; background: transparent; color: #1a2921; text-align: left; }
 .media-row:disabled { opacity: 1; cursor: default; }
 .media-row:last-child { border-bottom: 0; }
@@ -738,6 +743,16 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .profile-dialog p { margin: 0 0 22px; color: #78644a; font: 400 14px/22px 'Roboto', sans-serif; }
 .profile-dialog-close { position: absolute; top: 10px; right: 14px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: #f5f3eb; font-size: 23px; }
 .profile-dialog .primary-button { min-width: 94px; }
+.avatar-crop-backdrop { z-index: 40; }
+.avatar-crop-dialog { width: min(100%, 380px); padding: 28px 24px 22px; }
+.avatar-crop-dialog > p { margin-bottom: 18px; }
+.avatar-crop-frame { position: relative; width: min(260px, 100%); aspect-ratio: 1; overflow: hidden; margin: 0 auto 20px; border-radius: 50%; background: #f1eee7; cursor: grab; touch-action: none; user-select: none; }
+.avatar-crop-frame:active { cursor: grabbing; }
+.avatar-crop-frame > img { position: absolute; top: 50%; left: 50%; max-width: none; pointer-events: none; }
+.avatar-crop-circle { position: absolute; inset: 0; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 999px #17251d55; pointer-events: none; }
+.avatar-zoom-control { display: flex; align-items: center; gap: 12px; margin: 0 0 22px; color: var(--color-text-secondary); font: 500 13px/20px 'Roboto', sans-serif; }
+.avatar-zoom-control input { min-width: 0; flex: 1; accent-color: var(--color-action); }
+.avatar-crop-dialog .member-removal-actions { margin-top: 0; }
 .member-removal-dialog h2, .transfer-dialog h2 { font-size: 19px; line-height: 26px; }
 .member-removal-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .cancel-button, .danger-button { min-height: 42px; padding: 10px 16px; border: 1px solid var(--color-border); border-radius: 999px; background: #fff; color: var(--color-text-primary); font: 600 12px/18px 'Poppins', sans-serif; }
@@ -984,6 +999,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .knowledge-empty, .management-empty { padding: 18px 4px; display: flex; flex-direction: column; gap: 4px; color: var(--color-text-muted); }
 .knowledge-empty strong, .management-empty strong { color: var(--color-text-primary); font: 600 13px/19px 'Poppins', sans-serif; }
 .knowledge-empty small, .management-empty p { margin: 0; font: 400 11px/17px 'Roboto', sans-serif; }
+.media-empty.knowledge-empty strong { color: #8c9991; font: 500 12px/18px 'Poppins', sans-serif; }
+.media-empty.knowledge-empty small { color: #a0a9a3; font: 400 10px/16px 'Roboto', sans-serif; }
 .knowledge-management-page { padding-bottom: 34px; }
 .source-management-list, .pattern-management-list, .life-event-list { margin: 16px 20px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 20px; background: #fff; }
 .source-management-row, .pattern-management-row { width: 100%; min-height: 72px; display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; color: var(--color-text-primary); text-align: left; }
