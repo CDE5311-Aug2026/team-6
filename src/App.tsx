@@ -1671,13 +1671,13 @@ function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, own
       {noPetYet ? <section className="today-empty-state pets-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onPetSwitcher}>Add a pet</button></section> : <>
       <section className="pet-profile-hero">
         <Avatar name={petName} src={petAvatar} />
-        <div className="profile-hero-copy"><strong>{petName}</strong><small>{petDetailsLabel}</small><div className="pet-hero-actions">{canEditPetDetails && <button className="mini-action" onClick={onPetEdit}><span>✎</span> Edit details</button>}<button className="mini-action" onClick={onPetSwitcher}>⇄ Switch pet</button></div></div>
+        <div className="profile-hero-copy"><strong>{petName}</strong><small>{petDetailsLabel}</small><div className="pet-hero-actions"><button className="mini-action" onClick={onPetEdit}><span>✎</span> Edit details</button><button className="mini-action" onClick={onPetSwitcher}>⇄ Switch pet</button></div></div>
       </section>
 
       <section className="profile-section care-section">
         <h2>Who looks after {petName}?</h2>
         <div className="profile-card care-card">
-          <div className="card-topline"><strong>{groupName}</strong>{canManageCareGroup && <button className="profile-link" onClick={onCareMembers}>Manage members →</button>}</div>
+          <div className="card-topline"><strong>{groupName}</strong><button className="profile-link" onClick={onCareMembers}>Manage members →</button></div>
         {careMembers.map((member) => { const linkedAccount = accounts.find((account) => account.id === member.id || (!!member.email && account.email.toLowerCase() === member.email.toLowerCase())); const memberName = member.id === primaryMemberId ? careOwnerName : linkedAccount?.name ?? member.name; const memberAvatar = member.id === primaryMemberId ? careOwnerAvatar : linkedAccount?.avatar ?? member.avatar ?? ''; return <button className="member-row" key={member.id} onClick={() => onMemberClick(member.id)}><OwnerAvatar src={memberAvatar} name={memberName} className={member.id === primaryMemberId ? '' : `${member.id}-avatar`} /><span><strong>{memberName}</strong>{member.id === primaryMemberId && <small>{careOwnerRole}</small>}</span><i>›</i></button>; })}
         </div>
       </section>
