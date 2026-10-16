@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import App, { createCloudSession, type PrototypeSession } from './App';
 import Welcome from './Welcome';
-import { createCloudAccount, registerCloudAccount, loginCloudAccount, logoutCloudAccount, readCloudWorkspace, supabase, verifiedUser, writeCloudWorkspace, saveCloudProfile, initializeCloudWorkspace } from './cloud';
+import { createCloudAccount, registerCloudAccount, loginCloudAccount, logoutCloudAccount, readCloudWorkspace, supabase, verifiedUser, writeCloudWorkspace, saveCloudProfile, initializeCloudWorkspace, listCloudCareGroups, listCloudCareInvitations, sendCloudCareInvitation, respondToCloudCareInvitation, cancelCloudCareInvitation, removeCloudCareMember, updateCloudCareMember, saveCloudCareGroup } from './cloud';
 import { CloudMedia } from './cloudMedia';
 import { CloudSync, type SyncState } from './cloudSync';
 
@@ -13,6 +13,71 @@ type Workspace = {
 };
 
 type DeviceCloudAccount = { username: string; name: string };
+
+function attachCloudCareGroups(session: PrototypeSession, groups: Awaited<ReturnType<typeof listCloudCareGroups>>): PrototypeSession {
+  if (!session.accounts.length) return session;
+  const allowedGroupIds = new Set(groups.map(group => group.groupId));
+  const pets = [...session.accounts[0].pets];
+  for (let i = pets.length - 1; i >= 0; i--) if (pets[i].sharedGroupId && !allowedGroupIds.has(pets[i].sharedGroupId!)) pets.splice(i, 1);
+  for (const group of groups) {
+    const workspace: Record<string, unknown> = {
+      ...group.workspace,
+      groupName: group.groupName,
+      careMembers: group.members.map(member => ({
+        id: member.id, name: member.name, email: member.email || undefined,
+        avatar: member.avatar,
+        role: member.isOwner ? 'Primary caregiver' : member.role,
+        access: member.role === 'Viewer' ? 'viewer' as const : 'editor' as const,
+        detail: member.isOwner ? 'manages the profile' : member.role === 'Viewer' ? 'can view shared records' : 'can add observations',
+      })),
+    };
+    if (group.isOwner) {
+      const index = pets.findIndex(pet => pet.id === group.petId);
+      if (index >= 0) {
+        const ownerPet = pets[index];
+        const ownerObservations = new Map(ownerPet.workspace.observations.map(observation => [observation.id, observation]));
+        const sharedObservations = Array.isArray(workspace.observations) ? workspace.observations.map(value => {
+          if (!value || typeof value !== 'object') return value;
+          const observation = value as Record<string, unknown>;
+          const ownerObservation = ownerObservations.get(String(observation.id));
+          if (!ownerObservation) return value;
+          const restored = { ...observation };
+          if (typeof restored.image === 'string' && restored.image.startsWith('blob:')) restored.image = ownerObservation.image;
+          if (Array.isArray(restored.relatedPhotos) && Array.isArray(ownerObservation.relatedPhotos)) {
+            restored.relatedPhotos = restored.relatedPhotos.map((photo, photoIndex) => {
+              if (!photo || typeof photo !== 'object' || typeof (photo as Record<string, unknown>).url !== 'string' || !(photo as Record<string, unknown>).url?.toString().startsWith('blob:')) return photo;
+              const savedPhoto = ownerObservation.relatedPhotos?.find(candidate => candidate.name === (photo as Record<string, unknown>).name)
+                ?? ownerObservation.relatedPhotos?.[photoIndex];
+              return savedPhoto ? { ...(photo as Record<string, unknown>), url: savedPhoto.url } : photo;
+            });
+          }
+          return restored;
+        }) : workspace.observations;
+        const recoveredWorkspace = { ...workspace, observations: sharedObservations };
+        pets[index] = { ...ownerPet, sharedGroupId: group.groupId, sharedOwnerAccountId: group.ownerId,
+          name: group.petName, breed: group.petBreed, age: group.petAge,
+          avatar: group.petAvatar.startsWith('blob:') ? ownerPet.avatar : group.petAvatar,
+          workspace: recoveredWorkspace as typeof pets[number]['workspace'] };
+      }
+    } else {
+      const sharedPetId = 'shared-' + group.groupId;
+      const index = pets.findIndex(pet => pet.sharedGroupId === group.groupId);
+      const sharedPet = { id: sharedPetId, sharedGroupId: group.groupId, sharedOwnerAccountId: group.ownerId,
+        name: group.petName, breed: group.petBreed, age: group.petAge, avatar: group.petAvatar, hasDemoMoments: false,
+        workspace: workspace as typeof pets[number]['workspace'] };
+      if (index >= 0) pets[index] = { ...pets[index], ...sharedPet };
+      else pets.push(sharedPet);
+    }
+  }
+  if (!pets.length) {
+    const oldPet = session.accounts[0].pets[0];
+    const blank = oldPet ? { ...oldPet.workspace, observations: [], contexts: [], drafts: [], visibility: [], askMessages: [], careMembers: [] } : undefined;
+    const emptyPetId = 'empty-' + session.accounts[0].id;
+    pets.push({ id: emptyPetId, name: 'My pet', breed: 'Mixed breed', age: '1', avatar: '', hasDemoMoments: false, isEmptyProfile: true,
+      workspace: (blank ?? {}) as typeof session.accounts[0]['pets'][number]['workspace'] });
+  }
+  return { ...session, accounts: [{ ...session.accounts[0], pets, activePetId: pets.some(pet => pet.id === session.accounts[0].activePetId) ? session.accounts[0].activePetId : pets[0]?.id ?? '' }] };
+}
 const DEVICE_ACCOUNTS_KEY = 'pawsona:device-cloud-accounts:v1';
 
 function readDeviceAccounts(): DeviceCloudAccount[] {
@@ -87,13 +152,16 @@ export default function CloudRoot() {
       setDeviceAccounts(accounts => rememberDeviceAccount(accounts, username, row?.payload.accounts?.[0]?.name ?? String(user.user_metadata.display_name ?? username)));
       if (row && !validSession(row.payload, user.id)) throw new Error('Your workspace could not be read safely. Please contact the project team.');
       media = new CloudMedia(user.id);
-      const initialSession = await media.decode(row.payload);
+      const decodedSession = await media.decode(row.payload);
+      let initialSession = decodedSession;
+      try { initialSession = attachCloudCareGroups(decodedSession, await media.decode(await listCloudCareGroups())); }
+      catch { /* A not-yet-applied care-group migration must not block account sign-in. */ }
       if (ticket !== generation.current) { media.dispose(); return; }
       const codec = media;
       const sync = new CloudSync(row.revision, initialSession, async (payload, revision) => {
         if (!validSession(payload, user.id)) throw new Error('Account mismatch. Reload before saving.');
         const encoded = await codec.encode(payload);
-        await saveCloudProfile(encoded.accounts[0].name, user.id);
+        await saveCloudProfile(encoded.accounts[0].name, encoded.accounts[0].avatar, user.id);
         return writeCloudWorkspace(encoded, revision, user.id);
       }, (state, message) => {
         if (ticket === generation.current) { setSyncState(state); setSyncError(message ?? ''); }
@@ -184,9 +252,28 @@ export default function CloudRoot() {
   if (mode === 'guest') return <App guest onExit={() => { choice.current = null; setMode('entry'); }} />;
   if (mode === 'cloud' && workspace) return <>
     <App key={workspace.id}
-      cloud={{ initialSession: workspace.initialSession, save, signOut: () => { void signOut(); }, addAnotherAccount: () => { void addAnotherAccount(); }, accounts: deviceAccounts, switchAccount: switchToDeviceAccount, removeAccount: removeDeviceAccount }}
-      notice={syncNoticeVisible && <div className={'cloud-sync-bar ' + syncState} role="status">
-        <span>{syncState === 'saving' ? 'Saving to your account…' : syncState === 'error' ? 'Not synced · ' + syncError : 'Saved to your account'}</span>
+      cloud={{
+        initialSession: workspace.initialSession, save, signOut: () => { void signOut(); }, addAnotherAccount: () => { void addAnotherAccount(); },
+        accounts: deviceAccounts, switchAccount: switchToDeviceAccount, removeAccount: removeDeviceAccount,
+        listInvitations: async () => workspace.media.decode(await listCloudCareInvitations()),
+        listGroups: async () => workspace.media.decode(await listCloudCareGroups()),
+        sendInvitation: async (input) => sendCloudCareInvitation(await workspace.media.encode(input)),
+        respondInvitation: async (id, response) => {
+          const group = await respondToCloudCareInvitation(id, response);
+          return group ? workspace.media.decode(group) : null;
+        },
+        cancelInvitation: cancelCloudCareInvitation,
+        removeCareMember: removeCloudCareMember,
+        updateCareMember: updateCloudCareMember,
+        saveCareGroup: async (groupId, pet, groupName, groupWorkspace) => saveCloudCareGroup(
+          groupId,
+          await workspace.media.encode(pet),
+          groupName,
+          await workspace.media.encode(groupWorkspace),
+        ),
+      }}
+      notice={syncNoticeVisible && syncState === 'error' && <div className="cloud-sync-bar error" role="alert">
+        <span>Not synced · {syncError}</span>
         {syncState === 'error' && <><button onClick={() => { void workspace.sync.retry().catch(() => {}); }}>Retry</button><button onClick={downloadBackup}>Download backup</button></>}
       </div>}
     />
