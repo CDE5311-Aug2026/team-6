@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { rememberMeKey } from './cloud';
 
 type Props = {
   error: string;
@@ -18,6 +19,11 @@ export default function Welcome({ error, cloud = false, accountSwitchMode = fals
   const [identifier, setIdentifier] = useState(initialIdentifier);
   const [message, setMessage] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => {
+    try { return localStorage.getItem(rememberMeKey) !== 'false'; }
+    catch { return true; }
+  });
   const [busy, setBusy] = useState(false);
   const go = (next: typeof page) => { if (busy) return; setPage(next); setMessage(''); setPassword(''); };
   async function submit(event: FormEvent) {
@@ -25,6 +31,9 @@ export default function Welcome({ error, cloud = false, accountSwitchMode = fals
     if (busy) return;
     setBusy(true); setMessage('');
     try {
+      if (cloud && page === 'login') {
+        try { localStorage.setItem(rememberMeKey, String(rememberMe)); } catch { /* Session storage remains available where supported. */ }
+      }
       const result = await (page === 'register' ? onRegister(cloud ? identifier.trim() : name.trim(), identifier.trim(), cloud ? password : '') : onLogin(identifier.trim(), password));
       if (accountSwitchMode && cloud && page === 'register' && !result) {
         setPage('login');
@@ -57,7 +66,8 @@ export default function Welcome({ error, cloud = false, accountSwitchMode = fals
         <form className="entrance-form" onSubmit={submit}>
           {!cloud && page === 'register' && <label>Your name<input required maxLength={60} autoComplete="name" placeholder="What should we call you?" value={name} onChange={e => setName(e.target.value)} /></label>}
           {cloud ? <label>Username<input required type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} minLength={3} maxLength={24} pattern="[A-Za-z0-9_]{3,24}" title="3–24 letters, numbers or underscores" placeholder="Choose a username" value={identifier} onChange={event => setIdentifier(event.target.value)} /><small className="entrance-field-hint">3–24 letters, numbers or underscores. Not case-sensitive.</small></label> : <label>Email address<input required type="email" autoComplete="email" placeholder="you@example.com" value={identifier} onChange={event => setIdentifier(event.target.value)} /></label>}
-          {cloud && <label>Password<input required type="password" minLength={page === 'register' ? 8 : 1} maxLength={128} autoComplete={page === 'register' ? 'new-password' : 'current-password'} placeholder={page === 'register' ? 'At least 8 characters' : 'Your password'} value={password} onChange={event => setPassword(event.target.value)} /></label>}
+          {cloud && <label>Password<span className="password-entry"><input required type={showPassword ? 'text' : 'password'} minLength={page === 'register' ? 8 : 1} maxLength={128} autoComplete={page === 'register' ? 'new-password' : 'current-password'} placeholder={page === 'register' ? 'At least 8 characters' : 'Your password'} value={password} onChange={event => setPassword(event.target.value)} /><button className="password-reveal-button" type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onPointerDown={event => { event.preventDefault(); setShowPassword(true); }} onPointerUp={() => setShowPassword(false)} onPointerLeave={() => setShowPassword(false)} onPointerCancel={() => setShowPassword(false)} onKeyDown={event => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); setShowPassword(true); } }} onKeyUp={event => { if (event.key === ' ' || event.key === 'Enter') setShowPassword(false); }} onBlur={() => setShowPassword(false)} onContextMenu={event => event.preventDefault()}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />{showPassword && <path d="M4 4l16 16" />}</svg></button></span></label>}
+          {cloud && page === 'login' && <label className="remember-me-option"><input type="checkbox" checked={rememberMe} onChange={event => setRememberMe(event.target.checked)} /><span>Remember me</span></label>}
           <p className="entrance-local-note">{cloud ? (page === 'register' ? 'Save your pet’s records across devices. No email needed. Keep your username and password safe.' : 'Log in to access your personal cloud records.') : <>Prototype access · Saved in this browser only.<br />{page === 'register' ? 'No password needed. Cloud accounts are coming later.' : 'Use the email of a profile created in this browser.'}</>}</p>
           {(message || error) && <p className="entrance-error" role="alert">{message || error}</p>}
           <button className="primary-button full" type="submit" disabled={busy}>{busy ? 'Please wait…' : page === 'register' ? 'Create account' : 'Log in'}</button>
