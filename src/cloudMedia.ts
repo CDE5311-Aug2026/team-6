@@ -39,12 +39,15 @@ export class CloudMedia {
         const cached = this.encoded.get(value);
         if (cached) return cached;
         if (value.startsWith('data:')) return this.upload(value);
-        if (value.startsWith('blob:')) throw new Error('This attachment is no longer available. Please attach it again.');
+        // A blob URL from an older app session cannot be uploaded again. Drop the
+        // stale reference so it does not block unrelated profile/group saves.
+        if (value.startsWith('blob:')) return '';
       } else if (value.startsWith(prefix)) {
         const cached = this.decoded.get(value);
         if (cached) return cached;
         const path = value.slice(prefix.length);
-        if (!path.startsWith(this.userId + '/')) throw new Error('An attachment belongs to a different workspace.');
+        // Shared care-group workspaces can reference media uploaded by their owner.
+        // The private Storage RLS policy still decides whether this member may read it.
         const { data, error } = await supabase!.storage.from('pawsona-media').download(path);
         if (error) throw error;
         const display = URL.createObjectURL(data);
