@@ -149,7 +149,7 @@ function rememberDeviceAccount(accounts: DeviceCloudAccount[], username: string,
 async function snapshotDeviceAvatar(value: string): Promise<string> {
   if (!value || value.startsWith('data:') || !value.startsWith('blob:')) return value;
   const blob = await (await fetch(value)).blob();
-  return await new Promise((resolve, reject) => {
+  return await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not cache the account avatar.'));
     reader.onerror = () => reject(reader.error ?? new Error('Could not cache the account avatar.'));
