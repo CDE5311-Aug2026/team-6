@@ -1,4 +1,5 @@
 import { supabase, verifiedUser } from './cloud';
+import { stableReferenceForBlob } from './cloudMediaReferences';
 
 const prefix = 'pawsona-media://';
 const mediaKeys = new Set(['avatar', 'url', 'image', 'petAvatar', 'authorAvatar', 'momentImage']);
@@ -34,14 +35,19 @@ export class CloudMedia {
   }
 
   private async walk(value: unknown, direction: 'encode' | 'decode', key = ''): Promise<unknown> {
-    if (typeof value === 'string' && mediaKeys.has(key)) {
+    // Stable Storage references may be nested under legacy/custom field names
+    // (for example, imported `photo` fields). Always decode the URI itself;
+    // keep encoding constrained to known media fields to avoid rewriting
+    // arbitrary strings in a workspace.
+    const isStableMediaReference = typeof value === 'string' && value.startsWith(prefix);
+    if (typeof value === 'string' && (mediaKeys.has(key) || (direction === 'decode' && isStableMediaReference))) {
       if (direction === 'encode') {
         const cached = this.encoded.get(value);
         if (cached) return cached;
         if (value.startsWith('data:')) return this.upload(value);
-        // A blob URL from an older app session cannot be uploaded again. Drop the
-        // stale reference so it does not block unrelated profile/group saves.
-        if (value.startsWith('blob:')) return '';
+        // Never silently erase a media reference. A stale blob cannot be
+        // uploaded, so fail the save and keep the existing cloud payload intact.
+        if (value.startsWith('blob:')) return stableReferenceForBlob(value, this.encoded);
       } else if (value.startsWith(prefix)) {
         const cached = this.decoded.get(value);
         if (cached) return cached;
@@ -73,6 +79,7 @@ export class CloudMedia {
 
   async encode<T>(value: T): Promise<T> { return await this.walk(value, 'encode') as T; }
   async decode<T>(value: T): Promise<T> { return await this.walk(value, 'decode') as T; }
+  isLiveObjectUrl(value: string) { return this.objectUrls.includes(value); }
   backup<T>(value: T): T {
     const walk = (entry: unknown): unknown => {
       if (typeof entry === 'string') return this.encoded.get(entry) ?? entry;

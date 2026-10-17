@@ -109,6 +109,25 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .story-summary img { width: 54px; height: 46px; object-fit: contain; }
 .story-summary strong { font: 700 17px/23px 'Poppins', sans-serif; }
 .timeline-section { margin-top: 12px; }
+.story-calendar-section { margin-top: 24px; }
+.story-calendar-section .section-heading p { margin: 3px 0 0; color: var(--color-text-muted); font: 400 12px/18px 'Roboto', sans-serif; }
+.story-calendar-card { margin-top: 12px; padding: 13px 14px 12px; border: 1px solid var(--color-border); border-radius: 22px; background: var(--color-surface); box-shadow: 0 2px 8px #1a292108; }
+.story-calendar-heading { display: grid; grid-template-columns: 34px 1fr 34px; align-items: center; margin-bottom: 8px; text-align: center; }
+.story-calendar-heading strong { font: 600 13px/20px 'Poppins', sans-serif; }
+.story-calendar-heading button { width: 30px; height: 30px; border: 0; border-radius: 50%; background: var(--color-accent-soft); color: var(--color-text-primary); font: 400 22px/24px 'Roboto', sans-serif; }
+.story-calendar-heading button:disabled { opacity: .38; cursor: default; }
+.story-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.story-calendar-grid > span, .story-calendar-grid > button { width: 100%; aspect-ratio: 1; display: grid; place-items: center; }
+.story-calendar-weekday { color: var(--color-text-muted); font: 600 10px/12px 'Poppins', sans-serif; }
+.story-calendar-grid > button { position: relative; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--color-text-primary); font: 400 12px/1 'Roboto', sans-serif; }
+.story-calendar-grid > button.outside-month { color: #b6bdb7; }
+.story-calendar-grid > button:disabled { color: #cbd1cc; cursor: default; }
+.story-calendar-grid > button.selected { background: var(--color-action); font-weight: 700; }
+.story-calendar-grid > button.today:not(.selected) { box-shadow: inset 0 0 0 1px #f0c323; }
+.story-calendar-grid > button.has-records::after { position: absolute; bottom: 4px; width: 4px; height: 4px; border-radius: 50%; background: #d7a700; content: ''; }
+.story-calendar-grid > button.has-records.selected::after { background: #17271f; }
+.story-calendar-legend { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 7px; color: var(--color-text-muted); font: 400 10px/15px 'Roboto', sans-serif; }
+.story-calendar-legend span { width: 5px; height: 5px; border-radius: 50%; background: #d7a700; }
 .timeline-empty-state { min-height: 72px; margin: 14px 0 0; display: grid; place-items: center; color: var(--color-text-muted); font: 400 12px/18px 'Roboto', sans-serif; text-align: center; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; }
 .timeline-list { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }

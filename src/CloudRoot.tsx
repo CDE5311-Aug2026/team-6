@@ -4,6 +4,7 @@ import Welcome from './Welcome';
 import { createCloudAccount, registerCloudAccount, loginCloudAccount, logoutCloudAccount, readCloudWorkspace, supabase, verifiedUser, writeCloudWorkspace, saveCloudProfile, initializeCloudWorkspace, listCloudCareGroups, listCloudCareInvitations, sendCloudCareInvitation, respondToCloudCareInvitation, cancelCloudCareInvitation, removeCloudCareMember, updateCloudCareMember, saveCloudCareGroup } from './cloud';
 import { CloudMedia } from './cloudMedia';
 import { CloudSync, type SyncState } from './cloudSync';
+import { isSyntheticSunnyProfile } from './storySimulation';
 
 type Workspace = {
   id: string;
@@ -14,7 +15,11 @@ type Workspace = {
 
 type DeviceCloudAccount = { username: string; name: string };
 
-function attachCloudCareGroups(session: PrototypeSession, groups: Awaited<ReturnType<typeof listCloudCareGroups>>): PrototypeSession {
+function usableMediaUrl(value: unknown, media: CloudMedia): value is string {
+  return typeof value === 'string' && value.length > 0 && (!value.startsWith('blob:') || media.isLiveObjectUrl(value));
+}
+
+function attachCloudCareGroups(session: PrototypeSession, groups: Awaited<ReturnType<typeof listCloudCareGroups>>, media: CloudMedia): PrototypeSession {
   if (!session.accounts.length) return session;
   const allowedGroupIds = new Set(groups.map(group => group.groupId));
   const pets = [...session.accounts[0].pets];
@@ -31,39 +36,66 @@ function attachCloudCareGroups(session: PrototypeSession, groups: Awaited<Return
         detail: member.isOwner ? 'manages the profile' : member.role === 'Viewer' ? 'can view shared records' : 'can add observations',
       })),
     };
+    const groupObservations = Array.isArray(workspace.observations) ? workspace.observations : [];
+    const groupVisibility = workspace.visibility;
+    if (Array.isArray(groupVisibility) && groupVisibility.length > 0 && !groupObservations.some((value) => {
+      return !!value && typeof value === 'object' && groupVisibility.includes(String((value as Record<string, unknown>).id ?? ''));
+    })) workspace.visibility = null;
     if (group.isOwner) {
       const index = pets.findIndex(pet => pet.id === group.petId);
       if (index >= 0) {
         const ownerPet = pets[index];
         const ownerObservations = new Map(ownerPet.workspace.observations.map(observation => [observation.id, observation]));
+        const ownerMediaByMoment = new Map(ownerPet.workspace.observations.map(observation => {
+          const timestamp = new Date(observation.savedAt).getTime();
+          const key = `${observation.title.trim().toLowerCase()}|${Number.isFinite(timestamp) ? timestamp : observation.savedAt}`;
+          return [key, observation] as const;
+        }));
         const sharedObservations = Array.isArray(workspace.observations) ? workspace.observations.map(value => {
           if (!value || typeof value !== 'object') return value;
           const observation = value as Record<string, unknown>;
-          const ownerObservation = ownerObservations.get(String(observation.id));
+          const timestamp = new Date(String(observation.savedAt ?? '')).getTime();
+          const mediaKey = `${String(observation.title ?? '').trim().toLowerCase()}|${Number.isFinite(timestamp) ? timestamp : String(observation.savedAt ?? '')}`;
+          const ownerObservation = ownerObservations.get(String(observation.id)) ?? ownerMediaByMoment.get(mediaKey);
           if (!ownerObservation) return value;
           const restored = { ...observation };
-          if (typeof restored.image === 'string' && restored.image.startsWith('blob:')) restored.image = ownerObservation.image;
+          if (!usableMediaUrl(restored.image, media)) restored.image = usableMediaUrl(ownerObservation.image, media) ? ownerObservation.image : '';
           if (Array.isArray(restored.relatedPhotos) && Array.isArray(ownerObservation.relatedPhotos)) {
             restored.relatedPhotos = restored.relatedPhotos.map((photo, photoIndex) => {
-              if (!photo || typeof photo !== 'object' || typeof (photo as Record<string, unknown>).url !== 'string' || !(photo as Record<string, unknown>).url?.toString().startsWith('blob:')) return photo;
+              if (!photo || typeof photo !== 'object') return photo;
+              const photoUrl = (photo as Record<string, unknown>).url;
+              if (usableMediaUrl(photoUrl, media)) return photo;
               const savedPhoto = ownerObservation.relatedPhotos?.find(candidate => candidate.name === (photo as Record<string, unknown>).name)
                 ?? ownerObservation.relatedPhotos?.[photoIndex];
               return savedPhoto ? { ...(photo as Record<string, unknown>), url: savedPhoto.url } : photo;
             });
           }
           return restored;
-        }) : workspace.observations;
+        }) : [];
         const recoveredWorkspace = { ...workspace, observations: sharedObservations };
+        const groupAvatar = usableMediaUrl(group.petAvatar, media) ? group.petAvatar : '';
+        const ownerAvatar = usableMediaUrl(ownerPet.avatar, media) ? ownerPet.avatar : '';
+        const observationAvatar = sharedObservations.find(value => value && typeof value === 'object' && usableMediaUrl((value as Record<string, unknown>).image, media));
+        const storyAvatar = observationAvatar ? String((observationAvatar as Record<string, unknown>).image) : '';
+        const preferGoldenStoryImage = isSyntheticSunnyProfile({ id: group.petId, name: group.petName, breed: group.petBreed });
         pets[index] = { ...ownerPet, sharedGroupId: group.groupId, sharedOwnerAccountId: group.ownerId,
           name: group.petName, breed: group.petBreed, age: group.petAge,
-          avatar: group.petAvatar.startsWith('blob:') ? ownerPet.avatar : group.petAvatar,
+          // The shared care-group avatar can be stale (for example, left over
+          // from another test profile). Prefer the pet's own Storage-backed
+          // Story image so Sunny's header stays tied to the Golden Retriever
+          // records loaded for this workspace.
+          avatar: preferGoldenStoryImage ? storyAvatar || ownerAvatar || groupAvatar : groupAvatar || ownerAvatar || storyAvatar,
           workspace: recoveredWorkspace as typeof pets[number]['workspace'] };
       }
     } else {
       const sharedPetId = 'shared-' + group.groupId;
       const index = pets.findIndex(pet => pet.sharedGroupId === group.groupId);
+      const observationAvatar = groupObservations.find(value => value && typeof value === 'object' && usableMediaUrl((value as Record<string, unknown>).image, media));
+      const storyAvatar = observationAvatar ? String((observationAvatar as Record<string, unknown>).image) : '';
+      const preferGoldenStoryImage = isSyntheticSunnyProfile({ id: group.petId, name: group.petName, breed: group.petBreed });
       const sharedPet = { id: sharedPetId, sharedGroupId: group.groupId, sharedOwnerAccountId: group.ownerId,
-        name: group.petName, breed: group.petBreed, age: group.petAge, avatar: group.petAvatar, hasDemoMoments: false,
+        name: group.petName, breed: group.petBreed, age: group.petAge,
+        avatar: preferGoldenStoryImage ? storyAvatar || (usableMediaUrl(group.petAvatar, media) ? group.petAvatar : '') : (usableMediaUrl(group.petAvatar, media) ? group.petAvatar : '') || storyAvatar, hasDemoMoments: false,
         workspace: workspace as typeof pets[number]['workspace'] };
       if (index >= 0) pets[index] = { ...pets[index], ...sharedPet };
       else pets.push(sharedPet);
@@ -154,7 +186,7 @@ export default function CloudRoot() {
       media = new CloudMedia(user.id);
       const decodedSession = await media.decode(row.payload);
       let initialSession = decodedSession;
-      try { initialSession = attachCloudCareGroups(decodedSession, await media.decode(await listCloudCareGroups())); }
+      try { initialSession = attachCloudCareGroups(decodedSession, await media.decode(await listCloudCareGroups()), media); }
       catch { /* A not-yet-applied care-group migration must not block account sign-in. */ }
       if (ticket !== generation.current) { media.dispose(); return; }
       const codec = media;

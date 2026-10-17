@@ -1,6 +1,9 @@
 import Welcome from './Welcome';
 import { requestAskAI } from './askAI';
 import { searchCareAccounts, type CareAccountSearchResult, type CloudCareGroup, type CloudCareInvitation } from './cloud';
+import { visibleStoryObservations } from './storyVisibility';
+import { buildRollingStorySimulation, isSyntheticSunnyProfile } from './storySimulation';
+import { mergeSharedStoryObservations } from './sharedStoryObservations';
 import { useEffect, useRef, useState, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
 
 type View =
@@ -235,7 +238,7 @@ function saveCareMembersToStorage(members: CareMember[]) {
 }
 type StoryMedia = { name: string; type: string; url: string };
 type StorySourceNote = { id: string; text: string; label: string };
-type StoryObservation = { id: string; note: string; title: string; image: string; mediaType?: string; relatedPhotos?: StoryMedia[]; momentCount: number; momentIds?: string[]; sourceNotes?: StorySourceNote[]; context: string; privateRecord: boolean; savedAt: string; authorId?: string; authorName?: string; authorAvatar?: string };
+type StoryObservation = { id: string; note: string; title: string; image: string; mediaType?: string; relatedPhotos?: StoryMedia[]; momentCount: number; momentIds?: string[]; sourceNotes?: StorySourceNote[]; context: string; privateRecord: boolean; savedAt: string; authorId?: string; authorName?: string; authorAvatar?: string; synthetic?: boolean; observationKind?: 'meal' | 'walk' | 'play' | 'rest' | string; simulationKey?: string; metrics?: Record<string, number> };
 type StoryDraft = { id: string; selectedMoments: string[]; note: string; title?: string; momentAt?: string; relatedPhotos?: StoryMedia[]; context: string; savedAt: string; privateRecord?: boolean; uploadedMedia?: StoryMedia };
 type AskAttachment = { url: string; name: string; kind: 'image' | 'audio'; type: string };
 type AskMessage = { role: 'user' | 'assistant'; text: string; attachment?: AskAttachment };
@@ -267,6 +270,8 @@ type PrototypePet = {
   sharedOwnerAccountId?: string;
   workspace: PetWorkspace;
 };
+
+
 type PrototypeAccount = {
   id: string;
   name: string;
@@ -352,6 +357,21 @@ function isSameLocalDay(value: string, comparison = new Date()) {
     date.getFullYear() === comparison.getFullYear() &&
     date.getMonth() === comparison.getMonth() &&
     date.getDate() === comparison.getDate();
+}
+
+function localDayKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function useCurrentTime() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const update = () => setNow(new Date());
+    const timer = window.setInterval(update, 15_000);
+    document.addEventListener('visibilitychange', update);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', update); };
+  }, []);
+  return now;
 }
 
 function formatRelativeDate(value: string) {
@@ -597,9 +617,7 @@ const baseMomentDefinitions: MomentRecord[] = [
 ];
 
 function observationHasPrimaryMedia(observation: StoryObservation) {
-  if (!observation.image || observation.sourceNotes?.length) return false;
-  if (Array.isArray(observation.momentIds) && (observation.momentIds.length === 0 || observation.momentIds.every((id) => id.startsWith('note-')))) return false;
-  return true;
+  return Boolean(observation.image);
 }
 
 function resolveMoment(momentId: string, observations: StoryObservation[]): MomentRecord {
@@ -621,8 +639,10 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
 }
 
 function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, petName, petAvatar, saved, hasDemoMoments, noPetYet, observations, includedMoments }: { onStory: () => void; onMoment: (momentId: string) => void; onEvidence: () => void; onPetsNavigate: () => void; onAddPet: () => void; petName: string; petAvatar: string; saved: OwnerContext | null; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null }) {
+  const now = useCurrentTime();
   const displayName = petName.replace(/\s*[（(]test[^）)]*[）)]$/i, '');
-  const visibleRecords = observations.filter(record => !record.privateRecord && (!includedMoments || includedMoments.includes(record.id)))
+  const visibleRecords = visibleStoryObservations(observations, includedMoments)
+    .filter(record => new Date(record.savedAt).getTime() <= now.getTime())
     .sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime());
   const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
   const featured = todayRecords.length ? todayRecords : visibleRecords.filter(record => new Date(record.savedAt).toDateString() === new Date(visibleRecords[0]?.savedAt).toDateString());
@@ -700,41 +720,74 @@ function StoryTimelineRow({ item, showTime = true, canEdit, menuOpen, onMenuTogg
   </div>;
 }
 
+function StoryCalendar({ now, selectedDate, daysWithRecords, onSelect }: { now: Date; selectedDate: Date | null; daysWithRecords: Set<string>; onSelect: (date: Date) => void }) {
+  const [visibleMonth, setVisibleMonth] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1));
+  useEffect(() => {
+    if (!selectedDate) setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+  }, [now.getFullYear(), now.getMonth(), selectedDate]);
+  const firstDay = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+  const mondayOffset = (firstDay.getDay() + 6) % 7;
+  const days = Array.from({ length: 42 }, (_, index) => new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1 - mondayOffset + index));
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const monthIsCurrent = visibleMonth.getFullYear() === now.getFullYear() && visibleMonth.getMonth() === now.getMonth();
+  const selectedKey = localDayKey(selectedDate ?? now);
+
+  return <section className="story-calendar-section">
+    <div className="section-heading"><div><h2>Story calendar</h2><p>Choose a day to revisit its moments.</p></div></div>
+    <div className="story-calendar-card">
+      <div className="story-calendar-heading">
+        <button type="button" aria-label="Previous month" onClick={() => setVisibleMonth(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1))}>‹</button>
+        <strong>{new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(visibleMonth)}</strong>
+        <button type="button" aria-label="Next month" disabled={monthIsCurrent} onClick={() => setVisibleMonth(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1))}>›</button>
+      </div>
+      <div className="story-calendar-grid">
+        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, index) => <span className="story-calendar-weekday" key={`${day}-${index}`}>{day}</span>)}
+        {days.map((day, index) => {
+          const key = localDayKey(day);
+          const hasRecords = daysWithRecords.has(key);
+          const future = day.getTime() > todayStart.getTime();
+          const inMonth = day.getMonth() === visibleMonth.getMonth();
+          return <button key={`${key}-${index}`} type="button" disabled={future} aria-pressed={key === selectedKey} aria-label={`${formatPageDate(day)}${hasRecords ? ', has records' : ''}`} className={`${inMonth ? '' : 'outside-month'} ${key === selectedKey ? 'selected' : ''} ${hasRecords ? 'has-records' : ''}`} onClick={() => { setVisibleMonth(new Date(day.getFullYear(), day.getMonth(), 1)); onSelect(day); }}>
+            {day.getDate()}
+          </button>;
+        })}
+      </div>
+      <div className="story-calendar-legend"><span />Days with records</div>
+    </div>
+  </section>;
+}
+
 function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPetsNavigate, onAddPet, petName, petAvatar, ownerName, accounts, contexts, observations, includedMoments, hasDemoMoments, noPetYet, canEdit }: { onMoment: (momentId: string) => void; onEditStory: () => void; onEditMoment: (item: StoryTimelineItem) => void; onDeleteMoment: (momentId: string) => string; onPetsNavigate: () => void; onAddPet: () => void; petName: string; petAvatar: string; ownerName: string; accounts: PrototypeAccount[]; contexts: OwnerContext[]; observations: StoryObservation[]; includedMoments: string[] | null; hasDemoMoments: boolean; noPetYet: boolean; canEdit: boolean }) {
+  const now = useCurrentTime();
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<StoryTimelineItem | null>(null);
   const [deleteError, setDeleteError] = useState('');
+  const selectedDay = selectedDate ?? now;
+  const selectedKey = localDayKey(selectedDay);
+  const todayKey = localDayKey(now);
   const getTimelineContexts = (momentId: string) => contexts.filter((entry) => entry.momentId === momentId).map((entry) => ({ author: (entry.authorId && accounts.find((account) => account.id === entry.authorId)?.name) || entry.authorName || ownerName, text: entry.note }));
-  const moments = (hasDemoMoments ? baseMomentDefinitions : []).map((moment) => ({
+  const visibleObservations = visibleStoryObservations(observations, includedMoments)
+    .filter((observation) => new Date(observation.savedAt).getTime() <= now.getTime());
+  const selectedObservations = visibleObservations
+    .filter((observation) => localDayKey(new Date(observation.savedAt)) === selectedKey)
+    .sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime());
+  const hasGeneratedSimulation = observations.some((observation) => observation.synthetic === true);
+  const moments = (hasDemoMoments && !hasGeneratedSimulation && selectedKey === todayKey ? baseMomentDefinitions : []).map((moment) => ({
     id: moment.id,
     time: moment.time,
     title: moment.title,
     note: moment.summary,
     image: asset(moment.image),
     contexts: getTimelineContexts(moment.id),
-  }));
-  const visibleObservations = observations.filter((observation) => !observation.privateRecord && (!includedMoments || includedMoments.includes(observation.id)));
-  const todayObservations = visibleObservations.filter((observation) => isSameLocalDay(observation.savedAt));
-  const earlierObservations = visibleObservations.filter((observation) => !isSameLocalDay(observation.savedAt));
-  const visibleMoments = moments.filter(
-    (moment) =>
-      !includedMoments ||
-      includedMoments.includes(
-        moment.time === '8:10 AM'
-          ? 'breakfast'
-          : moment.time === '4:20 PM'
-            ? 'toy'
-            : 'window'
-      )
-  );
-  const todayTimelineItems = [
-    ...todayObservations.map((observation) => ({ id: observation.id, time: formatObservationTime(observation.savedAt), title: observation.title, note: observation.note, image: observationHasPrimaryMedia(observation) ? observation.image : '', mediaType: observation.mediaType, contexts: getTimelineContexts(observation.id) })),
-    ...visibleMoments,
+  })).filter((moment) => !includedMoments || includedMoments.includes(moment.id));
+  const timelineItems: StoryTimelineItem[] = [
+    ...selectedObservations.map((observation) => ({ id: observation.id, time: formatObservationTime(observation.savedAt), title: observation.title, note: observation.note, image: observationHasPrimaryMedia(observation) ? observation.image : '', mediaType: observation.mediaType, contexts: getTimelineContexts(observation.id) })),
+    ...moments,
   ];
-  const earlierTimelineItems = earlierObservations.map((observation) => ({ id: observation.id, time: formatObservationTime(observation.savedAt), title: observation.title, note: observation.note, image: observationHasPrimaryMedia(observation) ? observation.image : '', mediaType: observation.mediaType, contexts: getTimelineContexts(observation.id) }));
+  const daysWithRecords = new Set(visibleObservations.map((observation) => localDayKey(new Date(observation.savedAt))));
+  if (hasDemoMoments) daysWithRecords.add(todayKey);
 
-  const totalMomentCount =
-    todayObservations.length + visibleMoments.length;
   function confirmDelete() {
     if (!pendingDelete) return;
     const nextError = onDeleteMoment(pendingDelete.id);
@@ -743,25 +796,16 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
   }
   return (
     <>
-      <MainHeader eyebrow={noPetYet ? 'DAILY STORY' : `${petName.toUpperCase()} · DAILY STORY`} title="Daily moments" subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
+      <MainHeader eyebrow={noPetYet ? 'DAILY STORY' : `${petName.toUpperCase()} · DAILY STORY`} title="Daily moments" subtitle={formatPageDate(selectedDay)} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       {noPetYet ? <section className="today-empty-state pets-empty-state story-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <>
-      {totalMomentCount > 0 && <div className="story-summary"><img src={asset('story-heart.png')} alt="" /><strong>
-        {totalMomentCount === 0 ? (
-          'No moments yet'
-        ) : (
-          <>
-            {totalMomentCount}{' '}
-            {totalMomentCount === 1 ? 'moment' : 'moments'}, one lovely day
-          </>
-        )}
-      </strong></div>}
+      <div className="story-summary"><img src={asset('story-heart.png')} alt="" /><strong>{timelineItems.length ? `${timelineItems.length} ${timelineItems.length === 1 ? 'moment' : 'moments'} on this day` : 'No moments yet'}</strong></div>
       <section className="timeline-section">
-        <div className="section-heading"><h2>Today’s timeline</h2>{canEdit && <button className="text-link" onClick={onEditStory}>Edit story ✎</button>}</div>
-        {todayTimelineItems.length ? <div className="timeline-list">
-          {todayTimelineItems.map((item) => { return <StoryTimelineRow key={item.id} item={item} canEdit={canEdit} menuOpen={openMenuId === item.id} onMenuToggle={() => setOpenMenuId(openMenuId === item.id ? null : item.id)} onView={() => { setOpenMenuId(null); onMoment(item.id); }} onEdit={() => { setOpenMenuId(null); onEditMoment(item); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(item); }} />; })}
-        </div> : <><div className="story-summary timeline-empty-summary"><img src={asset('story-heart.png')} alt="" /><strong>No moments yet</strong></div><p className="timeline-empty-state">No moments today yet</p></>}
+        <div className="section-heading"><h2>{selectedKey === todayKey ? 'Today’s timeline' : `${formatPageDate(selectedDay)} timeline`}</h2>{canEdit && <button className="text-link" onClick={onEditStory}>Edit story ✎</button>}</div>
+        {timelineItems.length ? <div className="timeline-list">
+          {timelineItems.map((item) => <StoryTimelineRow key={item.id} item={item} canEdit={canEdit} menuOpen={openMenuId === item.id} onMenuToggle={() => setOpenMenuId(openMenuId === item.id ? null : item.id)} onView={() => { setOpenMenuId(null); onMoment(item.id); }} onEdit={() => { setOpenMenuId(null); onEditMoment(item); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(item); }} />)}
+        </div> : <p className="timeline-empty-state">{selectedKey === todayKey ? 'No moments today yet' : 'No moments recorded on this day'}</p>}
       </section>
-      {earlierTimelineItems.length > 0 && <section className="timeline-section earlier-timeline-section"><div className="section-heading"><h2>Earlier moments</h2></div><div className="timeline-list">{earlierTimelineItems.map((item) => { return <StoryTimelineRow key={item.id} item={item} canEdit={canEdit} menuOpen={openMenuId === item.id} onMenuToggle={() => setOpenMenuId(openMenuId === item.id ? null : item.id)} onView={() => { setOpenMenuId(null); onMoment(item.id); }} onEdit={() => { setOpenMenuId(null); onEditMoment(item); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(item); }} />; })}</div></section>}
+      <StoryCalendar now={now} selectedDate={selectedDate} daysWithRecords={daysWithRecords} onSelect={(date) => setSelectedDate(localDayKey(date) === todayKey ? null : date)} />
       {openMenuId && <button className="timeline-menu-dismiss" aria-label="Close moment actions" onClick={() => setOpenMenuId(null)} />}
       {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-story-moment-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-story-moment-title">Delete “{pendingDelete.title}”?</h2><p>{observations.some((entry) => entry.id === pendingDelete.id) ? 'This permanently removes this moment and its linked owner context from this pet’s Story.' : 'This removes this moment from the current Story. You can add it again later from Edit story.'}</p>{deleteError && <p className="inline-save-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete</button></div></section></div>}
       </>}
@@ -1662,6 +1706,7 @@ function PetSwitcher({ pets, activePetId, onClose, onSwitch, onAdd, onDelete, in
 }
 
 function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', ownerPreference = 'Manage your profile details here.', pets, activePetId, onPetsNavigate, onSettingsNavigate, onPetEdit, onProfileEdit, onPetSwitcher, careMembers, accounts, primaryMemberId, onMemberClick, onCareMembers, patterns, lifeEvents, mediaSources, onPatternHistory, onPattern, onLifeCare, onConnectedMedia, invitations = [], onAcceptInvitation, onDeclineInvitation, careOwnerName = ownerName, careOwnerAvatar = ownerAvatar, careOwnerRole = ownerRole, groupName = 'Care circle', canManageCareGroup = primaryMemberId === 'emily', canEditPetDetails = true, canAddLifeCare = true, canManageConnectedMedia = true, noPetYet = false }: { kind: 'pets' | 'you'; petName: string; petAvatar: string; petBreed: string; petAge: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; ownerPreference?: string; pets: PrototypePet[]; activePetId: string; accounts: PrototypeAccount[]; onPetsNavigate: () => void; onSettingsNavigate: () => void; onPetEdit: () => void; onProfileEdit: () => void; onPetSwitcher: () => void; careMembers: CareMember[]; primaryMemberId: string; onMemberClick: (id: string) => void; onCareMembers: () => void; patterns: TypicalPattern[]; lifeEvents: LifeCareEvent[]; mediaSources: MediaSource[]; onPatternHistory: () => void; onPattern: (id: string) => void; onLifeCare: (category?: 'life' | 'health') => void; onConnectedMedia: (sourceId?: string) => void; invitations?: CareInvitation[]; onAcceptInvitation?: (invite: CareInvitation) => void; onDeclineInvitation?: (inviteId: string) => void; careOwnerName?: string; careOwnerAvatar?: string; careOwnerRole?: string; groupName?: string; canManageCareGroup?: boolean; canEditPetDetails?: boolean; canAddLifeCare?: boolean; canManageConnectedMedia?: boolean; noPetYet?: boolean }) {
+  void canManageCareGroup;
   const petDetailsLabel = `${petBreed} · ${formatPetAge(petAge)}`;
   const displayPets = pets.filter((pet) => !pet.isEmptyProfile);
   const confirmedPatterns = patterns.filter((pattern) => pattern.status === 'confirmed');
@@ -2542,7 +2587,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     return true;
   }
 
-  function saveObservationsToCurrentGroup(observations: StoryObservation[], replacedId?: string): boolean {
+  function saveObservationsToCurrentGroup(observations: StoryObservation[], replacedId?: string, visibilityOverride?: string[] | null): boolean {
     if (!activeAccount || !activePetRecord) return false;
     const captured = captureCurrentSpace(prototypeSession);
     const groupId = activePetRecord.sharedGroupId;
@@ -2550,7 +2595,9 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       ? captured.accounts.flatMap((account) => account.pets.filter((pet) => pet.sharedGroupId === groupId).flatMap((pet) => pet.workspace.observations.filter((entry) => !entry.privateRecord && entry.id !== replacedId)))
       : observations.filter((entry) => !entry.privateRecord && entry.id !== replacedId);
     const replacement = replacedId ? observations.find((entry) => entry.id === replacedId && !entry.privateRecord) : undefined;
-    const sharedObservations = [...new Map([...sharedPublic, ...(replacement ? [replacement] : [])].map((entry) => [entry.id, entry])).values()].sort((left, right) => right.savedAt.localeCompare(left.savedAt));
+    // Include the updated working set: otherwise new records were silently
+    // dropped whenever this pet's Story lived in a shared care group.
+    const sharedObservations = mergeSharedStoryObservations(sharedPublic, observations, replacedId);
     const nextSession: PrototypeSession = {
       ...captured,
       accounts: captured.accounts.map((account) => ({
@@ -2560,9 +2607,11 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
           const belongsToSharedGroup = !!groupId && pet.sharedGroupId === groupId;
           if (!belongsToActivePet && !belongsToSharedGroup) return pet;
           const privateObservations = belongsToActivePet ? observations.filter((entry) => entry.privateRecord) : pet.workspace.observations.filter((entry) => entry.privateRecord);
-          const visibility = pet.workspace.visibility && replacedId
-            ? [...new Set([...pet.workspace.visibility.filter((id) => id !== replacedId), ...(replacement ? [replacement.id] : [])])]
-            : pet.workspace.visibility;
+          const visibility = visibilityOverride !== undefined
+            ? visibilityOverride
+            : pet.workspace.visibility && replacedId
+              ? [...new Set([...pet.workspace.visibility.filter((id) => id !== replacedId), ...(replacement ? [replacement.id] : [])])]
+              : pet.workspace.visibility;
           return { ...pet, workspace: { ...pet.workspace, observations: [...privateObservations, ...sharedObservations].sort((left, right) => right.savedAt.localeCompare(left.savedAt)), visibility } };
         }),
       })),
@@ -2579,6 +2628,28 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setStoryObservations(activeObservations);
     return true;
   }
+
+  useEffect(() => {
+    if (!activeAccount || !activePetRecord || activePetRecord.isEmptyProfile) return;
+    // Only the synthetic Golden Retriever demo profile owns this rolling plan;
+    // invited caregivers read the same shared records but must not seed copies.
+    if (activePetRecord.sharedGroupId && groupOwnerAccountId !== activeAccount.id) return;
+    const isSyntheticSunny = isSyntheticSunnyProfile(activePetRecord);
+    if (!isSyntheticSunny && !activePetRecord.hasDemoMoments && !storyObservations.some((observation) => observation.synthetic === true)) return;
+    const scheduled = buildRollingStorySimulation(storyObservations, new Date(), activePetRecord.id, activeAccount.id, ownerName);
+    // Older versions could save synthetic records without simulationKey and
+    // leave Story visibility pointing only at legacy IDs. Reconcile both the
+    // new schedule and any already-saved synthetic entries so the calendar and
+    // timeline cannot silently hide a valid plan.
+    const allObservations = [...storyObservations, ...scheduled];
+    const nextVisibility = Array.isArray(includedStoryMoments)
+      ? [...new Set([...includedStoryMoments, ...allObservations.filter((entry) => entry.synthetic).map((entry) => entry.id)])]
+      : undefined;
+    const visibilityNeedsRepair = !!nextVisibility && nextVisibility.length !== includedStoryMoments?.length;
+    if (scheduled.length || visibilityNeedsRepair) {
+      if (saveObservationsToCurrentGroup(allObservations, undefined, nextVisibility) && nextVisibility) setIncludedStoryMoments(nextVisibility);
+    }
+  }, [activeAccount?.id, activePetRecord?.id, activePetRecord?.sharedGroupId, groupOwnerAccountId, includedStoryMoments, ownerName, storyObservations]);
 
   function applyAccountSpace(session: PrototypeSession, accountId: string, petId: string, allowSessionOnly = false): string {
     const account = session.accounts.find((entry) => entry.id === accountId);
