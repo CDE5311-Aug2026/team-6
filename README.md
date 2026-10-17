@@ -4,8 +4,10 @@
 
 修改了story部分的新连接:补齐时间线，并在对应时间到达后逐步显示（通过提前预设未来一周活动来模拟）+ 通过日历会看以前的记录 [点这里](https://pawsona-team-6.vercel.app/)
 
-【已更新26.10.17 19：37（仍在修改中21：14）】是我测试用的链接（目前修改了时间线+日历的功能）<(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
-
+【链接已更新26.10.18 00：15】是我测试用的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
+1.目前settings里面加了关联邮箱的功能 但因为要进行设置的东西有点多我怕改坏了先搁置了 目前这块用不了
+2.优化了story页面中时间轴和日历功能的显示方式
+3.尝试增加了每日/常态时间轴的功能 目前只是做了个非常潦草的大概（跟c老师聊让它美化这个可真是让我恼火。。。并且怕做坏了只是加了一个卡片 之后可以改~
 
 The prototype is deployed on Vercel and can be accessed
 directly through any web browser without installation.
