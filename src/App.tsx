@@ -546,7 +546,9 @@ function LinkedEvidenceCard({ moment, petName, detail }: { moment: MomentRecord;
 }
 
 function OwnerAvatar({ src, name, className = '' }: { src: string; name: string; className?: string }) {
-  return <span className={`member-avatar emily-avatar owner-avatar ${className}`}>{src ? <img src={src} alt="" /> : name.slice(0, 1).toUpperCase()}</span>;
+  const [failedSrc, setFailedSrc] = useState('');
+  const showImage = Boolean(src) && failedSrc !== src;
+  return <span className={`member-avatar emily-avatar owner-avatar ${className}`}>{showImage ? <img src={src} alt="" onError={() => setFailedSrc(src)} /> : name.slice(0, 1).toUpperCase()}</span>;
 }
 
 function MainHeader({ eyebrow, title, subtitle, petName, petAvatar = '', hasPet = true, onPetsNavigate, onSettingsNavigate, className = '' }: { eyebrow: string; title: string; subtitle?: string; petName: string; petAvatar?: string; hasPet?: boolean; onPetsNavigate?: () => void; onSettingsNavigate?: () => void; className?: string }) {
@@ -2493,7 +2495,9 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     const cachedAccount = cloud?.accounts.find((account) => account.id === member.id)
       ?? cloud?.accounts.find((account) => account.username.toLowerCase() === member.name.toLowerCase());
     return { ...member, name: cachedAccount?.name || sessionAccount?.name || member.name,
-      avatar: sessionAccount?.avatar || cachedAccount?.avatar || member.avatar || '' };
+      // The care-group response is the source of truth for a member's current
+      // avatar. Remembered device accounts can still contain the previous image.
+      avatar: sessionAccount?.avatar || member.avatar || cachedAccount?.avatar || '' };
   });
   const groupOwnerMember = displayedCareMembers.find((member) => member.id === groupOwnerAccountId);
   const primaryCaregiverAvatar = !activePetRecord?.sharedGroupId || groupOwnerAccountId === activeAccount?.id
