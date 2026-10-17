@@ -146,6 +146,17 @@ function rememberDeviceAccount(accounts: DeviceCloudAccount[], username: string,
   return next;
 }
 
+async function snapshotDeviceAvatar(value: string): Promise<string> {
+  if (!value || value.startsWith('data:') || !value.startsWith('blob:')) return value;
+  const blob = await (await fetch(value)).blob();
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not cache the account avatar.'));
+    reader.onerror = () => reject(reader.error ?? new Error('Could not cache the account avatar.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
 function forgetDeviceAccount(accounts: DeviceCloudAccount[], username: string): DeviceCloudAccount[] {
   const next = accounts.filter(account => account.username.toLowerCase() !== username.toLowerCase());
   try { localStorage.setItem(DEVICE_ACCOUNTS_KEY, JSON.stringify(next)); } catch { /* In-memory state still updates. */ }
@@ -204,11 +215,11 @@ export default function CloudRoot() {
       media = new CloudMedia(user.id);
       const decodedSession = await media.decode(row.payload);
       const ownProfile = decodedSession.accounts[0];
-      const stableAvatar = ownProfile.avatar ? await media.encode(ownProfile.avatar) : undefined;
+      const deviceAvatar = ownProfile.avatar ? await snapshotDeviceAvatar(ownProfile.avatar) : undefined;
       rememberedAccountProfile.current = `${user.id}|${ownProfile.name}|${ownProfile.avatar}`;
-      const rememberedAccounts = rememberDeviceAccount(readDeviceAccounts(), username, ownProfile.name || String(user.user_metadata.display_name ?? username), stableAvatar);
+      const rememberedAccounts = rememberDeviceAccount(readDeviceAccounts(), username, ownProfile.name || String(user.user_metadata.display_name ?? username), deviceAvatar);
       setDeviceAccounts(await Promise.all(rememberedAccounts.map(async account => {
-        if (!account.avatar) return account;
+        if (!account.avatar || account.avatar.startsWith('data:')) return account;
         try { return { ...account, avatar: await media!.decode(account.avatar) }; }
         catch { return { ...account, avatar: '' }; }
       })));
@@ -306,25 +317,25 @@ export default function CloudRoot() {
       const profileKey = `${activeAccount.id}|${activeAccount.name}|${activeAccount.avatar}`;
       if (profileKey === rememberedAccountProfile.current) return;
       rememberedAccountProfile.current = profileKey;
-      // Keep the account-switcher cache in step with avatar/name changes made
-      // after login. It is local convenience data, not the canonical profile.
-      void activeWorkspace.sync.drain().then(async () => {
-        const stableAvatar = activeAccount.avatar
-          ? await activeWorkspace.media.encode(activeAccount.avatar)
-          : undefined;
+      // Keep a portable copy of this device's remembered avatar so another
+      // signed-in account can render it without reading the owner's private
+      // Storage folder.
+      void snapshotDeviceAvatar(activeAccount.avatar).then(deviceAvatar => {
         const remembered = rememberDeviceAccount(
           readDeviceAccounts(),
           activeAccount.email.split('@')[0],
           activeAccount.name,
-          stableAvatar,
+          deviceAvatar,
         );
-        const decoded = await Promise.all(remembered.map(async account => {
-          if (!account.avatar) return account;
+        const decoded = Promise.all(remembered.map(async account => {
+          if (!account.avatar || account.avatar.startsWith('data:')) return account;
           try { return { ...account, avatar: await activeWorkspace.media.decode(account.avatar) }; }
           catch { return { ...account, avatar: '' }; }
         }));
-        if (current.current === activeWorkspace) setDeviceAccounts(decoded);
-      }).catch(() => { /* The sync state reports save failures; keep the previous device cache. */ });
+        return decoded.then(accounts => {
+          if (current.current === activeWorkspace) setDeviceAccounts(accounts);
+        });
+      }).catch(() => { /* Keep the previous device cache if the image cannot be snapshotted. */ });
     } else {
       activeWorkspace?.sync.enqueue(session);
     }
