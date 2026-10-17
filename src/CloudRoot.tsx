@@ -183,6 +183,7 @@ export default function CloudRoot() {
   const generation = useRef(0);
   const choice = useRef<'guest' | null>(null);
   const latest = useRef<PrototypeSession | null>(null);
+  const rememberedAccountProfile = useRef('');
 
   const openCloud = useCallback(async (expectedId?: string) => {
     if (!supabase || choice.current === 'guest') return;
@@ -204,6 +205,7 @@ export default function CloudRoot() {
       const decodedSession = await media.decode(row.payload);
       const ownProfile = decodedSession.accounts[0];
       const stableAvatar = ownProfile.avatar ? await media.encode(ownProfile.avatar) : undefined;
+      rememberedAccountProfile.current = `${user.id}|${ownProfile.name}|${ownProfile.avatar}`;
       const rememberedAccounts = rememberDeviceAccount(readDeviceAccounts(), username, ownProfile.name || String(user.user_metadata.display_name ?? username), stableAvatar);
       setDeviceAccounts(await Promise.all(rememberedAccounts.map(async account => {
         if (!account.avatar) return account;
@@ -301,6 +303,9 @@ export default function CloudRoot() {
     const activeAccount = session.accounts.find(account => account.id === session.activeAccountId);
     if (activeWorkspace && activeAccount?.id === activeWorkspace.id) {
       activeWorkspace.sync.enqueue(session);
+      const profileKey = `${activeAccount.id}|${activeAccount.name}|${activeAccount.avatar}`;
+      if (profileKey === rememberedAccountProfile.current) return;
+      rememberedAccountProfile.current = profileKey;
       // Keep the account-switcher cache in step with avatar/name changes made
       // after login. It is local convenience data, not the canonical profile.
       void activeWorkspace.sync.drain().then(async () => {
