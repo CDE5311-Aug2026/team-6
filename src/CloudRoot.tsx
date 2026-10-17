@@ -15,6 +15,23 @@ type Workspace = {
 
 type DeviceCloudAccount = { username: string; name: string; avatar?: string };
 
+async function decodeCareGroups(groups: Awaited<ReturnType<typeof listCloudCareGroups>>, media: CloudMedia) {
+  return Promise.all(groups.map(async (group) => {
+    const workspace = { ...group.workspace };
+    // Member avatars are decoded independently so one inaccessible or stale
+    // image cannot prevent the rest of the group's member list from loading.
+    delete workspace.careMembers;
+    const { members, ...groupWithoutMembers } = group;
+    const decodedGroup = await media.decode({ ...groupWithoutMembers, workspace, members: [] });
+    const decodedMembers = await Promise.all(members.map(async (member) => {
+      if (!member.avatar) return member;
+      try { return { ...member, avatar: await media.decode(member.avatar) }; }
+      catch { return { ...member, avatar: '' }; }
+    }));
+    return { ...decodedGroup, members: decodedMembers };
+  }));
+}
+
 function usableMediaUrl(value: unknown, media: CloudMedia): value is string {
   return typeof value === 'string' && value.length > 0 && (!value.startsWith('blob:') || media.isLiveObjectUrl(value));
 }
@@ -194,7 +211,7 @@ export default function CloudRoot() {
         catch { return { ...account, avatar: '' }; }
       })));
       let initialSession = decodedSession;
-      try { initialSession = attachCloudCareGroups(decodedSession, await media.decode(await listCloudCareGroups()), media); }
+      try { initialSession = attachCloudCareGroups(decodedSession, await decodeCareGroups(await listCloudCareGroups(), media), media); }
       catch { /* A not-yet-applied care-group migration must not block account sign-in. */ }
       if (ticket !== generation.current) { media.dispose(); return; }
       const codec = media;
@@ -296,7 +313,7 @@ export default function CloudRoot() {
         initialSession: workspace.initialSession, save, signOut: () => { void signOut(); }, addAnotherAccount: () => { void addAnotherAccount(); },
         accounts: deviceAccounts, switchAccount: switchToDeviceAccount, removeAccount: removeDeviceAccount,
         listInvitations: async () => workspace.media.decode(await listCloudCareInvitations()),
-        listGroups: async () => workspace.media.decode(await listCloudCareGroups()),
+        listGroups: async () => decodeCareGroups(await listCloudCareGroups(), workspace.media),
         sendInvitation: async (input) => sendCloudCareInvitation(await workspace.media.encode(input)),
         respondInvitation: async (id, response) => {
           const group = await respondToCloudCareInvitation(id, response);
@@ -337,3 +354,4 @@ export default function CloudRoot() {
     {error && <div className="cloud-entry-recovery"><button onClick={() => { void openCloud(); }}>Retry loading</button><button onClick={() => { void logoutCloudAccount().catch(() => {}); }}>Sign out</button></div>}
   </>;
 }
+
