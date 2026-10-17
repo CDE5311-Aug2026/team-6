@@ -126,7 +126,12 @@ export async function writeCloudWorkspace<T extends object>(payload: T, expected
 export async function saveCloudProfile(displayName: string, avatarPath: string, expectedUserId: string) {
   const user = await verifiedUser();
   if (user.id !== expectedUserId) throw new Error('Your account changed. Reload before saving.');
-  const { error } = await client().from('profiles').upsert({ id: user.id, display_name: displayName, avatar_path: avatarPath || null });
+  // An empty workspace avatar can happen in older sessions. Omit the column
+  // so an unrelated sync cannot erase an avatar already saved in profiles.
+  const query = avatarPath
+    ? client().from('profiles').upsert({ id: user.id, display_name: displayName, avatar_path: avatarPath })
+    : client().from('profiles').update({ display_name: displayName }).eq('id', user.id);
+  const { error } = await query;
   if (error) throw error;
 }
 

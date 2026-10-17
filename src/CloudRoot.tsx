@@ -13,7 +13,7 @@ type Workspace = {
   sync: CloudSync<PrototypeSession>;
 };
 
-type DeviceCloudAccount = { username: string; name: string };
+type DeviceCloudAccount = { username: string; name: string; avatar?: string };
 
 function usableMediaUrl(value: unknown, media: CloudMedia): value is string {
   return typeof value === 'string' && value.length > 0 && (!value.startsWith('blob:') || media.isLiveObjectUrl(value));
@@ -120,10 +120,11 @@ function readDeviceAccounts(): DeviceCloudAccount[] {
   } catch { return []; }
 }
 
-function rememberDeviceAccount(accounts: DeviceCloudAccount[], username: string, name: string): DeviceCloudAccount[] {
+function rememberDeviceAccount(accounts: DeviceCloudAccount[], username: string, name: string, avatar?: string): DeviceCloudAccount[] {
   const normalized = username.trim().toLowerCase();
   if (!normalized) return accounts;
-  const next = [{ username: normalized, name: name.trim() || normalized }, ...accounts.filter(account => account.username.toLowerCase() !== normalized)];
+  const existing = accounts.find(account => account.username.toLowerCase() === normalized);
+  const next = [{ username: normalized, name: name.trim() || normalized, avatar: avatar || existing?.avatar }, ...accounts.filter(account => account.username.toLowerCase() !== normalized)];
   try { localStorage.setItem(DEVICE_ACCOUNTS_KEY, JSON.stringify(next)); } catch { /* Account remains usable if browser storage is unavailable. */ }
   return next;
 }
@@ -181,10 +182,17 @@ export default function CloudRoot() {
         createCloudSession(user.id, user.email ?? '', String(user.user_metadata.display_name ?? 'Pet caregiver').slice(0, 120)), user.id,
       );
       const username = (user.email ?? '').split('@')[0];
-      setDeviceAccounts(accounts => rememberDeviceAccount(accounts, username, row?.payload.accounts?.[0]?.name ?? String(user.user_metadata.display_name ?? username)));
       if (row && !validSession(row.payload, user.id)) throw new Error('Your workspace could not be read safely. Please contact the project team.');
       media = new CloudMedia(user.id);
       const decodedSession = await media.decode(row.payload);
+      const ownProfile = decodedSession.accounts[0];
+      const stableAvatar = ownProfile.avatar ? await media.encode(ownProfile.avatar) : undefined;
+      const rememberedAccounts = rememberDeviceAccount(readDeviceAccounts(), username, ownProfile.name || String(user.user_metadata.display_name ?? username), stableAvatar);
+      setDeviceAccounts(await Promise.all(rememberedAccounts.map(async account => {
+        if (!account.avatar) return account;
+        try { return { ...account, avatar: await media!.decode(account.avatar) }; }
+        catch { return { ...account, avatar: '' }; }
+      })));
       let initialSession = decodedSession;
       try { initialSession = attachCloudCareGroups(decodedSession, await media.decode(await listCloudCareGroups()), media); }
       catch { /* A not-yet-applied care-group migration must not block account sign-in. */ }

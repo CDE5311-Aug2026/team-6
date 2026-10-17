@@ -549,9 +549,9 @@ function OwnerAvatar({ src, name, className = '' }: { src: string; name: string;
   return <span className={`member-avatar emily-avatar owner-avatar ${className}`}>{src ? <img src={src} alt="" /> : name.slice(0, 1).toUpperCase()}</span>;
 }
 
-function MainHeader({ eyebrow, title, subtitle, petName, petAvatar = '', hasPet = true, onPetsNavigate, onSettingsNavigate }: { eyebrow: string; title: string; subtitle?: string; petName: string; petAvatar?: string; hasPet?: boolean; onPetsNavigate?: () => void; onSettingsNavigate?: () => void }) {
+function MainHeader({ eyebrow, title, subtitle, petName, petAvatar = '', hasPet = true, onPetsNavigate, onSettingsNavigate, className = '' }: { eyebrow: string; title: string; subtitle?: string; petName: string; petAvatar?: string; hasPet?: boolean; onPetsNavigate?: () => void; onSettingsNavigate?: () => void; className?: string }) {
   return (
-    <header className="main-header">
+    <header className={`main-header ${className}`}>
       <div>
         <p className="eyebrow">{eyebrow}</p>
         <h1>{title}</h1>
@@ -697,7 +697,7 @@ function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, pe
   );
 }
 
-type StoryTimelineItem = { id: string; time: string; title: string; note: string; image: string; mediaType?: string; contexts?: { author: string; text: string }[] };
+type StoryTimelineItem = { id: string; time: string; title: string; note: string; image: string; dateKey: string; timestamp: number; mediaType?: string; contexts?: { author: string; text: string }[] };
 
 function TimelineContextTicker({ contexts }: { contexts: { author: string; text: string }[] }) {
   const latest = contexts[0];
@@ -706,7 +706,7 @@ function TimelineContextTicker({ contexts }: { contexts: { author: string; text:
 
 function StoryTimelineRow({ item, showTime = true, canEdit, menuOpen, onMenuToggle, onView, onEdit, onDelete }: { item: StoryTimelineItem; showTime?: boolean; canEdit: boolean; menuOpen: boolean; onMenuToggle: () => void; onView: () => void; onEdit: () => void; onDelete: () => void }) {
   const [date, time] = item.time.split('\n');
-  return <div className="timeline-row">
+  return <div className="timeline-row" data-story-date={item.dateKey}>
     <span className="timeline-time">{showTime && <><span className="timeline-date">{date}</span><span>{time}</span></>}</span>
     <div className={`timeline-card ${item.image ? '' : 'text-only-timeline-card'}`}>
       <button className={`timeline-card-main ${item.image ? '' : 'no-media'}`} aria-label={`View details for ${item.title}`} onClick={onView}>
@@ -747,7 +747,7 @@ function StoryCalendar({ now, selectedDate, daysWithRecords, onSelect }: { now: 
           const hasRecords = daysWithRecords.has(key);
           const future = day.getTime() > todayStart.getTime();
           const inMonth = day.getMonth() === visibleMonth.getMonth();
-          return <button key={`${key}-${index}`} type="button" disabled={future} aria-pressed={key === selectedKey} aria-label={`${formatPageDate(day)}${hasRecords ? ', has records' : ''}`} className={`${inMonth ? '' : 'outside-month'} ${key === selectedKey ? 'selected' : ''} ${hasRecords ? 'has-records' : ''}`} onClick={() => { setVisibleMonth(new Date(day.getFullYear(), day.getMonth(), 1)); onSelect(day); }}>
+          return <button key={`${key}-${index}`} type="button" disabled={future} aria-pressed={key === selectedKey} aria-label={`${formatPageDate(day)}${hasRecords ? ', has records' : ''}`} className={`${inMonth ? '' : 'outside-month'} ${key === selectedKey ? 'selected' : ''} ${key === localDayKey(now) ? 'today' : ''} ${hasRecords ? 'has-records' : ''}`} onClick={() => { setVisibleMonth(new Date(day.getFullYear(), day.getMonth(), 1)); onSelect(day); }}>
             {day.getDate()}
           </button>;
         })}
@@ -760,33 +760,81 @@ function StoryCalendar({ now, selectedDate, daysWithRecords, onSelect }: { now: 
 function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPetsNavigate, onAddPet, petName, petAvatar, ownerName, accounts, contexts, observations, includedMoments, hasDemoMoments, noPetYet, canEdit }: { onMoment: (momentId: string) => void; onEditStory: () => void; onEditMoment: (item: StoryTimelineItem) => void; onDeleteMoment: (momentId: string) => string; onPetsNavigate: () => void; onAddPet: () => void; petName: string; petAvatar: string; ownerName: string; accounts: PrototypeAccount[]; contexts: OwnerContext[]; observations: StoryObservation[]; includedMoments: string[] | null; hasDemoMoments: boolean; noPetYet: boolean; canEdit: boolean }) {
   const now = useCurrentTime();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<StoryTimelineItem | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const selectedDay = selectedDate ?? now;
   const selectedKey = localDayKey(selectedDay);
   const todayKey = localDayKey(now);
+  const [summaryDateKey, setSummaryDateKey] = useState(todayKey);
+  const [summaryCompact, setSummaryCompact] = useState(false);
   const getTimelineContexts = (momentId: string) => contexts.filter((entry) => entry.momentId === momentId).map((entry) => ({ author: (entry.authorId && accounts.find((account) => account.id === entry.authorId)?.name) || entry.authorName || ownerName, text: entry.note }));
   const visibleObservations = visibleStoryObservations(observations, includedMoments)
     .filter((observation) => new Date(observation.savedAt).getTime() <= now.getTime());
-  const selectedObservations = visibleObservations
-    .filter((observation) => localDayKey(new Date(observation.savedAt)) === selectedKey)
-    .sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime());
   const hasGeneratedSimulation = observations.some((observation) => observation.synthetic === true);
-  const moments = (hasDemoMoments && !hasGeneratedSimulation && selectedKey === todayKey ? baseMomentDefinitions : []).map((moment) => ({
-    id: moment.id,
-    time: moment.time,
-    title: moment.title,
-    note: moment.summary,
-    image: asset(moment.image),
-    contexts: getTimelineContexts(moment.id),
-  })).filter((moment) => !includedMoments || includedMoments.includes(moment.id));
+  const moments = (hasDemoMoments && !hasGeneratedSimulation ? baseMomentDefinitions : []).map((moment) => {
+    const [clock, period] = moment.time.split(' ');
+    const [hour, minute] = clock.split(':').map(Number);
+    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    date.setHours((hour % 12) + (period === 'PM' ? 12 : 0), minute, 0, 0);
+    return { id: moment.id, time: formatObservationTime(date.toISOString()), title: moment.title, note: moment.summary, image: asset(moment.image), dateKey: localDayKey(date), timestamp: date.getTime(), contexts: getTimelineContexts(moment.id) };
+  }).filter((moment) => !includedMoments || includedMoments.includes(moment.id));
   const timelineItems: StoryTimelineItem[] = [
-    ...selectedObservations.map((observation) => ({ id: observation.id, time: formatObservationTime(observation.savedAt), title: observation.title, note: observation.note, image: observationHasPrimaryMedia(observation) ? observation.image : '', mediaType: observation.mediaType, contexts: getTimelineContexts(observation.id) })),
+    ...visibleObservations.map((observation) => { const date = new Date(observation.savedAt); return { id: observation.id, time: formatObservationTime(observation.savedAt), title: observation.title, note: observation.note, image: observationHasPrimaryMedia(observation) ? observation.image : '', mediaType: observation.mediaType, contexts: getTimelineContexts(observation.id), dateKey: localDayKey(date), timestamp: date.getTime() }; }),
     ...moments,
+  ].sort((left, right) => right.timestamp - left.timestamp);
+  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6).getTime();
+  const recentGroups = new Map<string, StoryTimelineItem[]>();
+  const earlierItems: StoryTimelineItem[] = [];
+  timelineItems.forEach((item) => {
+    if (item.timestamp < weekStart) earlierItems.push(item);
+    else recentGroups.set(item.dateKey, [...(recentGroups.get(item.dateKey) ?? []), item]);
+  });
+  const timelineGroups = [
+    ...Array.from(recentGroups, ([dateKey, items]) => ({ id: dateKey, title: dateKey === todayKey ? 'Today’s timeline' : `${formatPageDate(new Date(`${dateKey}T12:00:00`))} timeline`, items })),
+    ...(earlierItems.length ? [{ id: 'earlier', title: 'Earlier timeline', items: earlierItems }] : []),
   ];
+  const timelineGroupKey = timelineGroups.map((group) => group.id).join('|');
+  useEffect(() => {
+    const scroller = document.querySelector('.screen-scroll');
+    const summary = document.getElementById('story-summary-card');
+    if (!scroller || !summary) return;
+    let frame = 0;
+    const updateSummaryDate = () => {
+      setSummaryCompact((current) => current === (scroller.scrollTop > 8) ? current : scroller.scrollTop > 8);
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const threshold = summary.getBoundingClientRect().bottom + 20;
+        let nextDateKey = todayKey;
+        document.querySelectorAll<HTMLElement>('[data-story-date]').forEach((element) => {
+          if (element.getBoundingClientRect().top <= threshold) nextDateKey = element.dataset.storyDate ?? todayKey;
+        });
+        setSummaryDateKey((current) => current === nextDateKey ? current : nextDateKey);
+      });
+    };
+    scroller.addEventListener('scroll', updateSummaryDate, { passive: true });
+    window.addEventListener('resize', updateSummaryDate);
+    updateSummaryDate();
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      scroller.removeEventListener('scroll', updateSummaryDate);
+      window.removeEventListener('resize', updateSummaryDate);
+    };
+  }, [todayKey, timelineGroupKey]);
+  const summaryCount = timelineItems.filter((item) => item.dateKey === summaryDateKey).length;
   const daysWithRecords = new Set(visibleObservations.map((observation) => localDayKey(new Date(observation.savedAt))));
   if (hasDemoMoments) daysWithRecords.add(todayKey);
+
+  function selectCalendarDate(date: Date) {
+    setSelectedDate(date);
+    setCalendarOpen(false);
+    const key = localDayKey(date);
+    setSummaryDateKey(key);
+    const groupId = timelineGroups.some((group) => group.id === key) ? key : 'earlier';
+    const target = document.querySelector<HTMLElement>(`.timeline-row[data-story-date="${key}"]`) ?? document.querySelector<HTMLElement>(`#story-day-${groupId} .section-heading`);
+    window.requestAnimationFrame(() => target?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
 
   function confirmDelete() {
     if (!pendingDelete) return;
@@ -796,16 +844,19 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
   }
   return (
     <>
-      <MainHeader eyebrow={noPetYet ? 'DAILY STORY' : `${petName.toUpperCase()} · DAILY STORY`} title="Daily moments" subtitle={formatPageDate(selectedDay)} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
+      <MainHeader eyebrow={noPetYet ? 'DAILY STORY' : `${petName.toUpperCase()} · DAILY STORY`} title="Daily moments" subtitle={formatPageDate(selectedDay)} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} className="story-main-header" />
       {noPetYet ? <section className="today-empty-state pets-empty-state story-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <>
-      <div className="story-summary"><img src={asset('story-heart.png')} alt="" /><strong>{timelineItems.length ? `${timelineItems.length} ${timelineItems.length === 1 ? 'moment' : 'moments'} on this day` : 'No moments yet'}</strong></div>
+      <div id="story-summary-card" className={`story-summary-wrap ${summaryCompact ? 'is-compact' : ''} ${calendarOpen ? 'calendar-open' : ''}`}>
+        <div className="story-summary"><img src={asset('story-heart.png')} alt="" /><strong>{summaryCount} {summaryCount === 1 ? 'moment' : 'moments'} {summaryDateKey === todayKey ? 'today' : 'on this day'}</strong><button className="story-calendar-toggle" type="button" aria-label={calendarOpen ? 'Close story calendar' : 'Open story calendar'} aria-expanded={calendarOpen} onClick={() => setCalendarOpen((open) => !open)}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M7.5 3v4M16.5 3v4M4 9.5h16M7.5 13h2M12 13h2M7.5 16.5h2M12 16.5h2"/></svg></button></div>
+        {calendarOpen && <StoryCalendar now={now} selectedDate={selectedDate} daysWithRecords={daysWithRecords} onSelect={selectCalendarDate} />}
+      </div>
       <section className="timeline-section">
-        <div className="section-heading"><h2>{selectedKey === todayKey ? 'Today’s timeline' : `${formatPageDate(selectedDay)} timeline`}</h2>{canEdit && <button className="text-link" onClick={onEditStory}>Edit story ✎</button>}</div>
-        {timelineItems.length ? <div className="timeline-list">
-          {timelineItems.map((item) => <StoryTimelineRow key={item.id} item={item} canEdit={canEdit} menuOpen={openMenuId === item.id} onMenuToggle={() => setOpenMenuId(openMenuId === item.id ? null : item.id)} onView={() => { setOpenMenuId(null); onMoment(item.id); }} onEdit={() => { setOpenMenuId(null); onEditMoment(item); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(item); }} />)}
-        </div> : <p className="timeline-empty-state">{selectedKey === todayKey ? 'No moments today yet' : 'No moments recorded on this day'}</p>}
+        {timelineGroups.length ? timelineGroups.map((group, groupIndex) => <section className={`timeline-day-group ${selectedDate && localDayKey(selectedDate) === group.id && summaryDateKey === group.id ? 'calendar-target' : ''}`} id={`story-day-${group.id}`} key={group.id}>
+          <div className="section-heading" data-story-date={group.id === 'earlier' ? undefined : group.id}><h2>{group.title}</h2>{canEdit && groupIndex === 0 && <button className="text-link" onClick={onEditStory}>Edit story ✎</button>}</div>
+          <div className="timeline-list">{group.items.map((item) => <StoryTimelineRow key={item.id} item={item} canEdit={canEdit} menuOpen={openMenuId === item.id} onMenuToggle={() => setOpenMenuId(openMenuId === item.id ? null : item.id)} onView={() => { setOpenMenuId(null); onMoment(item.id); }} onEdit={() => { setOpenMenuId(null); onEditMoment(item); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(item); }} />)}</div>
+        </section>) : <><div className="section-heading"><h2>{selectedKey === todayKey ? 'Today’s timeline' : `${formatPageDate(selectedDay)} timeline`}</h2>{canEdit && <button className="text-link" onClick={onEditStory}>Edit story ✎</button>}</div><p className="timeline-empty-state">{selectedKey === todayKey ? 'No moments today yet' : 'No moments recorded on this day'}</p></>}
       </section>
-      <StoryCalendar now={now} selectedDate={selectedDate} daysWithRecords={daysWithRecords} onSelect={(date) => setSelectedDate(localDayKey(date) === todayKey ? null : date)} />
+      {summaryDateKey !== todayKey && <button className="story-back-top" type="button" aria-label="Back to today" title="Back to today" onClick={() => document.querySelector<HTMLElement>('.screen-scroll')?.scrollTo({ top: 0, behavior: 'smooth' })}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg></button>}
       {openMenuId && <button className="timeline-menu-dismiss" aria-label="Close moment actions" onClick={() => setOpenMenuId(null)} />}
       {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-story-moment-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-story-moment-title">Delete “{pendingDelete.title}”?</h2><p>{observations.some((entry) => entry.id === pendingDelete.id) ? 'This permanently removes this moment and its linked owner context from this pet’s Story.' : 'This removes this moment from the current Story. You can add it again later from Edit story.'}</p>{deleteError && <p className="inline-save-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete</button></div></section></div>}
       </>}
@@ -2437,9 +2488,12 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const groupOwnerAccountId = activePetRecord?.sharedOwnerAccountId ?? (activePetRecord?.sharedGroupId ? activePetRecord.sharedGroupId.split(':')[0] : undefined);
   const groupOwnerAccount = prototypeSession.accounts.find((account) => account.id === groupOwnerAccountId);
   const displayedCareMembers = careMembers.map((member) => {
+    const sessionAccount = prototypeSession.accounts.find((account) => account.id === member.id
+      || (!!member.email && account.email.toLowerCase() === member.email.toLowerCase()));
     const cachedAccount = cloud?.accounts.find((account) => account.id === member.id)
       ?? cloud?.accounts.find((account) => account.username.toLowerCase() === member.name.toLowerCase());
-    return cachedAccount ? { ...member, name: cachedAccount.name || member.name, avatar: cachedAccount.avatar ?? member.avatar ?? '' } : member;
+    return { ...member, name: cachedAccount?.name || sessionAccount?.name || member.name,
+      avatar: sessionAccount?.avatar || cachedAccount?.avatar || member.avatar || '' };
   });
   const groupOwnerMember = displayedCareMembers.find((member) => member.id === groupOwnerAccountId);
   const primaryCaregiverAvatar = !activePetRecord?.sharedGroupId || groupOwnerAccountId === activeAccount?.id
@@ -3613,9 +3667,12 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
                     {cloud.accounts.map(account => {
                       const currentUsername = activeAccount.email.endsWith('@users.pawsona.invalid') ? activeAccount.email.split('@')[0].toLowerCase() : activeAccount.email.toLowerCase();
                       const isCurrent = account.username.toLowerCase() === currentUsername;
+                      const sharedMember = displayedCareMembers.find(member =>
+                        member.name.toLowerCase() === account.name.toLowerCase()
+                        || member.name.toLowerCase() === account.username.toLowerCase());
                       return <div key={account.username} className={`settings-account-row ${isCurrent ? 'current' : ''}`}>
                         <button className="settings-account-switch" aria-current={isCurrent ? 'true' : undefined} onClick={() => { if (!isCurrent) cloud.switchAccount(account.username); }}>
-                          <OwnerAvatar src={isCurrent ? ownerAvatar : account.avatar ?? ''} name={isCurrent ? ownerName : account.name} />
+                          <OwnerAvatar src={isCurrent ? ownerAvatar : account.avatar || sharedMember?.avatar || ''} name={isCurrent ? ownerName : account.name} />
                           <span><strong>{isCurrent ? ownerName : account.name}</strong><small>{account.username}</small></span>
                           <em>{isCurrent ? 'Current' : 'Switch'}</em>
                         </button>
