@@ -297,7 +297,32 @@ export default function CloudRoot() {
   };
   const save = useCallback((session: PrototypeSession) => {
     latest.current = session;
-    current.current?.sync.enqueue(session);
+    const activeWorkspace = current.current;
+    const activeAccount = session.accounts.find(account => account.id === session.activeAccountId);
+    if (activeWorkspace && activeAccount?.id === activeWorkspace.id) {
+      activeWorkspace.sync.enqueue(session);
+      // Keep the account-switcher cache in step with avatar/name changes made
+      // after login. It is local convenience data, not the canonical profile.
+      void activeWorkspace.sync.drain().then(async () => {
+        const stableAvatar = activeAccount.avatar
+          ? await activeWorkspace.media.encode(activeAccount.avatar)
+          : undefined;
+        const remembered = rememberDeviceAccount(
+          readDeviceAccounts(),
+          activeAccount.email.split('@')[0],
+          activeAccount.name,
+          stableAvatar,
+        );
+        const decoded = await Promise.all(remembered.map(async account => {
+          if (!account.avatar) return account;
+          try { return { ...account, avatar: await activeWorkspace.media.decode(account.avatar) }; }
+          catch { return { ...account, avatar: '' }; }
+        }));
+        if (current.current === activeWorkspace) setDeviceAccounts(decoded);
+      }).catch(() => { /* The sync state reports save failures; keep the previous device cache. */ });
+    } else {
+      activeWorkspace?.sync.enqueue(session);
+    }
   }, []);
   function downloadBackup() {
     if (!latest.current) return;
