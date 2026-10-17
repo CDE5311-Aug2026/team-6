@@ -4,7 +4,7 @@
 
 修改了story部分的新连接:补齐时间线，并在对应时间到达后逐步显示（通过提前预设未来一周活动来模拟）+ 通过日历会看以前的记录 [点这里](https://pawsona-team-6.vercel.app/)
 
-【已更新26.10.17 19：37】是我测试用的链接（目前修改了时间线+日历的功能）<(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
+【已更新26.10.17 19：37（仍在修改中21：14）】是我测试用的链接（目前修改了时间线+日历的功能）<(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
 
 
 The prototype is deployed on Vercel and can be accessed
