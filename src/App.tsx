@@ -2549,7 +2549,9 @@ type AppProps = {
   notice?: ReactNode;
   cloud?: {
     initialSession: PrototypeSession; save: (session: PrototypeSession) => void; signOut: () => void; addAnotherAccount: () => void;
-    username: string; requestEmailChange: (email: string) => Promise<void>; verifyEmailCode: (email: string, code: string) => Promise<void>;
+    username?: string;
+    requestEmailChange?: (email: string) => Promise<void>;
+    verifyEmailCode?: (email: string, code: string) => Promise<void>;
     accounts: { id?: string; username: string; name: string; avatar?: string; loginEmail?: string }[]; switchAccount: (username: string, loginEmail?: string) => void; removeAccount: (username: string) => Promise<void>;
     listInvitations: () => Promise<CloudCareInvitation[]>;
     listGroups: () => Promise<CloudCareGroup[]>;
@@ -3939,7 +3941,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
                   <h2>Account</h2>
                   <div className="profile-card settings-account-list">
                     {cloud.accounts.map(account => {
-                      const currentUsername = cloud.username.toLowerCase();
+                      const currentUsername = (cloud.username ?? activeAccount.email.split('@')[0]).toLowerCase();
                       const isCurrent = account.username.toLowerCase() === currentUsername;
                       const sharedMember = displayedCareMembers.find(member =>
                         member.name.toLowerCase() === account.name.toLowerCase()
@@ -3955,7 +3957,11 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
                     })}
                     <button className="settings-create-account" onClick={cloud.addAnotherAccount}>＋ Add another account</button>
                   </div>
-                  <CloudEmailLink email={activeAccount.email} onSubmit={cloud.requestEmailChange} onVerify={cloud.verifyEmailCode} />
+                  {cloud.requestEmailChange && cloud.verifyEmailCode ? (
+                    <CloudEmailLink email={activeAccount.email} onSubmit={cloud.requestEmailChange} onVerify={cloud.verifyEmailCode} />
+                  ) : (
+                    <p role="status">Email association is not available yet. Continue using your username and password.</p>
+                  )}
                   <button className="settings-signout-row" onClick={() => setShowSignOutConfirm(true)}><span className="settings-signout-icon" aria-hidden="true">↪</span><span><strong>Sign out</strong><small>Your cloud records will remain in your account</small></span><i>›</i></button>
                 </section>
                 <section className="settings-hub-section">
