@@ -1,6 +1,6 @@
 ### Live Demo
 
-**[Click here to explore our interactive prototype](https://pawsona-team6-preview.vercel.app/)**
+**Click here to explore our interactive prototype: https://pawsona-team6.vercel.app/**
 
 修改了story部分的新连接:补齐时间线，并在对应时间到达后逐步显示（通过提前预设未来一周活动来模拟）+ 通过日历会看以前的记录 [点这里](https://pawsona-team-6.vercel.app/)
 
