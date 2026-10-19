@@ -1,3 +1,5 @@
+import SettingsPanels, { readPreferences } from './SettingsPanels';
+import { summarizeRoutine } from './routineSummary';
 import Welcome from './Welcome';
 import { requestAskAI } from './askAI';
 import { searchCareAccounts, type CareAccountSearchResult, type CloudCareGroup, type CloudCareInvitation } from './cloud';
@@ -643,6 +645,7 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
 
 function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary }: { petName: string; petAvatar: string; moments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void }) {
   const [view, setView] = useState<'today' | 'pattern'>('today');
+  const routine = summarizeRoutine(moments);
   const [dayOffset, setDayOffset] = useState(0);
   const [openMomentId, setOpenMomentId] = useState<string | null>(null);
   const dragStart = useRef<number | null>(null);
@@ -708,6 +711,13 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary }:
         <button type="button" role="tab" aria-selected={view === 'pattern'} className={view === 'pattern' ? 'active' : ''} onClick={() => setView('pattern')}>Pattern</button>
       </div>
     </header>
+    {view === 'pattern' ? <div className="routine-summary" role="tabpanel" aria-label="Recorded routine summary">
+      <h3>Recent recorded routine</h3>
+      <p>Last 7 complete days (local time): {routine.start.toLocaleDateString('en-GB')} - {new Date(+routine.end - 1).toLocaleDateString('en-GB')}. {routine.count} records across {routine.days} days{routine.capped ? ' (latest 100 only)' : ''}.</p>
+      {routine.simulated && <p className="routine-note">Includes simulated test records.</p>}
+      {!routine.ready ? <><strong>More recorded days needed</strong><p>Collect at least 8 moments across 3 days. You can add observations in Story or a confirmed pattern in Pets.</p></> : routine.patterns.length ? <ul>{routine.patterns.map(pattern => <li key={pattern.category}><strong>{pattern.category}</strong><span>Most recorded in {pattern.period} · {pattern.count} moments on {pattern.days} days</span></li>)}</ul> : <p>No activity category repeats across 3 days yet. Add more named meal, walk, rest or play moments in Story.</p>}
+      <p className="routine-note">A simple count of recorded times, not an AI diagnosis or confirmed baseline. Missing records do not mean an activity did not happen. New moments update this summary automatically.</p>
+    </div> : <>
     <p className="daily-rhythm-caption" aria-live="polite">{latestMoment ? `${displayName}’s latest activity: ${latestMoment.title}` : `${displayName} has no recorded moments yet`}</p>
     <div className="daily-rhythm-chart">
       <svg viewBox="0 0 600 460" role="application" tabIndex={0} aria-label={`Daily moments for ${dayTitle.toLowerCase()}. Swipe right to view the previous day.`}
@@ -795,7 +805,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary }:
         <text className="daily-rhythm-center-date" x="300" y="327" textAnchor="middle">{selectedDateLabel}</text>
       </svg>
     </div>
-    <p className="daily-rhythm-footnote">Routine insights will appear here as moments are collected.</p>
+    <p className="daily-rhythm-footnote">Open Pattern for a summary of recent recorded times.</p></>}
   </section>;
 }
 
@@ -971,6 +981,10 @@ function StoryCalendar({ now, selectedDate, daysWithRecords, onSelect }: { now: 
   </section>;
 }
 
+function preferredScrollBehavior(): ScrollBehavior {
+  return document.querySelector('.phone.reduce-motion') || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+}
+
 function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPetsNavigate, onAddPet, petName, petAvatar, ownerName, accounts, contexts, observations, includedMoments, hasDemoMoments, noPetYet, canEdit }: { onMoment: (momentId: string) => void; onEditStory: () => void; onEditMoment: (item: StoryTimelineItem) => void; onDeleteMoment: (momentId: string) => string; onPetsNavigate: () => void; onAddPet: () => void; petName: string; petAvatar: string; ownerName: string; accounts: PrototypeAccount[]; contexts: OwnerContext[]; observations: StoryObservation[]; includedMoments: string[] | null; hasDemoMoments: boolean; noPetYet: boolean; canEdit: boolean }) {
   const now = useCurrentTime();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -1047,7 +1061,7 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
     setSummaryDateKey(key);
     const groupId = timelineGroups.some((group) => group.id === key) ? key : 'earlier';
     const target = document.querySelector<HTMLElement>(`.timeline-row[data-story-date="${key}"]`) ?? document.querySelector<HTMLElement>(`#story-day-${groupId} .section-heading`);
-    window.requestAnimationFrame(() => target?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    window.requestAnimationFrame(() => target?.scrollIntoView({ behavior: preferredScrollBehavior(), block: 'start' }));
   }
 
   function confirmDelete() {
@@ -1070,7 +1084,7 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
           <div className="timeline-list">{group.items.map((item) => <StoryTimelineRow key={item.id} item={item} canEdit={canEdit} menuOpen={openMenuId === item.id} onMenuToggle={() => setOpenMenuId(openMenuId === item.id ? null : item.id)} onView={() => { setOpenMenuId(null); onMoment(item.id); }} onEdit={() => { setOpenMenuId(null); onEditMoment(item); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(item); }} />)}</div>
         </section>) : <><div className="section-heading"><h2>{selectedKey === todayKey ? 'Today’s timeline' : `${formatPageDate(selectedDay)} timeline`}</h2>{canEdit && <button className="text-link" onClick={onEditStory}>Edit story ✎</button>}</div><p className="timeline-empty-state">{selectedKey === todayKey ? 'No moments today yet' : 'No moments recorded on this day'}</p></>}
       </section>
-      {summaryDateKey !== todayKey && <button className="story-back-top" type="button" aria-label="Back to today" title="Back to today" onClick={() => document.querySelector<HTMLElement>('.screen-scroll')?.scrollTo({ top: 0, behavior: 'smooth' })}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg></button>}
+      {summaryDateKey !== todayKey && <button className="story-back-top" type="button" aria-label="Back to today" title="Back to today" onClick={() => document.querySelector<HTMLElement>('.screen-scroll')?.scrollTo({ top: 0, behavior: preferredScrollBehavior() })}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg></button>}
       {openMenuId && <button className="timeline-menu-dismiss" aria-label="Close moment actions" onClick={() => setOpenMenuId(null)} />}
       {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-story-moment-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-story-moment-title">Delete “{pendingDelete.title}”?</h2><p>{observations.some((entry) => entry.id === pendingDelete.id) ? 'This permanently removes this moment and its linked owner context from this pet’s Story.' : 'This removes this moment from the current Story. You can add it again later from Edit story.'}</p>{deleteError && <p className="inline-save-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete</button></div></section></div>}
       </>}
@@ -1206,7 +1220,7 @@ function MomentDateTimePicker({ value, onChange }: { value: string; onChange: (v
   </section>;
 }
 
-function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMoments, uploadedMedia, setUploadedMedia, title, setTitle, momentAt, setMomentAt, relatedPhotos, setRelatedPhotos, note, setNote, context, setContext, privateRecord, setPrivateRecord, observations, petName, ownerName, hasDemoMoments, saveError, onSave, onEdit }: {
+function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMoments, uploadedMedia, setUploadedMedia, title, setTitle, momentAt, setMomentAt, relatedPhotos, setRelatedPhotos, note, setNote, context, setContext, privateRecord, setPrivateRecord, petName, ownerName, hasDemoMoments, saveError, savedObservation, onSave, onEdit }: {
   step: 'moments' | 'compose' | 'preview' | 'saved';
   onBack: () => void;
   onCancel: () => void;
@@ -1227,6 +1241,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   privateRecord: boolean;
   setPrivateRecord: (value: boolean) => void;
   observations: StoryObservation[];
+  savedObservation?: StoryObservation | null;
   petName: string;
   ownerName: string;
   hasDemoMoments: boolean;
@@ -1236,7 +1251,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
 }) {
   const [sourceTab, setSourceTab] = useState<'Photos' | 'Clips' | 'Notes'>('Photos');
   const [uploadError, setUploadError] = useState('');
-  const latest = observations[0];
+  const latest = savedObservation ?? null;
   const availableMomentChoices = hasDemoMoments ? momentChoices : [];
   const selected = availableMomentChoices.filter((moment) => selectedMoments.includes(moment.id));
   const noteChoices = hasDemoMoments ? getNoteChoices(petName) : [];
@@ -1339,7 +1354,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
 
   if (step === 'preview') return <div className="add-flow-page">
     {header('Preview', '3 OF 3 · CHECK BEFORE SAVING')}
-    <article className={`observation-preview-card ${!hasVisual ? 'note-observation-preview' : ''}`}>{hasVisual ? <StoryMediaView src={image} type={mediaType} alt={petName} controls={mediaType?.startsWith('video/')} /> : <div className="observation-note-visual"><strong>A note from {ownerName}</strong><p>{note || 'A moment with ' + petName + '.'}</p></div>}{relatedPhotos.length > 0 && <div className="preview-related-photos">{relatedPhotos.map((media, index) => <StoryMediaView key={`${media.name}-${index}`} src={media.url} type={media.type} alt={`Related attachment ${index + 1}`} controls={media.type.startsWith('audio/')} />)}</div>}<div className="observation-preview-copy"><small>{petName} · Today</small><strong>{observationTitle}</strong><p>{note || 'A moment with ' + petName + '.'}</p>{selectedNotes.length > 0 && <div className="preview-source-notes"><strong>Saved note sources</strong>{selectedNotes.map((entry) => <span key={entry.id}>{entry.text}<small>{entry.label}</small></span>)}</div>}<div>{selectedMoments.length} selected {selectedMoments.length === 1 ? 'source' : 'sources'} · {hasVisual ? 'owner observation' : `Written observation · ${ownerName}`}</div><span>Owner-provided context{context ? ` · ${context}` : ''}</span></div></article>
+    <article className={`observation-preview-card ${!hasVisual ? 'note-observation-preview' : ''}`}>{hasVisual ? <StoryMediaView src={image} type={mediaType} alt={petName} controls={mediaType?.startsWith('video/')} /> : <div className="observation-note-visual"><strong>A note from {ownerName}</strong><p>{note || 'A moment with ' + petName + '.'}</p></div>}{relatedPhotos.length > 0 && <div className="preview-related-photos">{relatedPhotos.map((media, index) => <StoryMediaView key={`${media.name}-${index}`} src={media.url} type={media.type} alt={`Related attachment ${index + 1}`} controls={media.type.startsWith('audio/')} />)}</div>}<div className="observation-preview-copy"><small>{petName} · {formatRelativeDate(new Date(momentAt).toISOString())}</small><strong>{observationTitle}</strong><p>{note || 'A moment with ' + petName + '.'}</p>{selectedNotes.length > 0 && <div className="preview-source-notes"><strong>Saved note sources</strong>{selectedNotes.map((entry) => <span key={entry.id}>{entry.text}<small>{entry.label}</small></span>)}</div>}<div>{selectedMoments.length} selected {selectedMoments.length === 1 ? 'source' : 'sources'} · {hasVisual ? 'owner observation' : `Written observation · ${ownerName}`}</div><span>Owner-provided context{context ? ` · ${context}` : ''}</span></div></article>
     <section className="observation-destination"><strong>Where this goes</strong><button className={!privateRecord ? 'selected' : ''} onClick={() => setPrivateRecord(false)}><span className="destination-radio">{!privateRecord && <i />}</span>Add to {petName}'s Story</button><button className={privateRecord ? 'selected' : ''} onClick={() => setPrivateRecord(true)}><span className="destination-radio">{privateRecord && <i />}</span>Keep as a private record</button><small>{privateRecord ? 'Only you can see this record until you choose to share it.' : 'You choose which sources and words are saved.'}</small></section>
     {saveError && <p className="inline-save-error" role="alert">{saveError}</p>}
     <div className="sticky-action"><button className="primary-button full" onClick={onSave}>{privateRecord ? 'Save private note' : 'Save observation'}</button></div>
@@ -1347,7 +1362,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
 
   return <div className="add-flow-page">
     {header(privateRecord ? 'Saved privately' : 'Moment saved', privateRecord ? 'SAVED TO PRIVATE RECORDS' : 'ADDED TO ' + petName.toUpperCase() + '’S STORY')}
-    <section className="observation-saved-banner"><strong>✓ &nbsp;{privateRecord ? 'Your private note is saved' : 'Your observation is saved'}</strong><span>{privateRecord ? `Visible only to you · Added by ${ownerName}` : `Added by ${ownerName}`} · Today</span></section>
+    <section className="observation-saved-banner"><strong>✓ &nbsp;{privateRecord ? 'Your private note is saved' : 'Your observation is saved'}</strong><span>{privateRecord ? `Visible only to you · Added by ${ownerName}` : `Added by ${ownerName}`} · {latest ? formatRelativeDate(latest.savedAt) : 'Today'}</span></section>
     <article className="observation-preview-card saved-observation-card">{latestHasVisual ? <StoryMediaView src={image} type={mediaType} alt={petName} controls={mediaType?.startsWith('video/')} /> : <div className="observation-note-visual"><strong>A note from {ownerName}</strong><p>{observationText || 'A moment with ' + petName + '.'}</p></div>}{latest?.relatedPhotos && latest.relatedPhotos.length > 0 && <div className="preview-related-photos">{latest.relatedPhotos.map((media, index) => <StoryMediaView key={`${media.name}-${index}`} src={media.url} type={media.type} alt={`Related attachment ${index + 1}`} controls={media.type.startsWith('audio/')} />)}</div>}<div className="observation-preview-copy"><strong>{observationTitle}</strong><p>{observationText || 'A moment with ' + petName + '.'}</p>{savedSourceNotes.length > 0 && <div className="preview-source-notes"><strong>Saved note sources</strong>{savedSourceNotes.map((entry) => <span key={entry.id}>{entry.text}<small>{entry.label}</small></span>)}</div>}<div>{(latest?.momentCount ?? selectedMoments.length) === 0 ? `Written observation · ${ownerName}` : `${latest?.momentCount ?? selectedMoments.length} selected ${(latest?.momentCount ?? selectedMoments.length) === 1 ? 'source' : 'sources'} · owner observation`}</div><span>{privateRecord ? 'Private record · not in ' + petName + '’s Story' : `Owner-provided context${latest?.context ? ` · ${latest.context}` : ''}`}</span></div></article>
     <div className="saved-observation-links"><button className="text-link" onClick={onEdit}>Edit observation</button></div>
     <div className="sticky-action"><button className="primary-button full" onClick={onCancel}>{privateRecord ? 'Return to Today' : 'View in Story'}</button></div>
@@ -1838,7 +1853,7 @@ function persistLocalPrototypeSession(session: PrototypeSession) {
 function AskPage({ onPetsNavigate, petName, petAvatar, messages, messageEndRef, noPetYet, busy, pending, live }: { onPetsNavigate: () => void; petName: string; petAvatar: string; messages: AskMessage[]; messageEndRef: RefObject<HTMLDivElement | null>; noPetYet: boolean; busy: boolean; pending: AskMessage | null; live: boolean }) {
   return <div className="ask-page">
     <MainHeader eyebrow="ASK AI · OBSERVATION DIALOGUE" title="Ask Pawsona" onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
-    <p className="ask-ai-notice">{!live ? 'Log in to chat with Pawsona. Guest conversations are available to review only.' : noPetYet ? 'Add your pet profile to start a conversation.' : 'Ask a question or share a photo. Your messages, photos and pet basics are sent to OpenAI to generate replies. AI observations can be mistaken.'}</p>
+    <p className="ask-ai-notice">{!live ? 'Log in to chat with Pawsona. Guest conversations are available to review only.' : noPetYet ? 'Add your pet profile to start a conversation.' : 'Ask a question or share a photo. Your messages, attached photos and pet basics are sent to OpenAI. When enabled in Settings, a limited recent Story text extract is included too. AI observations can be mistaken.'}</p>
     <section className="ask-thread" aria-label="Conversation with Pawsona" aria-busy={busy}>
       {messages.length === 0 && <article className="chat-message ai">Hi! What would you like to know about {petName}? You can ask a question or attach a photo. I can help describe what is visible, but a photo alone cannot tell me how your pet feels or establish a diagnosis.</article>}
       {[...messages, ...(pending ? [pending] : [])].map((message, index) => <article className={`chat-message ${message.role === 'user' ? 'owner' : 'ai dynamic-answer'}`} key={index}>
@@ -2685,6 +2700,9 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const [contextAttachments, setContextAttachments] = useState<ContextAttachment[]>([]);
   const [contextSaveError, setContextSaveError] = useState('');
   const [storySaveError, setStorySaveError] = useState('');
+  const [savedStoryObservation, setSavedStoryObservation] = useState<StoryObservation | null>(null);
+  const [devicePreferences, setDevicePreferences] = useState(readPreferences);
+  const [preferencesError, setPreferencesError] = useState('');
   const [profileAction, setProfileAction] = useState<{ title: string; detail: string } | null>(null);
   const [careMembers, setCareMembers] = useState<CareMember[]>(() =>
     initialSharedWorkspace?.careMembers ?? readCareMembers() ?? [
@@ -3408,7 +3426,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
 
   useEffect(() => {
     if (view === 'ask' && scrollRef.current) {
-      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: preferredScrollBehavior() });
     }
   }, [askMessages, view, askBusy, askPending]);
 
@@ -3535,6 +3553,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     if (!canContributeToSharedPet) return;
     setStorySaveError('');
     setEditingStoryObservationId(null);
+    setSavedStoryObservation(null);
     setActiveStoryDraftId(null);
     setDraftMoments([]);
     setDraftUploadedMedia(null);
@@ -3623,6 +3642,8 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     const nextVisibility = includedStoryMoments ? (observation.privateRecord ? includedStoryMoments.filter((id) => id !== observation.id) : [observation.id, ...includedStoryMoments]) : null;
     if (!persistWorkspacePatch({ visibility: nextVisibility })) setAccountActionError('The observation was saved, but browser storage is full.');
     setIncludedStoryMoments(nextVisibility);
+    setSavedStoryObservation(observation);
+    setEditingStoryObservationId(observation.id);
     navigateTo('addSaved');
   }
 
@@ -3640,7 +3661,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setAskPending(userMessage);
     const timer = setTimeout(() => controller.abort(), 60_000);
     try {
-      const answer = await requestAskAI(petId, [...askMessages, userMessage], controller.signal);
+      const answer = await requestAskAI(petId, [...askMessages, userMessage], controller.signal, devicePreferences.includeHistory);
       if (controller.signal.aborted || askIdentityRef.current !== identity) return false;
       const next: AskMessage[] = [...askMessages, userMessage, { role: 'assistant', text: answer }];
       // Use the latest workspace after awaiting: profile edits during a reply must survive.
@@ -3900,7 +3921,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
 
   return (
     <div className="app-stage">
-      <div className="phone">
+      <div className={`phone ${devicePreferences.largeText ? 'large-reading-text' : ''} ${devicePreferences.reducedMotion ? 'reduce-motion' : ''}`}>
         {notice}
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <StatusBar />
@@ -3920,7 +3941,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
             {view === 'addMoments' && <StoryAddPage step="moments" saveError={storySaveError} onBack={cancelStoryObservation} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
             {view === 'addCompose' && <StoryAddPage step="compose" saveError={storySaveError} onBack={() => goBack('addMoments')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addPreview')} />}
             {view === 'addPreview' && <StoryAddPage step="preview" saveError={storySaveError} onBack={() => goBack('addCompose')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
-            {view === 'addSaved' && <StoryAddPage step="saved" saveError={storySaveError} onBack={() => goBack('addPreview')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
+            {view === 'addSaved' && <StoryAddPage savedObservation={savedStoryObservation} step="saved" saveError={storySaveError} onBack={() => goBack('addPreview')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
             {view === 'momentDetail' && <MomentDetailPage moment={selectedMoment} contexts={selectedMomentContexts} accounts={prototypeSession.accounts} careMembers={displayedCareMembers} ownerName={ownerName} ownerAvatar={ownerAvatar} currentAccountId={activeAccount.id} groupOwnerAccountId={activePetRecord.sharedGroupId ? groupOwnerAccountId : undefined} petName={petName} canContribute={canContributeToSharedPet} canInteract={canInteractWithGroupContext} engagement={momentEngagement[selectedMoment.id] ?? { likes: [], favorites: [] }} onToggleMomentLike={() => toggleMomentEngagement(selectedMoment.id, 'likes')} onToggleMomentFavorite={() => toggleMomentEngagement(selectedMoment.id, 'favorites')} onBack={() => goBack('story')} onAddContext={() => startContextForMoment(selectedMoment.id)} onEditContext={(context) => startContextForMoment(selectedMoment.id, context)} onDeleteContext={deleteOwnerContext} onToggleLike={toggleContextLike} onAddComment={addContextComment} onEditOwnComment={editOwnContextComment} onDeleteOwnComment={deleteOwnContextComment} />}
             {view === 'overview' && <OverviewPage onBack={() => goBack('today')} onClip={() => { setSelectedMomentId('window'); navigateTo('clip'); }} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} onSaved={() => openMomentDetail('window')} petName={petName}/>}
             {view === 'clip' && <ClipPage onBack={() => goBack('overview')} onContext={() => startContextForMoment('window')} petName={petName} ownerName={ownerName} canContribute={canContributeToSharedPet} />}
@@ -4020,7 +4041,8 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         {view === 'story' && canContributeToSharedPet && <button className={`floating-add ${showStoryAddOptions ? 'is-open' : ''}`} aria-expanded={showStoryAddOptions} onClick={() => setShowStoryAddOptions((open) => !open)}><span className="add-icon" aria-hidden="true">+</span><span className="add-label">Add</span></button>}
         {view === 'story' && canContributeToSharedPet && showStoryAddOptions && <div className="story-add-menu-backdrop" role="presentation" onClick={() => setShowStoryAddOptions(false)}><div className="story-add-choices" role="menu" aria-label="Add to Story" onClick={(event) => event.stopPropagation()}><button className="story-add-choice story-add-choice-new" role="menuitem" onClick={() => { setShowStoryAddOptions(false); startStoryObservation(); }}>New moment</button><button className="story-add-choice story-add-choice-drafts" role="menuitem" onClick={() => { setShowStoryAddOptions(false); navigateTo('drafts'); }}>Drafts{storyDrafts.length > 0 ? ` (${storyDrafts.length})` : ''}</button></div></div>}
         {view === 'ask' && <AskComposer key={askIdentity} busy={askBusy} enabled={Boolean(cloud && activePetRecord && !activePetRecord.isEmptyProfile)} value={askInput} onValue={(value) => { setAskInput(value); if (askSaveError) setAskSaveError(''); }} onSend={sendAskMessage} saveError={askSaveError} onQuickContext={(value) => { setAskSaveError(''); setAskInput((current) => current ? `${current} ${value}` : value); }} />}
-        {profileAction && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setProfileAction(null)}><section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-dialog-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={() => setProfileAction(null)}>×</button><h2 id="profile-dialog-title">{profileAction.title}</h2><p>{profileAction.detail}</p><button className="primary-button" onClick={() => setProfileAction(null)}>Done</button></section></div>}
+        {profileAction && <SettingsPanels title={profileAction.title} onClose={() => setProfileAction(null)} preferences={devicePreferences} onPreferences={value => { setDevicePreferences(value); try { localStorage.setItem('pawsona-device-preferences', JSON.stringify(value)); setPreferencesError(''); } catch { setPreferencesError('Preferences apply for this session but could not be saved.'); } }} workspace={captureCurrentSpace(prototypeSession).accounts.find(a => a.id === activeAccount.id)?.pets.find(p => p.id === activePetRecord.id)?.workspace} petName={petName} cloud={Boolean(cloud)} />}
+        {preferencesError && <p role="alert">{preferencesError}</p>}
         {pendingDeviceAccountRemoval && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDeviceAccountRemoval(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="remove-device-account-title" onClick={(event) => event.stopPropagation()}><h2 id="remove-device-account-title">Remove {pendingDeviceAccountRemoval.name} from this device?</h2><p>{pendingDeviceAccountRemoval.username.toLowerCase() === (activeAccount.email.endsWith('@users.pawsona.invalid') ? activeAccount.email.split('@')[0].toLowerCase() : activeAccount.email.toLowerCase()) ? 'You will be signed out of this account. Its cloud account and records will not be deleted.' : 'This only removes the remembered username from this device. The cloud account and its records will not be deleted.'}</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDeviceAccountRemoval(null)}>Cancel</button><button className="danger-button" onClick={() => { void confirmRemoveDeviceAccount(); }}>Remove from device</button></div></section></div>}
         {showAccountSwitcher && <AccountSwitcher accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onClose={() => setShowAccountSwitcher(false)} onSwitch={switchAccount} onRegister={registerAccount} onRequestSignOut={() => { setShowAccountSwitcher(false); setShowSignOutConfirm(true); }} />}
         {showPetSwitcher && <PetSwitcher pets={activeAccount.pets} activePetId={activePetRecord.id} initialAdding={petSwitcherStartsAdding} onClose={() => { setShowPetSwitcher(false); setPetSwitcherStartsAdding(false); }} onSwitch={switchPet} onAdd={addPet} onDelete={deletePet} />}

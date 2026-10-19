@@ -3,9 +3,9 @@ import { supabase } from './cloud';
 export type AskTurn = { role: 'user' | 'assistant'; text: string; attachment?: { kind: 'image' | 'audio'; url: string } };
 
 /** Only local image bytes are sent; never ask the server to fetch arbitrary URLs. */
-export async function requestAskAI(petId: string, turns: AskTurn[], signal: AbortSignal): Promise<string> {
+export async function requestAskAI(petId: string, turns: AskTurn[], signal: AbortSignal, includeHistory = true): Promise<string> {
   if (!supabase) throw new Error('Log in to use Ask AI.');
-  const recent = turns.slice(-19);
+  const recent = turns.slice(-12);
   const imageIndices = recent.map((turn, index) => turn.role === 'user' && turn.attachment?.kind === 'image' ? index : -1).filter(index => index >= 0).slice(-3);
   const messages = await Promise.all(recent.map(async (turn, index) => {
     let image: string | undefined;
@@ -21,7 +21,7 @@ export async function requestAskAI(petId: string, turns: AskTurn[], signal: Abor
     }
     return { role: turn.role, text: turn.text || (image ? '' : turn.attachment ? '[Earlier attachment is not included in this request.]' : ''), ...(image ? { image } : {}) };
   }));
-  const { data, error } = await supabase.functions.invoke('ask-ai', { body: { petId, messages }, signal });
+  const { data, error } = await supabase.functions.invoke('ask-ai', { body: { petId, messages, includeHistory }, signal });
   if (error) {
     const response = 'context' in error ? error.context : null;
     if (response instanceof Response) {

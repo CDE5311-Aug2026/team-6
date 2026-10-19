@@ -75,3 +75,11 @@ Validation: node --test tests/cloudSync.test.mjs. See supabase/接入与验收.m
 ## Ask AI: text and photos
 
 See [接入与验收](supabase/Ask_AI_接入与验收.md) for server-side secrets, limits, and test steps. Never put an OpenAI key in VITE_* variables.
+
+## User-test scope: bounded history, routine and settings
+
+Ask AI reads a server-verified pet workspace. For care-circle pets it re-checks current membership and uses the canonical shared workspace. Each request includes at most 28 public Story text records from the previous rolling 7 days, 8 linked owner contexts, 5 confirmed patterns and 5 explicitly permitted recent/ongoing life events, with a hard 12,000-character serialized extract limit. Private/hidden/future moments and historical media are excluded. There is no growing AI memory or extra summarization API call: the extract is assembled deterministically, and up to 12 chat turns are sent (1,500 characters per earlier turn; the current question retains up to 4,000). The model must acknowledge partial coverage and cite dates/titles. This bounds model input, not the size of the existing JSON workspace read from the database. A larger future product would need dated database rows/indexes rather than one workspace payload.
+
+Today > Pattern summarizes recorded activity clock times from the last 7 complete local days, using at most 100 records. It requires at least 8 records across 3 days and only lists meal/walk/rest/play groups recorded on at least 3 days. It identifies simulated data, does not infer duration or diagnose health, and does not automatically create owner-confirmed knowledge.
+
+Settings now explains actual data handling, provides a per-browser future-request history switch, downloads the current pet workspace as JSON (without bundled media), and offers larger reading text, reduced motion, help, and local feedback drafts/downloads. Feedback is not transmitted automatically. Full account deletion, email association and automatic captions remain unavailable and are stated explicitly. Preferences are device-local; they do not delete previously shared chat content.

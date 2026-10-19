@@ -1,7 +1,10 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { validateChat, buildOpenAIRequest, extractAnswer } from './core.ts';
+import { buildHistory } from './history.ts';
 
-const origins = new Set((Deno.env.get('ASK_AI_ALLOWED_ORIGINS') || 'https://pawsona-team6-preview.vercel.app,https://pawsona-cloud-preview.vercel.app,https://pawsona-username-preview.vercel.app,https://pawsona-accounts-preview.vercel.app,https://pawsona-team-6.vercel.app,https://team-6-main-1-2.vercel.app,http://127.0.0.1:5178,http://127.0.0.1:5179,http://127.0.0.1:5173,http://localhost:5173').split(',').map(origin => origin.trim()));
+const origins = new Set((Deno.env.get('ASK_AI_ALLOWED_ORIGINS') || 'https://pawsona-team6.vercel.app,https://pawsona-team6-preview.vercel.app,https://pawsona-cloud-preview.vercel.app,https://pawsona-username-preview.vercel.app,https://pawsona-accounts-preview.vercel.app,https://pawsona-team-6.vercel.app,https://team-6-main-1-2.vercel.app,http://127.0.0.1:5178,http://127.0.0.1:5179,http://127.0.0.1:5173,http://localhost:5173').split(',').map(origin => origin.trim()));
+// Keep the canonical production site available when older secret overrides are present.
+origins.add('https://pawsona-team6.vercel.app');
 const url = Deno.env.get('SUPABASE_URL')!;
 const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false, autoRefreshToken: false } });
 
@@ -42,6 +45,17 @@ Deno.serve(async (req: Request) => {
     const account = row?.payload?.accounts?.find((item: { id: string }) => item.id === auth.user.id);
     const pet = account?.pets?.find((item: { id: string }) => item.id === chat.petId);
     if (!pet || pet.isEmptyProfile) return reply(404, { error: 'Save your pet profile and wait for cloud sync before using Ask AI.' });
+    let workspace = pet.workspace ?? {};
+    if (pet.sharedGroupId) {
+      // A cached personal copy never grants access to a care group's history.
+      const { data: member, error: memberError } = await admin.from('care_group_members').select('group_id').eq('group_id', pet.sharedGroupId).eq('user_id', auth.user.id).maybeSingle();
+      if (memberError) return reply(503, { error: 'Could not verify care-group access. Please try again.' });
+      if (!member) return reply(403, { error: 'You no longer have access to this care group.' });
+      const { data: group, error: groupError } = await admin.from('care_groups').select('workspace').eq('id', member.group_id).maybeSingle();
+      if (groupError || !group) return reply(503, { error: 'Could not read shared Story records. Please try again.' });
+      workspace = group.workspace ?? {};
+    }
+    const history = chat.includeHistory ? buildHistory(workspace) : '';
     // Reuse the existing atomic, service-role-only hourly quota primitive.
     // Separate prefixes keep AI usage independent from registration counters.
     for (const [bucket, limit] of [['ask:user:' + auth.user.id, 30], ['ask:global', 200]] as const) {
@@ -51,7 +65,7 @@ Deno.serve(async (req: Request) => {
     }
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST', headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildOpenAIRequest(chat.messages, pet, Deno.env.get('OPENAI_MODEL') || 'gpt-4.1-mini')),
+      body: JSON.stringify(buildOpenAIRequest(chat.messages, pet, Deno.env.get('OPENAI_MODEL') || 'gpt-4.1-mini', history)),
       signal: AbortSignal.timeout(45_000),
     });
     if (!response.ok) return reply(response.status === 429 ? 429 : 502, { error: response.status === 429

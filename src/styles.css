@@ -1260,3 +1260,23 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .moment-card:nth-child(even) .moment-text-preview { background: #e7efe8; color: #658d75; }
 .today-hero .primary-button, .today-empty-state .primary-button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 
+
+.routine-summary { padding: 8px 16px 20px; }
+.routine-summary h3 { margin: 12px 0; font-size: 18px; }
+.routine-summary p { font-size: 13px; line-height: 1.65; }
+.routine-summary ul { list-style: none; padding: 0; }
+.routine-summary li { border-top: 1px solid #d7ddd5; padding: 12px 0; }
+.routine-summary li span { display: block; margin-top: 5px; font-size: 13px; line-height: 1.5; }
+.routine-note { color: #526052; }
+.settings-panel { max-height: min(85vh, 720px); overflow-y: auto; text-align: left; }
+.settings-panel h3 { font-size: 16px; margin: 22px 0 6px; }
+.settings-panel p { font-size: 13px; line-height: 1.65; color: #364739; }
+.settings-choice { display: flex; align-items: flex-start; gap: 10px; margin: 16px 0; font-size: 14px; line-height: 1.5; }
+.settings-choice input { width: 20px; height: 20px; flex: 0 0 20px; }
+.settings-panel textarea { min-height: 100px; width: 100%; box-sizing: border-box; }
+.settings-panel-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+.settings-panel > .full { margin-top: 20px; }
+.phone.large-reading-text p, .phone.large-reading-text li, .phone.large-reading-text .settings-choice, .phone.large-reading-text textarea, .phone.large-reading-text .timeline-card-note { font-size: 17px; line-height: 1.7; }
+.phone.large-reading-text small { font-size: 14px; }
+.phone.reduce-motion *, .phone.reduce-motion *::before, .phone.reduce-motion *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+@media (prefers-reduced-motion: reduce) { .phone *, .phone *::before, .phone *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
