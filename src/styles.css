@@ -1282,7 +1282,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 @media (prefers-reduced-motion: reduce) { .phone *, .phone *::before, .phone *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 
 /* The operating system draws its own status bar; only reserve the safe area. */
-.screen-scroll { padding-top: env(safe-area-inset-top, 0px); }
+.screen-scroll { padding-top: calc(env(safe-area-inset-top, 0px) + 16px); }
 .daily-plan { background: #fff; border: 1px solid #e5e8df; border-radius: 24px; padding: 20px 16px; margin: 14px 0 24px; }
 .daily-plan > header { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; }
 .daily-plan h2 { font-size: 20px; margin: 4px 0 12px; }
