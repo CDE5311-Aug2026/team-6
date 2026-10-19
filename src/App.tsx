@@ -593,6 +593,165 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
 }
 
 
+function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, patterns, onMoment, onPatterns, scenarioDate }: { petName: string; petAvatar: string; moments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; patterns: TypicalPattern[]; onMoment: (id: string) => void; onPatterns: () => void; scenarioDate?: string }) {
+  const [view, setView] = useState<'today' | 'pattern'>('today');
+  const [dayOffset, setDayOffset] = useState(0);
+  const [openMomentId, setOpenMomentId] = useState<string | null>(null);
+  const dragStart = useRef<number | null>(null);
+  const navStart = useRef<'previous' | 'newer' | null>(null);
+  const pressedActivityAction = useRef<{ kind: 'moment' | 'popup'; id: string } | null>(null);
+  const suppressNavClick = useRef(false);
+  const now = useCurrentTime();
+  const displayName = petName.replace(/\s*[（(]test[^）)]*[）)]$/i, '');
+  const selectedDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset);
+  const selectedMoments = moments.filter(moment => isSameLocalDay(moment.savedAt, selectedDate));
+  const latestMoment = [...moments].sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime())[0];
+  const isToday = dayOffset === 0;
+  const dayTitle = isToday ? 'TODAY' : dayOffset === -1 ? 'YESTERDAY' : new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(selectedDate).toUpperCase();
+  const selectedDateLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(selectedDate);
+  const currentPetAvatar = petAvatar || asset('luna-avatar.png');
+  const pointOnDial = (minutes: number, radius: number) => {
+    const angle = Math.PI - Math.max(0, Math.min(1440, minutes)) / 1440 * Math.PI;
+    return { x: 300 + radius * Math.cos(angle), y: 390 - radius * Math.sin(angle) };
+  };
+  const timeLabel = (date: Date) => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
+  const momentPoints = selectedMoments.map(moment => {
+    const date = new Date(moment.savedAt);
+    const minutes = date.getHours() * 60 + date.getMinutes();
+    return { moment, ...pointOnDial(minutes, 220), minutes, time: timeLabel(date) };
+  });
+  const labelPositions = new Map<string, { x: number; y: number }>();
+  const placedLabelPositions: Array<{ x: number; y: number }> = [];
+  [...momentPoints].sort((left, right) => left.minutes - right.minutes).forEach(point => {
+    const candidates = [270, 288, 306, 324].map(radius => pointOnDial(point.minutes, radius));
+    const label = candidates.find(candidate =>
+      candidate.x >= 34 && candidate.x <= 566 && candidate.y >= 18 && candidate.y <= 428 &&
+      placedLabelPositions.every(placed => Math.abs(candidate.x - placed.x) >= 62 || Math.abs(candidate.y - placed.y) >= 25)
+    ) ?? candidates[candidates.length - 1];
+    labelPositions.set(point.moment.id, label);
+    placedLabelPositions.push(label);
+  });
+  const chronologicalMoments = [...momentPoints].sort((left, right) => left.minutes - right.minutes);
+  chronologicalMoments.forEach((earlier, index) => {
+    const later = chronologicalMoments[index + 1];
+    if (!later || earlier.minutes < 1080 || later.minutes - earlier.minutes > 50) return;
+    const upperPosition = pointOnDial(earlier.minutes, 270);
+    labelPositions.set(later.moment.id, upperPosition);
+    labelPositions.set(earlier.moment.id, { x: upperPosition.x, y: upperPosition.y + 28 });
+  });
+  const labeledMomentPoints = momentPoints.map(point => ({ ...point, label: labelPositions.get(point.moment.id)! }));
+  const currentPoint = pointOnDial(now.getHours() * 60 + now.getMinutes(), 220);
+  const openMomentPoint = momentPoints.find(point => point.moment.id === openMomentId);
+  const popupWidth = 176;
+  const popupX = openMomentPoint ? Math.max(8, Math.min(600 - popupWidth - 8, openMomentPoint.x > 300 ? openMomentPoint.x - popupWidth - 12 : openMomentPoint.x + 12)) : 0;
+  const popupY = openMomentPoint ? Math.max(8, Math.min(390 - 48, openMomentPoint.y - 58)) : 0;
+  const goToPreviousDay = () => setDayOffset(offset => offset - 1);
+  const goToNewerDay = () => setDayOffset(offset => Math.min(0, offset + 1));
+  const handleNavKey = (event: React.KeyboardEvent<SVGGElement>, direction: 'previous' | 'newer') => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    if (direction === 'previous') goToPreviousDay(); else goToNewerDay();
+  };
+  return <section className="daily-rhythm-card" aria-labelledby="daily-rhythm-title">
+    <header className="daily-rhythm-header">
+      <div><p className="eyebrow">DAILY RHYTHM</p><h2 id="daily-rhythm-title">{displayName}’s day</h2></div>
+      <div className="daily-rhythm-toggle" role="tablist" aria-label="Daily rhythm view">
+        <button type="button" role="tab" aria-selected={view === 'today'} className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}>Today</button>
+        <button type="button" role="tab" aria-selected={view === 'pattern'} className={view === 'pattern' ? 'active' : ''} onClick={() => setView('pattern')}>Pattern</button>
+      </div>
+    </header>
+    {view === 'pattern' ? <DailyPlan petName={petName} records={moments} patterns={patterns} onMoment={onMoment} onPatterns={onPatterns} scenarioDate={scenarioDate} /> : <>
+    <p className="daily-rhythm-caption" aria-live="polite">{latestMoment ? `${displayName}’s latest activity: ${latestMoment.title}` : `${displayName} has no recorded moments yet`}</p>
+    <div className="daily-rhythm-chart">
+      <svg viewBox="0 0 600 460" role="application" tabIndex={0} aria-label={`Daily moments for ${dayTitle.toLowerCase()}. Swipe right to view the previous day.`}
+        onPointerDown={event => {
+          const target = event.target as Element;
+          dragStart.current = event.clientX;
+          navStart.current = target.closest('[data-day-nav]')?.getAttribute('data-day-nav') as 'previous' | 'newer' | null;
+          const momentTrigger = target.closest('[data-moment-trigger]')?.getAttribute('data-moment-trigger');
+          const popupTrigger = target.closest('[data-activity-popup]')?.getAttribute('data-activity-popup');
+          pressedActivityAction.current = popupTrigger ? { kind: 'popup', id: popupTrigger } : momentTrigger ? { kind: 'moment', id: momentTrigger } : null;
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerUp={event => {
+          const startX = dragStart.current;
+          const clickedNav = navStart.current;
+          const clickedActivity = pressedActivityAction.current;
+          dragStart.current = null;
+          navStart.current = null;
+          pressedActivityAction.current = null;
+          if (startX !== null) {
+            const deltaX = event.clientX - startX;
+            if (deltaX > 48) { suppressNavClick.current = true; goToPreviousDay(); window.setTimeout(() => { suppressNavClick.current = false; }, 0); }
+            else if (deltaX < -48) { suppressNavClick.current = true; goToNewerDay(); window.setTimeout(() => { suppressNavClick.current = false; }, 0); }
+            else if (clickedActivity?.kind === 'moment') setOpenMomentId(clickedActivity.id);
+            else if (clickedActivity?.kind === 'popup') {
+              const selected = moments.find(moment => moment.id === clickedActivity.id);
+              if (selected) onOpenActivitySummary(selected);
+            }
+            else if (clickedNav) { suppressNavClick.current = true; if (clickedNav === 'previous') goToPreviousDay(); else if (!isToday) goToNewerDay(); window.setTimeout(() => { suppressNavClick.current = false; }, 0); }
+          }
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={() => { dragStart.current = null; navStart.current = null; pressedActivityAction.current = null; }}
+        >
+        <defs>
+          <linearGradient id="rhythm-gradient" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#e3ad22"/><stop offset=".35" stopColor="#f4c52f"/><stop offset=".68" stopColor="#ffdc61"/><stop offset="1" stopColor="#eab522"/></linearGradient>
+          <linearGradient id="rhythm-horizon" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff6d1" stopOpacity=".8"/><stop offset="1" stopColor="#fffdf7" stopOpacity=".1"/></linearGradient>
+          <radialGradient id="rhythm-orb-surface" cx="36%" cy="22%" r="82%"><stop offset="0" stopColor="#fffef9"/><stop offset=".38" stopColor="#fff9e9"/><stop offset=".72" stopColor="#f6eccf"/><stop offset="1" stopColor="#e5d5ae"/></radialGradient>
+          <radialGradient id="rhythm-orb-gloss" cx="36%" cy="20%" r="78%"><stop offset="0" stopColor="#fff" stopOpacity=".62"/><stop offset=".3" stopColor="#fff" stopOpacity=".22"/><stop offset="1" stopColor="#fff" stopOpacity="0"/></radialGradient>
+          <marker id="rhythm-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M2 1.5 7 5 2 8.5" fill="none" stroke="#ffcf29" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></marker>
+          <clipPath id="rhythm-current-avatar-clip" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath>
+          <clipPath id="rhythm-upper-half"><rect x="0" y="0" width="600" height="390"/></clipPath>
+        </defs>
+        <g clipPath="url(#rhythm-upper-half)">
+        <foreignObject x="0" y="0" width="600" height="390" aria-hidden="true"><div className="daily-rhythm-daylight-bg" /></foreignObject>
+        <circle className="daily-rhythm-horizon-backdrop" cx="300" cy="390" r="156" aria-hidden="true"/>
+        <g key={dayOffset} className="daily-rhythm-wheel">
+          <circle className="daily-rhythm-band-shadow" cx="300" cy="390" r="220"/>
+          <circle className="daily-rhythm-band" cx="300" cy="390" r="220"/>
+          <circle className="daily-rhythm-horizon-fill" cx="300" cy="390" r="156"/>
+          <circle className="daily-rhythm-orb-highlight" cx="300" cy="390" r="156"/>
+          <circle className="daily-rhythm-inner-arc" cx="300" cy="390" r="156"/>
+          <circle className="daily-rhythm-inner-arc inner-arc-two" cx="300" cy="390" r="136"/>
+          {momentPoints.map(({ moment, x, y, time }) => <g className="daily-rhythm-point" key={moment.id} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={`Show ${moment.title}`} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpenMomentId(moment.id); } }}>
+            <title>{moment.title} · {time}</title>
+            <circle className="daily-rhythm-point-hit" cx={x} cy={y} r="16"/>
+            <circle className="daily-rhythm-point-marker" cx={x} cy={y} r="7"/>
+            <circle className="daily-rhythm-point-core" cx={x} cy={y} r="2.5"/>
+          </g>)}
+          {isToday && <g className="daily-rhythm-current-point" aria-label={`Current time ${timeLabel(now)}`}>
+            <title>Now · {timeLabel(now)}</title>
+            <circle className="daily-rhythm-current-avatar-outer" cx={currentPoint.x} cy={currentPoint.y} r="23"/>
+            <circle className="daily-rhythm-current-avatar-inner" cx={currentPoint.x} cy={currentPoint.y} r="20"/>
+            <image href={currentPetAvatar} x={currentPoint.x - 18.5} y={currentPoint.y - 18.5} width="37" height="37" preserveAspectRatio="xMidYMid slice" clipPath="url(#rhythm-current-avatar-clip)"/>
+          </g>}
+          {labeledMomentPoints.map(({ moment, label, time }) => <text className="daily-rhythm-time" key={`${moment.id}-label`} x={label.x} y={label.y} textAnchor="middle" dominantBaseline="middle">{time}</text>)}
+        </g>
+        </g>
+        {openMomentPoint && <g className="daily-rhythm-moment-popover" data-activity-popup={openMomentPoint.moment.id} role="button" tabIndex={0} aria-label={`Open ${openMomentPoint.moment.title} activity summary`} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpenActivitySummary(openMomentPoint.moment); } }}>
+          <foreignObject x={popupX} y={popupY} width={popupWidth} height="48">
+            <button type="button" className="daily-rhythm-popover-button"><span>{openMomentPoint.moment.title}</span><span className="daily-rhythm-popover-arrow" aria-hidden="true">→</span></button>
+          </foreignObject>
+        </g>}
+        <text className="daily-rhythm-time daily-rhythm-end-time" x="52" y="390" textAnchor="middle" dominantBaseline="middle">00:00</text>
+        <text className="daily-rhythm-time daily-rhythm-end-time" x="548" y="390" textAnchor="middle" dominantBaseline="middle">00:00</text>
+        <g className="daily-rhythm-nav-arrow" data-day-nav="previous" role="button" tabIndex={0} aria-label="Show previous day" onClick={() => { if (!suppressNavClick.current) goToPreviousDay(); }} onKeyDown={event => handleNavKey(event, 'previous')}>
+          <path className="daily-rhythm-arrow-hit" d="M230 276 A136 136 0 0 0 176 336"/>
+          <path className="daily-rhythm-arrow" d="M230 276 A136 136 0 0 0 176 336" markerEnd="url(#rhythm-arrow)"/>
+        </g>
+        <g className={`daily-rhythm-nav-arrow ${isToday ? 'disabled' : ''}`} data-day-nav="newer" role="button" tabIndex={isToday ? -1 : 0} aria-disabled={isToday} aria-label="Show newer day" onClick={() => { if (!suppressNavClick.current && !isToday) goToNewerDay(); }} onKeyDown={event => { if (!isToday) handleNavKey(event, 'newer'); }}>
+          <path className="daily-rhythm-arrow-hit" d="M370 276 A136 136 0 0 1 424 336"/>
+          <path className="daily-rhythm-arrow" d="M370 276 A136 136 0 0 1 424 336" markerEnd="url(#rhythm-arrow)"/>
+        </g>
+        <text className="daily-rhythm-center-title" x="300" y="306" textAnchor="middle">{dayTitle}</text>
+        <text className="daily-rhythm-center-date" x="300" y="327" textAnchor="middle">{selectedDateLabel}</text>
+      </svg>
+    </div>
+    <p className="daily-rhythm-footnote">Open Pattern for a summary of recent recorded times.</p></>}
+  </section>;
+}
+
 function formatActivityDuration(minutes: number) {
   if (!minutes) return 'Not recorded';
   const hours = Math.floor(minutes / 60);
@@ -646,15 +805,63 @@ function PetActivitySummaryPage({ moment, moments, petName, petAvatar, onBack }:
   </section>;
 }
 
-function TodayPage({ onStory, onMoment, onPetsNavigate, onAddPet, onPatterns, petName, petAvatar, noPetYet, observations, includedMoments, patterns, scenarioDate }: { onStory: () => void; onMoment: (momentId: string) => void; onPetsNavigate: () => void; onAddPet: () => void; onPatterns: () => void; petName: string; petAvatar: string; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; scenarioDate?: string }) {
+function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, onActivitySummary, petName, petAvatar, saved, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, scenarioDate }: { onStory: () => void; onMoment: (momentId: string) => void; onEvidence: () => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; petName: string; petAvatar: string; saved: OwnerContext | null; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: () => void; scenarioDate?: string }) {
   const now = useCurrentTime();
-  const records = visibleStoryObservations(observations, includedMoments);
-  return <><MainHeader eyebrow="A little window into their day." title={`Hello, ${petName.replace(/\s*[\uff08(]test[^\uff09)]*[\uff09)]$/i, '')}!`} subtitle={formatPageDate(now)} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
-    {noPetYet ? <section className="today-empty-state"><h2>Add your first pet</h2><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <>
-      <DailyPlan petName={petName} records={records} patterns={patterns} onMoment={onMoment} onPatterns={onPatterns} scenarioDate={scenarioDate} />
-      <section className="today-section"><h2>Explore the evidence</h2><p>Review shared moments and caregiver notes. Pawsona does not label ordinary changes as health abnormalities.</p><button className="primary-button full" onClick={onStory}>Open Story</button></section>
-    </>}
-  </>;
+  const displayName = petName.replace(/\s*[（(]test[^）)]*[）)]$/i, '');
+  const visibleRecords = visibleStoryObservations(observations, includedMoments)
+    .filter(record => new Date(record.savedAt).getTime() <= now.getTime())
+    .sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime());
+  const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
+  const featured = todayRecords.length ? todayRecords : visibleRecords.filter(record => new Date(record.savedAt).toDateString() === new Date(visibleRecords[0]?.savedAt).toDateString());
+  const first = featured.at(-1);
+  const last = featured[0];
+  const clock = (value: string) => formatObservationTime(value).split('\n').at(-1);
+  const storyHeading = `${featured.length} ${featured.length === 1 ? 'moment' : 'moments'} from ${displayName}’s day.`;
+  const reviewRecord = featured.find(record => /rest/i.test(record.title)) ?? last;
+
+  return (
+    <>
+      <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
+      {!hasDemoMoments && !visibleRecords.length ? noPetYet ? <section className="today-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section> : <>
+      <section className="today-hero">
+        <span className="story-badge">✦ &nbsp; {hasDemoMoments || todayRecords.length ? 'TODAY’S STORY' : 'LATEST STORY'}</span>
+        <img className="hero-sparkle" src={asset('sparkle.svg')} alt="" />
+        <h2>{hasDemoMoments ? 'Sunny naps, a playful afternoon, and one very good toy.' : storyHeading}</h2>
+        <p>{hasDemoMoments ? '9:00 AM–6:00 PM' : first && last ? `${todayRecords.length ? '' : formatPageDate(new Date(last.savedAt)) + ' · '}${clock(first.savedAt)}–${clock(last.savedAt)}` : ''}</p>
+        <button className="primary-button" onClick={onStory}>Read {displayName}’s story →</button>
+      </section>
+
+      <DailyRhythmCard petName={petName} petAvatar={petAvatar} moments={visibleRecords} onOpenActivitySummary={onActivitySummary} patterns={patterns} onMoment={onMoment} onPatterns={onPatterns} scenarioDate={scenarioDate} />
+      <section className="today-section">
+        <h2>Moments you might love</h2>
+        <div className="moment-grid">
+          {!hasDemoMoments ? featured.slice(0, 2).map(record => <button className="moment-card" key={record.id} onClick={() => onMoment(record.id)}>
+            {observationHasPrimaryMedia(record) ? <StoryMediaView src={record.image} type={record.mediaType} alt={record.title} /> : <span className="moment-text-preview" aria-hidden="true">✦</span>}
+            <span className="moment-card-copy"><strong>{record.title}</strong><small>{observationHasPrimaryMedia(record) ? record.mediaType?.startsWith('video/') ? 'Video' : record.mediaType?.startsWith('audio/') ? 'Audio' : 'Photo' : 'Written observation'} · {clock(record.savedAt)}</small></span>
+          </button>) : <>
+
+          <button className="moment-card" onClick={() => onMoment('toy')}>
+            <img src={asset('toy-chase.png')} alt={`${petName} with a toy on a blue background`} />
+            <span className="moment-card-copy"><strong>The toy chase</strong><small>Video · 0:18 · 4:20 PM</small></span>
+          </button>
+          <button className="moment-card" onClick={() => onMoment('window')}>
+            <img src={asset('sunny-nap.png')} alt={`${petName} resting on a yellow background`} />
+            <span className="moment-card-copy"><strong>A sunny window nap</strong><small>Photo · 11:35 AM</small></span>
+          </button>
+        </>}
+        </div>
+      </section>
+
+      <section className="today-section closer-look">
+        <h2>Worth a closer look</h2>
+        <button className="notice-card" onClick={hasDemoMoments ? onEvidence : () => reviewRecord && onMoment(reviewRecord.id)}>
+          <img src={asset('warning.png')} alt="" />
+          <span><strong>{!hasDemoMoments ? `Review ${reviewRecord?.title.toLowerCase() ?? 'today’s moments'}` : saved ? 'Your context is now linked' : 'Review the recorded moments'}</strong><small>{!hasDemoMoments ? 'Explore the observation and its owner context.' : saved ? 'Review the clips and your note.' : 'Open the source clips and caregiver notes.'}</small></span>
+        </button>
+      </section>
+      </>}
+    </>
+  );
 }
 
 type StoryTimelineItem = { id: string; time: string; title: string; note: string; image: string; dateKey: string; timestamp: number; mediaType?: string; contexts?: { author: string; text: string }[] };
@@ -2441,7 +2648,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const [draftObservationContext, setDraftObservationContext] = useState('');
   const [draftPrivateRecord, setDraftPrivateRecord] = useState(false);
   const [selectedMomentId, setSelectedMomentId] = useState('window');
-  const [selectedActivityMoment] = useState<StoryObservation | null>(null);
+  const [selectedActivityMoment, setSelectedActivityMoment] = useState<StoryObservation | null>(null);
   const [editingContextId, setEditingContextId] = useState<string | null>(null);
   const [lastSavedContextId, setLastSavedContextId] = useState<string | null>(null);
   const [note, setNote] = useState('');
@@ -3721,7 +3928,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         {sharedId && sharedWritePending() && <p className="shared-sync-pending" role="status">{sharedSync.current.failed ? 'Shared sync paused. Your local edits are kept; resolve the sync error before leaving.' : 'Syncing shared changes…'}</p>}
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
-            {view === 'today' && <TodayPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onPetsNavigate={() => navigateTo('pets')} onPatterns={() => openPatternKnowledge()} />}
+            {view === 'today' && <TodayPage onEvidence={() => navigateTo('overview')} saved={lastSavedContext} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onPetsNavigate={() => navigateTo('pets')} onPatterns={() => openPatternKnowledge()} />}
 
             {view === 'activitySummary' && selectedActivityMoment && <PetActivitySummaryPage moment={selectedActivityMoment} moments={visibleStoryObservations(storyObservations, includedStoryMoments)} petName={petName} petAvatar={petAvatar} onBack={() => goBack('today')} />}
             {view === 'story' && <StoryPage onMoment={openMomentDetail} onEditStory={() => navigateTo('storyEdit')} onEditMoment={(item) => editStoryRow({ id: item.id, image: item.image, mediaType: item.mediaType, title: item.title, meta: `${item.time} · story moment`, note: item.note })} onDeleteMoment={deleteStoryMoment} onPetsNavigate={() => navigateTo('pets')} onAddPet={openAddPetForm} petName={petName} petAvatar={petAvatar} ownerName={ownerName} accounts={prototypeSession.accounts} contexts={savedContexts} observations={storyObservations} includedMoments={includedStoryMoments} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} canEdit={canContributeToSharedPet} />}

@@ -1315,7 +1315,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .pattern-time-fields { display: flex; gap: 8px; }
 .pattern-time-fields label { width: 50%; }
 .phone { --status-bar-height: 0px; }
-.main-header { padding-top: 16px; height: 104px; }
 .plan-timeline .moment .plan-time::before { content: '●'; display: block; color: #cfaa21; font-size: 15px; }
 .pattern-time-editor select { padding: 10px; border: 1px solid #bac7b1; border-radius: 8px; width: 100%; }
 .pattern-time-editor .settings-choice input { width: 20px; }
