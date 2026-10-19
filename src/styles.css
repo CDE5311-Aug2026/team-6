@@ -1319,3 +1319,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .pattern-time-editor select { padding: 10px; border: 1px solid #bac7b1; border-radius: 8px; width: 100%; }
 .pattern-time-editor .settings-choice input { width: 20px; }
 .shared-sync-pending { margin: 0; padding: 10px 16px; background: #fff2bb; color: #534719; font-size: 12px; line-height: 1.5; z-index: 20; }
+
+/* Allow the home greeting to wrap without covering the story card. */
+.home-screen .main-header { height: auto; min-height: 97px; padding-bottom: 16px; }
