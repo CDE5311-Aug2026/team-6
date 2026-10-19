@@ -44,6 +44,7 @@ function attachCloudCareGroups(session: PrototypeSession, groups: Awaited<Return
   for (const group of groups) {
     const workspace: Record<string, unknown> = {
       ...group.workspace,
+      sharedUpdatedAt: group.updatedAt,
       groupName: group.groupName,
       careMembers: group.members.map(member => ({
         id: member.id, name: member.name, email: member.email || undefined,
@@ -94,7 +95,7 @@ function attachCloudCareGroups(session: PrototypeSession, groups: Awaited<Return
         const ownerAvatar = usableMediaUrl(ownerPet.avatar, media) ? ownerPet.avatar : '';
         const observationAvatar = sharedObservations.find(value => value && typeof value === 'object' && usableMediaUrl((value as Record<string, unknown>).image, media));
         const storyAvatar = observationAvatar ? String((observationAvatar as Record<string, unknown>).image) : '';
-        const preferGoldenStoryImage = isSyntheticSunnyProfile({ id: group.petId, name: group.petName, breed: group.petBreed });
+        const preferGoldenStoryImage = !group.workspace.scenarioDate && isSyntheticSunnyProfile({ id: group.petId, name: group.petName, breed: group.petBreed });
         pets[index] = { ...ownerPet, sharedGroupId: group.groupId, sharedOwnerAccountId: group.ownerId,
           name: group.petName, breed: group.petBreed, age: group.petAge,
           // The shared care-group avatar can be stale (for example, left over
@@ -109,7 +110,7 @@ function attachCloudCareGroups(session: PrototypeSession, groups: Awaited<Return
       const index = pets.findIndex(pet => pet.sharedGroupId === group.groupId);
       const observationAvatar = groupObservations.find(value => value && typeof value === 'object' && usableMediaUrl((value as Record<string, unknown>).image, media));
       const storyAvatar = observationAvatar ? String((observationAvatar as Record<string, unknown>).image) : '';
-      const preferGoldenStoryImage = isSyntheticSunnyProfile({ id: group.petId, name: group.petName, breed: group.petBreed });
+      const preferGoldenStoryImage = !group.workspace.scenarioDate && isSyntheticSunnyProfile({ id: group.petId, name: group.petName, breed: group.petBreed });
       const sharedPet = { id: sharedPetId, sharedGroupId: group.groupId, sharedOwnerAccountId: group.ownerId,
         name: group.petName, breed: group.petBreed, age: group.petAge,
         avatar: preferGoldenStoryImage ? storyAvatar || (usableMediaUrl(group.petAvatar, media) ? group.petAvatar : '') : (usableMediaUrl(group.petAvatar, media) ? group.petAvatar : '') || storyAvatar, hasDemoMoments: false,
@@ -363,11 +364,12 @@ export default function CloudRoot() {
         cancelInvitation: cancelCloudCareInvitation,
         removeCareMember: removeCloudCareMember,
         updateCareMember: updateCloudCareMember,
-        saveCareGroup: async (groupId, pet, groupName, groupWorkspace) => saveCloudCareGroup(
+        saveCareGroup: async (groupId, pet, groupName, groupWorkspace, expectedUpdatedAt) => saveCloudCareGroup(
           groupId,
           await workspace.media.encode(pet),
           groupName,
           await workspace.media.encode(groupWorkspace),
+          expectedUpdatedAt,
         ),
       }}
       notice={syncNoticeVisible && syncState === 'error' && <div className="cloud-sync-bar error" role="alert">

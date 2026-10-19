@@ -1,0 +1,14 @@
+{
+  "scenario": "Working owner and daily caregiver",
+  "scenarioDate": "2026-10-19",
+  "fictional": true,
+  "mediaProvenance": "Four 6-second MP4 storyboards reconstructed from existing AI-generated Sunny stills. No real camera feed or video recognition.",
+  "replayTimes": [
+    "09:45 missing breakfast record",
+    "10:15 breakfast recorded at 10:10",
+    "11:45 walk shared by Mum",
+    "14:30 toy moment uploaded by Mum"
+  ],
+  "historyDays": 7,
+  "records": 40
+}

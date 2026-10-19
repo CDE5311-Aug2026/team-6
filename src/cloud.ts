@@ -142,7 +142,7 @@ export type CloudCareInvitation = {
   petSpecies: 'Dog' | 'Cat'; groupName: string; workspace: Record<string, unknown>;
 };
 export type CloudCareGroup = {
-  groupId: string; ownerId: string; petId: string; petName: string; petBreed: string; petAge: string; petAvatar: string;
+  updatedAt: string; groupId: string; ownerId: string; petId: string; petName: string; petBreed: string; petAge: string; petAvatar: string;
   petSpecies: 'Dog' | 'Cat'; groupName: string; workspace: Record<string, unknown>; role: 'Caregiver' | 'Viewer'; isOwner: boolean;
   members: { id: string; name: string; email: string; avatar: string; role: 'Caregiver' | 'Viewer'; isOwner: boolean }[];
 };
@@ -160,7 +160,7 @@ function mapCareInvitation(row: Record<string, unknown>): CloudCareInvitation {
 
 function mapCareGroup(row: Record<string, unknown>): CloudCareGroup {
   return {
-    groupId: String(row.group_id), ownerId: String(row.owner_id), petId: String(row.pet_id), petName: String(row.pet_name),
+    updatedAt: String(row.updated_at ?? ''), groupId: String(row.group_id), ownerId: String(row.owner_id), petId: String(row.pet_id), petName: String(row.pet_name),
     petBreed: String(row.pet_breed ?? ''), petAge: String(row.pet_age ?? ''), petAvatar: String(row.pet_avatar ?? ''),
     petSpecies: row.pet_species === 'Cat' ? 'Cat' : 'Dog', groupName: String(row.group_name ?? 'Care circle'),
     workspace: (row.workspace && typeof row.workspace === 'object' ? row.workspace : {}) as Record<string, unknown>,
@@ -206,15 +206,18 @@ export async function cancelCloudCareInvitation(invitationId: string) {
 export async function listCloudCareGroups() {
   const { data, error } = await client().rpc('list_my_care_groups');
   if (error) throw new Error(error.message);
-  return ((data ?? []) as Record<string, unknown>[]).map(mapCareGroup);
+  const { data: versions, error: versionError } = await client().from('care_groups').select('id,updated_at');
+  if (versionError) throw versionError;
+  return ((data ?? []) as Record<string, unknown>[]).map(row => mapCareGroup({ ...row, updated_at: versions?.find(v => v.id === row.group_id)?.updated_at }));
 }
 
-export async function saveCloudCareGroup(groupId: string, pet: { name: string; breed: string; age: string; avatar: string; species: 'Dog' | 'Cat' }, groupName: string, workspace: Record<string, unknown>) {
-  const { error } = await client().rpc('save_care_group_workspace', {
-    p_group_id: groupId, p_workspace: workspace, p_group_name: groupName, p_pet_name: pet.name,
+export async function saveCloudCareGroup(groupId: string, pet: { name: string; breed: string; age: string; avatar: string; species: 'Dog' | 'Cat' }, groupName: string, workspace: Record<string, unknown>, expectedUpdatedAt: string) {
+  const { data, error } = await client().rpc('save_care_group_workspace_checked', {
+    p_group_id: groupId, p_expected_updated_at: expectedUpdatedAt, p_workspace: workspace, p_group_name: groupName, p_pet_name: pet.name,
     p_pet_breed: pet.breed, p_pet_age: pet.age, p_pet_avatar: pet.avatar, p_pet_species: pet.species,
   });
   if (error) throw new Error(error.message);
+  return String(data);
 }
 
 export async function removeCloudCareMember(groupId: string, memberId: string) {

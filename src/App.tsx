@@ -1,5 +1,7 @@
+import PatternSuggestions from './PatternSuggestions';
 import SettingsPanels, { readPreferences } from './SettingsPanels';
-import { summarizeRoutine } from './routineSummary';
+import DailyPlan from './DailyPlan';
+import { clockMinute, type DailyPattern } from '../supabase/functions/_shared/dailyPatterns';
 import Welcome from './Welcome';
 import { requestAskAI } from './askAI';
 import { searchCareAccounts, type CareAccountSearchResult, type CloudCareGroup, type CloudCareInvitation } from './cloud';
@@ -105,15 +107,7 @@ type MediaSource = {
   lastSync?: string;
 };
 
-type TypicalPattern = {
-  id: string;
-  title: string;
-  detail: string;
-  evidence: string;
-  confirmedBy: string;
-  updatedAt: string;
-  status: 'confirmed' | 'archived';
-};
+type TypicalPattern = DailyPattern;
 
 type LifeCareEvent = {
   id: string;
@@ -241,7 +235,7 @@ function saveCareMembersToStorage(members: CareMember[]) {
 }
 type StoryMedia = { name: string; type: string; url: string };
 type StorySourceNote = { id: string; text: string; label: string };
-type StoryObservation = { id: string; note: string; title: string; image: string; mediaType?: string; relatedPhotos?: StoryMedia[]; momentCount: number; momentIds?: string[]; sourceNotes?: StorySourceNote[]; context: string; privateRecord: boolean; savedAt: string; authorId?: string; authorName?: string; authorAvatar?: string; synthetic?: boolean; observationKind?: 'meal' | 'walk' | 'play' | 'rest' | string; simulationKey?: string; metrics?: Record<string, number> };
+type StoryObservation = { id: string; note: string; title: string; image: string; mediaType?: string; relatedPhotos?: StoryMedia[]; momentCount: number; momentIds?: string[]; sourceNotes?: StorySourceNote[]; context: string; privateRecord: boolean; sourceKind?: string; savedAt: string; authorId?: string; authorName?: string; authorAvatar?: string; synthetic?: boolean; observationKind?: 'meal' | 'walk' | 'play' | 'rest' | string; simulationKey?: string; metrics?: Record<string, number> };
 type StoryDraft = { id: string; selectedMoments: string[]; note: string; title?: string; momentAt?: string; relatedPhotos?: StoryMedia[]; context: string; savedAt: string; privateRecord?: boolean; uploadedMedia?: StoryMedia };
 type AskAttachment = { url: string; name: string; kind: 'image' | 'audio'; type: string };
 type AskMessage = { role: 'user' | 'assistant'; text: string; attachment?: AskAttachment };
@@ -259,6 +253,8 @@ type PetWorkspace = {
   mediaSources: MediaSource[];
   patterns: TypicalPattern[];
   lifeEvents: LifeCareEvent[];
+  scenarioDate?: string;
+  sharedUpdatedAt?: string;
 };
 type PrototypePet = {
   id: string;
@@ -481,53 +477,6 @@ function readSavedContexts(): OwnerContext[] {
   return [];
 }
 
-function StatusBar() {
-  const [now, setNow] = useState(() => new Date());
-  const [online, setOnline] = useState(() => navigator.onLine);
-  const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 15_000);
-    const updateOnline = () => setOnline(navigator.onLine);
-    window.addEventListener('online', updateOnline);
-    window.addEventListener('offline', updateOnline);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener('online', updateOnline);
-      window.removeEventListener('offline', updateOnline);
-    };
-  }, []);
-  useEffect(() => {
-    type BatteryLike = EventTarget & { level: number };
-    const batteryNavigator = navigator as Navigator & { getBattery?: () => Promise<BatteryLike> };
-    if (!batteryNavigator.getBattery) return;
-    let battery: BatteryLike | null = null;
-    const update = () => { if (battery) setBatteryLevel(battery.level); };
-    void batteryNavigator.getBattery().then((result) => {
-      battery = result;
-      update();
-      battery.addEventListener('levelchange', update);
-    }).catch(() => {});
-    return () => { battery?.removeEventListener('levelchange', update); };
-  }, []);
-  const systemTime = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(now);
-  return (
-    <div className="status-bar" aria-hidden="true">
-      <span>{systemTime}</span>
-      <svg className={`status-icons ${online ? '' : 'is-offline'}`} viewBox="0 0 143 54" role="img" aria-label={online ? 'Online' : 'Offline'}>
-        <rect x="32" y="32" width="4" height="4" rx="1" />
-        <rect x="40" y="27" width="4" height="9" rx="1" />
-        <rect x="48" y="22" width="4" height="14" rx="1" />
-        <rect x="56" y="17" width="4" height="19" rx="1" />
-        <g className="status-wifi" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-          <path d="M66 22c6-6 16-6 22 0" /><path d="M70 27c4-4 10-4 14 0" /><path d="M75 32c1-1 3-1 4 0" />
-        </g>
-        <rect className="status-battery-outline" x="96" y="18" width="29" height="17" rx="4" fill="none" stroke="currentColor" strokeWidth="2" />
-        <path d="M127 23v7a3.5 3.5 0 0 0 0-7" />
-        {batteryLevel !== null && <rect x="99" y="21" width={Math.max(1, 23 * batteryLevel)} height="11" rx="2" />}
-      </svg>
-    </div>
-  );
-}
 
 function Avatar({ name, src = '' }: { name: string; src?: string }) {
   return <img className="avatar" src={src || asset('luna-avatar.png')} alt={name} />;
@@ -636,178 +585,13 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
     image: observationHasPrimaryMedia(observation) ? observation.image : '',
     mediaType: observation.mediaType,
     relatedPhotos: observation.relatedPhotos,
-    source: `Owner observation · ${formatRelativeDate(observation.savedAt)}`,
+    source: `${observation.sourceKind === 'camera' ? 'Simulated camera clip' : 'Owner observation'} · ${formatRelativeDate(observation.savedAt)}`,
     observationContext: observation.context,
   };
   const base = baseMomentDefinitions.find((entry) => entry.id === momentId) ?? baseMomentDefinitions[1];
   return { ...base, image: asset(base.image) };
 }
 
-function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary }: { petName: string; petAvatar: string; moments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void }) {
-  const [view, setView] = useState<'today' | 'pattern'>('today');
-  const routine = summarizeRoutine(moments);
-  const [dayOffset, setDayOffset] = useState(0);
-  const [openMomentId, setOpenMomentId] = useState<string | null>(null);
-  const dragStart = useRef<number | null>(null);
-  const navStart = useRef<'previous' | 'newer' | null>(null);
-  const pressedActivityAction = useRef<{ kind: 'moment' | 'popup'; id: string } | null>(null);
-  const suppressNavClick = useRef(false);
-  const now = useCurrentTime();
-  const displayName = petName.replace(/\s*[（(]test[^）)]*[）)]$/i, '');
-  const selectedDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset);
-  const selectedMoments = moments.filter(moment => isSameLocalDay(moment.savedAt, selectedDate));
-  const latestMoment = [...moments].sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime())[0];
-  const isToday = dayOffset === 0;
-  const dayTitle = isToday ? 'TODAY' : dayOffset === -1 ? 'YESTERDAY' : new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(selectedDate).toUpperCase();
-  const selectedDateLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(selectedDate);
-  const currentPetAvatar = petAvatar || asset('luna-avatar.png');
-  const pointOnDial = (minutes: number, radius: number) => {
-    const angle = Math.PI - Math.max(0, Math.min(1440, minutes)) / 1440 * Math.PI;
-    return { x: 300 + radius * Math.cos(angle), y: 390 - radius * Math.sin(angle) };
-  };
-  const timeLabel = (date: Date) => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
-  const momentPoints = selectedMoments.map(moment => {
-    const date = new Date(moment.savedAt);
-    const minutes = date.getHours() * 60 + date.getMinutes();
-    return { moment, ...pointOnDial(minutes, 220), minutes, time: timeLabel(date) };
-  });
-  const labelPositions = new Map<string, { x: number; y: number }>();
-  const placedLabelPositions: Array<{ x: number; y: number }> = [];
-  [...momentPoints].sort((left, right) => left.minutes - right.minutes).forEach(point => {
-    const candidates = [270, 288, 306, 324].map(radius => pointOnDial(point.minutes, radius));
-    const label = candidates.find(candidate =>
-      candidate.x >= 34 && candidate.x <= 566 && candidate.y >= 18 && candidate.y <= 428 &&
-      placedLabelPositions.every(placed => Math.abs(candidate.x - placed.x) >= 62 || Math.abs(candidate.y - placed.y) >= 25)
-    ) ?? candidates[candidates.length - 1];
-    labelPositions.set(point.moment.id, label);
-    placedLabelPositions.push(label);
-  });
-  const chronologicalMoments = [...momentPoints].sort((left, right) => left.minutes - right.minutes);
-  chronologicalMoments.forEach((earlier, index) => {
-    const later = chronologicalMoments[index + 1];
-    if (!later || earlier.minutes < 1080 || later.minutes - earlier.minutes > 50) return;
-    const upperPosition = pointOnDial(earlier.minutes, 270);
-    labelPositions.set(later.moment.id, upperPosition);
-    labelPositions.set(earlier.moment.id, { x: upperPosition.x, y: upperPosition.y + 28 });
-  });
-  const labeledMomentPoints = momentPoints.map(point => ({ ...point, label: labelPositions.get(point.moment.id)! }));
-  const currentPoint = pointOnDial(now.getHours() * 60 + now.getMinutes(), 220);
-  const openMomentPoint = momentPoints.find(point => point.moment.id === openMomentId);
-  const popupWidth = 176;
-  const popupX = openMomentPoint ? Math.max(8, Math.min(600 - popupWidth - 8, openMomentPoint.x > 300 ? openMomentPoint.x - popupWidth - 12 : openMomentPoint.x + 12)) : 0;
-  const popupY = openMomentPoint ? Math.max(8, Math.min(390 - 48, openMomentPoint.y - 58)) : 0;
-  const goToPreviousDay = () => setDayOffset(offset => offset - 1);
-  const goToNewerDay = () => setDayOffset(offset => Math.min(0, offset + 1));
-  const handleNavKey = (event: React.KeyboardEvent<SVGGElement>, direction: 'previous' | 'newer') => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    if (direction === 'previous') goToPreviousDay(); else goToNewerDay();
-  };
-  return <section className="daily-rhythm-card" aria-labelledby="daily-rhythm-title">
-    <header className="daily-rhythm-header">
-      <div><p className="eyebrow">DAILY RHYTHM</p><h2 id="daily-rhythm-title">{displayName}’s day</h2></div>
-      <div className="daily-rhythm-toggle" role="tablist" aria-label="Daily rhythm view">
-        <button type="button" role="tab" aria-selected={view === 'today'} className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}>Today</button>
-        <button type="button" role="tab" aria-selected={view === 'pattern'} className={view === 'pattern' ? 'active' : ''} onClick={() => setView('pattern')}>Pattern</button>
-      </div>
-    </header>
-    {view === 'pattern' ? <div className="routine-summary" role="tabpanel" aria-label="Recorded routine summary">
-      <h3>Recent recorded routine</h3>
-      <p>Last 7 complete days (local time): {routine.start.toLocaleDateString('en-GB')} - {new Date(+routine.end - 1).toLocaleDateString('en-GB')}. {routine.count} records across {routine.days} days{routine.capped ? ' (latest 100 only)' : ''}.</p>
-      {routine.simulated && <p className="routine-note">Includes simulated test records.</p>}
-      {!routine.ready ? <><strong>More recorded days needed</strong><p>Collect at least 8 moments across 3 days. You can add observations in Story or a confirmed pattern in Pets.</p></> : routine.patterns.length ? <ul>{routine.patterns.map(pattern => <li key={pattern.category}><strong>{pattern.category}</strong><span>Most recorded in {pattern.period} · {pattern.count} moments on {pattern.days} days</span></li>)}</ul> : <p>No activity category repeats across 3 days yet. Add more named meal, walk, rest or play moments in Story.</p>}
-      <p className="routine-note">A simple count of recorded times, not an AI diagnosis or confirmed baseline. Missing records do not mean an activity did not happen. New moments update this summary automatically.</p>
-    </div> : <>
-    <p className="daily-rhythm-caption" aria-live="polite">{latestMoment ? `${displayName}’s latest activity: ${latestMoment.title}` : `${displayName} has no recorded moments yet`}</p>
-    <div className="daily-rhythm-chart">
-      <svg viewBox="0 0 600 460" role="application" tabIndex={0} aria-label={`Daily moments for ${dayTitle.toLowerCase()}. Swipe right to view the previous day.`}
-        onPointerDown={event => {
-          const target = event.target as Element;
-          dragStart.current = event.clientX;
-          navStart.current = target.closest('[data-day-nav]')?.getAttribute('data-day-nav') as 'previous' | 'newer' | null;
-          const momentTrigger = target.closest('[data-moment-trigger]')?.getAttribute('data-moment-trigger');
-          const popupTrigger = target.closest('[data-activity-popup]')?.getAttribute('data-activity-popup');
-          pressedActivityAction.current = popupTrigger ? { kind: 'popup', id: popupTrigger } : momentTrigger ? { kind: 'moment', id: momentTrigger } : null;
-          event.currentTarget.setPointerCapture(event.pointerId);
-        }}
-        onPointerUp={event => {
-          const startX = dragStart.current;
-          const clickedNav = navStart.current;
-          const clickedActivity = pressedActivityAction.current;
-          dragStart.current = null;
-          navStart.current = null;
-          pressedActivityAction.current = null;
-          if (startX !== null) {
-            const deltaX = event.clientX - startX;
-            if (deltaX > 48) { suppressNavClick.current = true; goToPreviousDay(); window.setTimeout(() => { suppressNavClick.current = false; }, 0); }
-            else if (deltaX < -48) { suppressNavClick.current = true; goToNewerDay(); window.setTimeout(() => { suppressNavClick.current = false; }, 0); }
-            else if (clickedActivity?.kind === 'moment') setOpenMomentId(clickedActivity.id);
-            else if (clickedActivity?.kind === 'popup') {
-              const selected = moments.find(moment => moment.id === clickedActivity.id);
-              if (selected) onOpenActivitySummary(selected);
-            }
-            else if (clickedNav) { suppressNavClick.current = true; if (clickedNav === 'previous') goToPreviousDay(); else if (!isToday) goToNewerDay(); window.setTimeout(() => { suppressNavClick.current = false; }, 0); }
-          }
-          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-        }}
-        onPointerCancel={() => { dragStart.current = null; navStart.current = null; pressedActivityAction.current = null; }}
-        >
-        <defs>
-          <linearGradient id="rhythm-gradient" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#e3ad22"/><stop offset=".35" stopColor="#f4c52f"/><stop offset=".68" stopColor="#ffdc61"/><stop offset="1" stopColor="#eab522"/></linearGradient>
-          <linearGradient id="rhythm-horizon" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff6d1" stopOpacity=".8"/><stop offset="1" stopColor="#fffdf7" stopOpacity=".1"/></linearGradient>
-          <radialGradient id="rhythm-orb-surface" cx="36%" cy="22%" r="82%"><stop offset="0" stopColor="#fffef9"/><stop offset=".38" stopColor="#fff9e9"/><stop offset=".72" stopColor="#f6eccf"/><stop offset="1" stopColor="#e5d5ae"/></radialGradient>
-          <radialGradient id="rhythm-orb-gloss" cx="36%" cy="20%" r="78%"><stop offset="0" stopColor="#fff" stopOpacity=".62"/><stop offset=".3" stopColor="#fff" stopOpacity=".22"/><stop offset="1" stopColor="#fff" stopOpacity="0"/></radialGradient>
-          <marker id="rhythm-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M2 1.5 7 5 2 8.5" fill="none" stroke="#ffcf29" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></marker>
-          <clipPath id="rhythm-current-avatar-clip" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath>
-          <clipPath id="rhythm-upper-half"><rect x="0" y="0" width="600" height="390"/></clipPath>
-        </defs>
-        <g clipPath="url(#rhythm-upper-half)">
-        <foreignObject x="0" y="0" width="600" height="390" aria-hidden="true"><div className="daily-rhythm-daylight-bg" /></foreignObject>
-        <circle className="daily-rhythm-horizon-backdrop" cx="300" cy="390" r="156" aria-hidden="true"/>
-        <g key={dayOffset} className="daily-rhythm-wheel">
-          <circle className="daily-rhythm-band-shadow" cx="300" cy="390" r="220"/>
-          <circle className="daily-rhythm-band" cx="300" cy="390" r="220"/>
-          <circle className="daily-rhythm-horizon-fill" cx="300" cy="390" r="156"/>
-          <circle className="daily-rhythm-orb-highlight" cx="300" cy="390" r="156"/>
-          <circle className="daily-rhythm-inner-arc" cx="300" cy="390" r="156"/>
-          <circle className="daily-rhythm-inner-arc inner-arc-two" cx="300" cy="390" r="136"/>
-          {momentPoints.map(({ moment, x, y, time }) => <g className="daily-rhythm-point" key={moment.id} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={`Show ${moment.title}`} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpenMomentId(moment.id); } }}>
-            <title>{moment.title} · {time}</title>
-            <circle className="daily-rhythm-point-hit" cx={x} cy={y} r="16"/>
-            <circle className="daily-rhythm-point-marker" cx={x} cy={y} r="7"/>
-            <circle className="daily-rhythm-point-core" cx={x} cy={y} r="2.5"/>
-          </g>)}
-          {isToday && <g className="daily-rhythm-current-point" aria-label={`Current time ${timeLabel(now)}`}>
-            <title>Now · {timeLabel(now)}</title>
-            <circle className="daily-rhythm-current-avatar-outer" cx={currentPoint.x} cy={currentPoint.y} r="23"/>
-            <circle className="daily-rhythm-current-avatar-inner" cx={currentPoint.x} cy={currentPoint.y} r="20"/>
-            <image href={currentPetAvatar} x={currentPoint.x - 18.5} y={currentPoint.y - 18.5} width="37" height="37" preserveAspectRatio="xMidYMid slice" clipPath="url(#rhythm-current-avatar-clip)"/>
-          </g>}
-          {labeledMomentPoints.map(({ moment, label, time }) => <text className="daily-rhythm-time" key={`${moment.id}-label`} x={label.x} y={label.y} textAnchor="middle" dominantBaseline="middle">{time}</text>)}
-        </g>
-        </g>
-        {openMomentPoint && <g className="daily-rhythm-moment-popover" data-activity-popup={openMomentPoint.moment.id} role="button" tabIndex={0} aria-label={`Open ${openMomentPoint.moment.title} activity summary`} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpenActivitySummary(openMomentPoint.moment); } }}>
-          <foreignObject x={popupX} y={popupY} width={popupWidth} height="48">
-            <button type="button" className="daily-rhythm-popover-button"><span>{openMomentPoint.moment.title}</span><span className="daily-rhythm-popover-arrow" aria-hidden="true">→</span></button>
-          </foreignObject>
-        </g>}
-        <text className="daily-rhythm-time daily-rhythm-end-time" x="52" y="390" textAnchor="middle" dominantBaseline="middle">00:00</text>
-        <text className="daily-rhythm-time daily-rhythm-end-time" x="548" y="390" textAnchor="middle" dominantBaseline="middle">00:00</text>
-        <g className="daily-rhythm-nav-arrow" data-day-nav="previous" role="button" tabIndex={0} aria-label="Show previous day" onClick={() => { if (!suppressNavClick.current) goToPreviousDay(); }} onKeyDown={event => handleNavKey(event, 'previous')}>
-          <path className="daily-rhythm-arrow-hit" d="M230 276 A136 136 0 0 0 176 336"/>
-          <path className="daily-rhythm-arrow" d="M230 276 A136 136 0 0 0 176 336" markerEnd="url(#rhythm-arrow)"/>
-        </g>
-        <g className={`daily-rhythm-nav-arrow ${isToday ? 'disabled' : ''}`} data-day-nav="newer" role="button" tabIndex={isToday ? -1 : 0} aria-disabled={isToday} aria-label="Show newer day" onClick={() => { if (!suppressNavClick.current && !isToday) goToNewerDay(); }} onKeyDown={event => { if (!isToday) handleNavKey(event, 'newer'); }}>
-          <path className="daily-rhythm-arrow-hit" d="M370 276 A136 136 0 0 1 424 336"/>
-          <path className="daily-rhythm-arrow" d="M370 276 A136 136 0 0 1 424 336" markerEnd="url(#rhythm-arrow)"/>
-        </g>
-        <text className="daily-rhythm-center-title" x="300" y="306" textAnchor="middle">{dayTitle}</text>
-        <text className="daily-rhythm-center-date" x="300" y="327" textAnchor="middle">{selectedDateLabel}</text>
-      </svg>
-    </div>
-    <p className="daily-rhythm-footnote">Open Pattern for a summary of recent recorded times.</p></>}
-  </section>;
-}
 
 function formatActivityDuration(minutes: number) {
   if (!minutes) return 'Not recorded';
@@ -862,63 +646,15 @@ function PetActivitySummaryPage({ moment, moments, petName, petAvatar, onBack }:
   </section>;
 }
 
-function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, onActivitySummary, petName, petAvatar, saved, hasDemoMoments, noPetYet, observations, includedMoments }: { onStory: () => void; onMoment: (momentId: string) => void; onEvidence: () => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; petName: string; petAvatar: string; saved: OwnerContext | null; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null }) {
+function TodayPage({ onStory, onMoment, onPetsNavigate, onAddPet, onPatterns, petName, petAvatar, noPetYet, observations, includedMoments, patterns, scenarioDate }: { onStory: () => void; onMoment: (momentId: string) => void; onPetsNavigate: () => void; onAddPet: () => void; onPatterns: () => void; petName: string; petAvatar: string; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; scenarioDate?: string }) {
   const now = useCurrentTime();
-  const displayName = petName.replace(/\s*[（(]test[^）)]*[）)]$/i, '');
-  const visibleRecords = visibleStoryObservations(observations, includedMoments)
-    .filter(record => new Date(record.savedAt).getTime() <= now.getTime())
-    .sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime());
-  const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
-  const featured = todayRecords.length ? todayRecords : visibleRecords.filter(record => new Date(record.savedAt).toDateString() === new Date(visibleRecords[0]?.savedAt).toDateString());
-  const first = featured.at(-1);
-  const last = featured[0];
-  const clock = (value: string) => formatObservationTime(value).split('\n').at(-1);
-  const storyHeading = `${featured.length} ${featured.length === 1 ? 'moment' : 'moments'} from ${displayName}’s day.`;
-  const reviewRecord = featured.find(record => /rest/i.test(record.title)) ?? last;
-
-  return (
-    <>
-      <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
-      {!hasDemoMoments && !visibleRecords.length ? noPetYet ? <section className="today-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section> : <>
-      <section className="today-hero">
-        <span className="story-badge">✦ &nbsp; {hasDemoMoments || todayRecords.length ? 'TODAY’S STORY' : 'LATEST STORY'}</span>
-        <img className="hero-sparkle" src={asset('sparkle.svg')} alt="" />
-        <h2>{hasDemoMoments ? 'Sunny naps, a playful afternoon, and one very good toy.' : storyHeading}</h2>
-        <p>{hasDemoMoments ? '9:00 AM–6:00 PM' : first && last ? `${todayRecords.length ? '' : formatPageDate(new Date(last.savedAt)) + ' · '}${clock(first.savedAt)}–${clock(last.savedAt)}` : ''}</p>
-        <button className="primary-button" onClick={onStory}>Read {displayName}’s story →</button>
-      </section>
-
-      <DailyRhythmCard petName={petName} petAvatar={petAvatar} moments={visibleRecords} onOpenActivitySummary={onActivitySummary} />
-      <section className="today-section">
-        <h2>Moments you might love</h2>
-        <div className="moment-grid">
-          {!hasDemoMoments ? featured.slice(0, 2).map(record => <button className="moment-card" key={record.id} onClick={() => onMoment(record.id)}>
-            {observationHasPrimaryMedia(record) ? <StoryMediaView src={record.image} type={record.mediaType} alt={record.title} /> : <span className="moment-text-preview" aria-hidden="true">✦</span>}
-            <span className="moment-card-copy"><strong>{record.title}</strong><small>{observationHasPrimaryMedia(record) ? record.mediaType?.startsWith('video/') ? 'Video' : record.mediaType?.startsWith('audio/') ? 'Audio' : 'Photo' : 'Written observation'} · {clock(record.savedAt)}</small></span>
-          </button>) : <>
-
-          <button className="moment-card" onClick={() => onMoment('toy')}>
-            <img src={asset('toy-chase.png')} alt={`${petName} with a toy on a blue background`} />
-            <span className="moment-card-copy"><strong>The toy chase</strong><small>Video · 0:18 · 4:20 PM</small></span>
-          </button>
-          <button className="moment-card" onClick={() => onMoment('window')}>
-            <img src={asset('sunny-nap.png')} alt={`${petName} resting on a yellow background`} />
-            <span className="moment-card-copy"><strong>A sunny window nap</strong><small>Photo · 11:35 AM</small></span>
-          </button>
-        </>}
-        </div>
-      </section>
-
-      <section className="today-section closer-look">
-        <h2>Worth a closer look</h2>
-        <button className="notice-card" onClick={hasDemoMoments ? onEvidence : () => reviewRecord && onMoment(reviewRecord.id)}>
-          <img src={asset('warning.png')} alt="" />
-          <span><strong>{!hasDemoMoments ? `Review ${reviewRecord?.title.toLowerCase() ?? 'today’s moments'}` : saved ? 'Your context is now linked' : 'Afternoon rest looked a little longer'}</strong><small>{!hasDemoMoments ? 'Explore the observation and its owner context.' : saved ? 'Review the clips and your note.' : 'It may be ordinary. Review the clips.'}</small></span>
-        </button>
-      </section>
-      </>}
-    </>
-  );
+  const records = visibleStoryObservations(observations, includedMoments);
+  return <><MainHeader eyebrow="A little window into their day." title={`Hello, ${petName.replace(/\s*[\uff08(]test[^\uff09)]*[\uff09)]$/i, '')}!`} subtitle={formatPageDate(now)} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
+    {noPetYet ? <section className="today-empty-state"><h2>Add your first pet</h2><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <>
+      <DailyPlan petName={petName} records={records} patterns={patterns} onMoment={onMoment} onPatterns={onPatterns} scenarioDate={scenarioDate} />
+      <section className="today-section"><h2>Explore the evidence</h2><p>Review shared moments and caregiver notes. Pawsona does not label ordinary changes as health abnormalities.</p><button className="primary-button full" onClick={onStory}>Open Story</button></section>
+    </>}
+  </>;
 }
 
 type StoryTimelineItem = { id: string; time: string; title: string; note: string; image: string; dateKey: string; timestamp: number; mediaType?: string; contexts?: { author: string; text: string }[] };
@@ -987,7 +723,7 @@ function preferredScrollBehavior(): ScrollBehavior {
 
 function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPetsNavigate, onAddPet, petName, petAvatar, ownerName, accounts, contexts, observations, includedMoments, hasDemoMoments, noPetYet, canEdit }: { onMoment: (momentId: string) => void; onEditStory: () => void; onEditMoment: (item: StoryTimelineItem) => void; onDeleteMoment: (momentId: string) => string; onPetsNavigate: () => void; onAddPet: () => void; petName: string; petAvatar: string; ownerName: string; accounts: PrototypeAccount[]; contexts: OwnerContext[]; observations: StoryObservation[]; includedMoments: string[] | null; hasDemoMoments: boolean; noPetYet: boolean; canEdit: boolean }) {
   const now = useCurrentTime();
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(() => new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<StoryTimelineItem | null>(null);
@@ -1025,6 +761,7 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
   ];
   const timelineGroupKey = timelineGroups.map((group) => group.id).join('|');
   useEffect(() => {
+    if (selectedDate) return;
     const scroller = document.querySelector('.screen-scroll');
     const summary = document.getElementById('story-summary-card');
     if (!scroller || !summary) return;
@@ -1049,8 +786,9 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
       scroller.removeEventListener('scroll', updateSummaryDate);
       window.removeEventListener('resize', updateSummaryDate);
     };
-  }, [todayKey, timelineGroupKey]);
-  const summaryCount = timelineItems.filter((item) => item.dateKey === summaryDateKey).length;
+  }, [todayKey, timelineGroupKey, selectedDate]);
+  const summaryCount = timelineItems.filter((item) => item.dateKey === (selectedDate ? selectedKey : summaryDateKey)).length;
+  const displayedGroups = selectedDate ? [{ id: selectedKey, title: `${formatPageDate(selectedDay)} timeline`, items: timelineItems.filter(item => item.dateKey === selectedKey) }].filter(group => group.items.length) : timelineGroups;
   const daysWithRecords = new Set(visibleObservations.map((observation) => localDayKey(new Date(observation.savedAt))));
   if (hasDemoMoments) daysWithRecords.add(todayKey);
 
@@ -1059,9 +797,7 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
     setCalendarOpen(false);
     const key = localDayKey(date);
     setSummaryDateKey(key);
-    const groupId = timelineGroups.some((group) => group.id === key) ? key : 'earlier';
-    const target = document.querySelector<HTMLElement>(`.timeline-row[data-story-date="${key}"]`) ?? document.querySelector<HTMLElement>(`#story-day-${groupId} .section-heading`);
-    window.requestAnimationFrame(() => target?.scrollIntoView({ behavior: preferredScrollBehavior(), block: 'start' }));
+    document.querySelector<HTMLElement>('.screen-scroll')?.scrollTo({ top: 0, behavior: 'auto' });
   }
 
   function confirmDelete() {
@@ -1072,19 +808,20 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
   }
   return (
     <>
-      <MainHeader eyebrow={noPetYet ? 'DAILY STORY' : `${petName.toUpperCase()} · DAILY STORY`} title="Daily moments" subtitle={formatPageDate(selectedDay)} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} className="story-main-header" />
+      <MainHeader eyebrow={noPetYet ? 'DAILY STORY' : `${petName.toUpperCase()} · DAILY STORY`} title="Daily moments" subtitle={selectedDate ? formatPageDate(selectedDay) : 'All recorded days'} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} className="story-main-header" />
       {noPetYet ? <section className="today-empty-state pets-empty-state story-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <>
       <div id="story-summary-card" className={`story-summary-wrap ${summaryCompact ? 'is-compact' : ''} ${calendarOpen ? 'calendar-open' : ''}`}>
         <div className="story-summary"><img src={asset('story-heart.png')} alt="" /><strong>{summaryCount} {summaryCount === 1 ? 'moment' : 'moments'} {summaryDateKey === todayKey ? 'today' : 'on this day'}</strong><button className="story-calendar-toggle" type="button" aria-label={calendarOpen ? 'Close story calendar' : 'Open story calendar'} aria-expanded={calendarOpen} onClick={() => setCalendarOpen((open) => !open)}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M7.5 3v4M16.5 3v4M4 9.5h16M7.5 13h2M12 13h2M7.5 16.5h2M12 16.5h2"/></svg></button></div>
         {calendarOpen && <StoryCalendar now={now} selectedDate={selectedDate} daysWithRecords={daysWithRecords} onSelect={selectCalendarDate} />}
       </div>
+      <button className="profile-link" onClick={() => { setSelectedDate(selectedDate ? null : new Date()); setSummaryDateKey(todayKey); }}>{selectedDate ? 'View all recorded days' : 'Show today only'}</button>
       <section className="timeline-section">
-        {timelineGroups.length ? timelineGroups.map((group, groupIndex) => <section className={`timeline-day-group ${selectedDate && localDayKey(selectedDate) === group.id && summaryDateKey === group.id ? 'calendar-target' : ''}`} id={`story-day-${group.id}`} key={group.id}>
+        {displayedGroups.length ? displayedGroups.map((group, groupIndex) => <section className={`timeline-day-group ${selectedDate && localDayKey(selectedDate) === group.id && summaryDateKey === group.id ? 'calendar-target' : ''}`} id={`story-day-${group.id}`} key={group.id}>
           <div className="section-heading" data-story-date={group.id === 'earlier' ? undefined : group.id}><h2>{group.title}</h2>{canEdit && groupIndex === 0 && <button className="text-link" onClick={onEditStory}>Edit story ✎</button>}</div>
           <div className="timeline-list">{group.items.map((item) => <StoryTimelineRow key={item.id} item={item} canEdit={canEdit} menuOpen={openMenuId === item.id} onMenuToggle={() => setOpenMenuId(openMenuId === item.id ? null : item.id)} onView={() => { setOpenMenuId(null); onMoment(item.id); }} onEdit={() => { setOpenMenuId(null); onEditMoment(item); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(item); }} />)}</div>
         </section>) : <><div className="section-heading"><h2>{selectedKey === todayKey ? 'Today’s timeline' : `${formatPageDate(selectedDay)} timeline`}</h2>{canEdit && <button className="text-link" onClick={onEditStory}>Edit story ✎</button>}</div><p className="timeline-empty-state">{selectedKey === todayKey ? 'No moments today yet' : 'No moments recorded on this day'}</p></>}
       </section>
-      {summaryDateKey !== todayKey && <button className="story-back-top" type="button" aria-label="Back to today" title="Back to today" onClick={() => document.querySelector<HTMLElement>('.screen-scroll')?.scrollTo({ top: 0, behavior: preferredScrollBehavior() })}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg></button>}
+      {((selectedDate && selectedKey !== todayKey) || summaryDateKey !== todayKey) && <button className="story-back-top" type="button" aria-label="Back to today" title="Back to today" onClick={() => { setSelectedDate(new Date()); setSummaryDateKey(todayKey); document.querySelector<HTMLElement>('.screen-scroll')?.scrollTo({ top: 0, behavior: preferredScrollBehavior() }); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg></button>}
       {openMenuId && <button className="timeline-menu-dismiss" aria-label="Close moment actions" onClick={() => setOpenMenuId(null)} />}
       {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-story-moment-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-story-moment-title">Delete “{pendingDelete.title}”?</h2><p>{observations.some((entry) => entry.id === pendingDelete.id) ? 'This permanently removes this moment and its linked owner context from this pet’s Story.' : 'This removes this moment from the current Story. You can add it again later from Edit story.'}</p>{deleteError && <p className="inline-save-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete</button></div></section></div>}
       </>}
@@ -1741,6 +1478,8 @@ function normalizeWorkspace(value: unknown, ownerName: string, hasDemoData: bool
     mediaSources: Array.isArray(workspace.mediaSources) ? workspace.mediaSources : defaultMediaSources(hasDemoData),
     patterns: Array.isArray(workspace.patterns) ? workspace.patterns : defaultTypicalPatterns(ownerName, hasDemoData),
     lifeEvents: Array.isArray(workspace.lifeEvents) ? workspace.lifeEvents : [],
+    scenarioDate: typeof workspace.scenarioDate === 'string' ? workspace.scenarioDate : undefined,
+    sharedUpdatedAt: typeof workspace.sharedUpdatedAt === 'string' ? workspace.sharedUpdatedAt : undefined,
   };
 }
 
@@ -2093,7 +1832,7 @@ function ConnectedMediaPage({ petName, sources, initialSourceId, onBack, onUpdat
   </section>;
 }
 
-function PatternKnowledgePage({ petName, ownerName, patterns, initialPatternId, canManage, onBack, onSave, onDelete }: { petName: string; ownerName: string; patterns: TypicalPattern[]; initialPatternId: string | null; canManage: boolean; onBack: () => void; onSave: (pattern: TypicalPattern) => string; onDelete: (id: string) => string }) {
+function PatternKnowledgePage({ petName, ownerName, patterns, initialPatternId, canManage, onBack, onSave, onDelete, petId, records, live, onMoment }: { onMoment: (id: string) => void; petId: string; records: StoryObservation[]; live: boolean; petName: string; ownerName: string; patterns: TypicalPattern[]; initialPatternId: string | null; canManage: boolean; onBack: () => void; onSave: (pattern: TypicalPattern) => string; onDelete: (id: string) => string }) {
   const [selectedId, setSelectedId] = useState(initialPatternId);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -2101,22 +1840,31 @@ function PatternKnowledgePage({ petName, ownerName, patterns, initialPatternId, 
   const [draftTitle, setDraftTitle] = useState('');
   const [draftDetail, setDraftDetail] = useState('');
   const [draftEvidence, setDraftEvidence] = useState('');
+  const [timed, setTimed] = useState(false);
+  const [draftActivity, setDraftActivity] = useState('Breakfast');
+  const [draftStart, setDraftStart] = useState('09:00');
+  const [draftEnd, setDraftEnd] = useState('10:00');
+  const minute = (value: string) => { const [h,m] = value.split(':').map(Number); return h*60+m; };
+  const timing = timed ? { activity: draftActivity, startMinute: minute(draftStart), endMinute: minute(draftEnd) } : { activity: undefined, startMinute: undefined, endMinute: undefined };
+  const windowFields = <div className="pattern-time-editor"><label className="settings-choice"><input type="checkbox" checked={timed} onChange={e => setTimed(e.target.checked)} />Show a confirmed time window in Daily Rhythm</label>{timed && <><label>Activity<select value={draftActivity} onChange={e => setDraftActivity(e.target.value)}>{['Breakfast','Lunch','Dinner','Walk','Rest','Play'].map(v => <option key={v}>{v}</option>)}</select></label><div className="pattern-time-fields"><label>Window starts<input type="time" value={draftStart} onChange={e => setDraftStart(e.target.value)} /></label><label>Window ends<input type="time" value={draftEnd} onChange={e => setDraftEnd(e.target.value)} /></label></div></>}</div>;
   const [pendingDelete, setPendingDelete] = useState<TypicalPattern | null>(null);
   const [saveError, setSaveError] = useState('');
   const visible = patterns.filter((pattern) => showArchived || pattern.status === 'confirmed');
   const selected = patterns.find((pattern) => pattern.id === selectedId) ?? null;
-  function startAdd() { setAdding(true); setSelectedId(null); setEditing(false); setDraftTitle(''); setDraftDetail(''); setDraftEvidence(''); setSaveError(''); }
-  function startEdit(pattern: TypicalPattern) { setDraftTitle(pattern.title); setDraftDetail(pattern.detail); setDraftEvidence(pattern.evidence); setEditing(true); setAdding(false); setSaveError(''); }
+  function startAdd() { setTimed(false); setAdding(true); setSelectedId(null); setEditing(false); setDraftTitle(''); setDraftDetail(''); setDraftEvidence(''); setSaveError(''); }
+  function startEdit(pattern: TypicalPattern) { setTimed(Number.isFinite(pattern.startMinute)); setDraftActivity(pattern.activity || 'Breakfast'); setDraftStart(clockMinute(pattern.startMinute ?? 540)); setDraftEnd(clockMinute(pattern.endMinute ?? 600)); setDraftTitle(pattern.title); setDraftDetail(pattern.detail); setDraftEvidence(pattern.evidence); setEditing(true); setAdding(false); setSaveError(''); }
   function addPattern(event: FormEvent) {
     event.preventDefault();
     if (!draftTitle.trim() || !draftDetail.trim()) return;
-    const pattern: TypicalPattern = { id: `pattern-${Date.now()}`, title: draftTitle.trim(), detail: draftDetail.trim(), evidence: draftEvidence.trim() || 'Added directly by the owner', confirmedBy: ownerName, updatedAt: new Date().toISOString(), status: 'confirmed' };
+    if (timed && (!draftStart || !draftEnd || minute(draftStart) >= minute(draftEnd))) { setSaveError('Choose a valid same-day time window.'); return; }
+    const pattern: TypicalPattern = { ...timing, generatedBy: 'owner', id: `pattern-${Date.now()}`, title: draftTitle.trim(), detail: draftDetail.trim(), evidence: draftEvidence.trim() || 'Added directly by the owner', confirmedBy: ownerName, updatedAt: new Date().toISOString(), status: 'confirmed' };
     const error = onSave(pattern); setSaveError(error);
     if (!error) { setSelectedId(pattern.id); setAdding(false); setDraftTitle(''); setDraftDetail(''); setDraftEvidence(''); }
   }
   function saveEdit() {
     if (!selected || !draftTitle.trim() || !draftDetail.trim()) return;
-    const error = onSave({ ...selected, title: draftTitle.trim(), detail: draftDetail.trim(), evidence: draftEvidence.trim() || selected.evidence, updatedAt: new Date().toISOString() });
+    if (timed && (!draftStart || !draftEnd || minute(draftStart) >= minute(draftEnd))) { setSaveError('Choose a valid same-day time window.'); return; }
+    const error = onSave({ ...selected, ...timing, title: draftTitle.trim(), detail: draftDetail.trim(), evidence: draftEvidence.trim() || selected.evidence, updatedAt: new Date().toISOString() });
     setSaveError(error); if (!error) setEditing(false);
   }
   function toggleArchive(pattern: TypicalPattern) {
@@ -2132,9 +1880,10 @@ function PatternKnowledgePage({ petName, ownerName, patterns, initialPatternId, 
     <header className="settings-header"><button className="back-button" aria-label="Back to pet profile" onClick={onBack}>←</button><h1>Typical patterns</h1></header>
     <div className="settings-eyebrow-row"><p className="settings-eyebrow">OWNER-CONFIRMED KNOWLEDGE</p>{canManage && <div className="settings-eyebrow-actions"><button className="profile-link" onClick={startAdd}>Add pattern +</button><button className="profile-link" onClick={() => setShowArchived(!showArchived)}>{showArchived ? 'Current only' : 'Show archived'}</button></div>}</div>
     <section className="settings-summary"><strong>Patterns over time</strong><p>Only patterns confirmed by a person appear as knowledge about {petName}.</p></section>
-    {adding && <form className="pattern-detail-card management-add-form" onSubmit={addPattern}><p className="settings-eyebrow">NEW PATTERN</p><label><span>Pattern name</span><input autoFocus value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} placeholder="e.g. Evening play burst" /></label><label><span>Description</span><textarea value={draftDetail} onChange={(event) => setDraftDetail(event.target.value)} placeholder="Describe what usually happens and when." /></label><label><span>Supporting information</span><textarea value={draftEvidence} onChange={(event) => setDraftEvidence(event.target.value)} placeholder="Owner notes or selected records" /></label>{saveError && <p className="inline-save-error" role="alert">{saveError}</p>}<div className="source-detail-actions"><button type="button" className="cancel-button" onClick={() => setAdding(false)}>Cancel</button><button className="primary-button" disabled={!draftTitle.trim() || !draftDetail.trim()}>Add pattern</button></div></form>}
+    {adding && <form className="pattern-detail-card management-add-form" onSubmit={addPattern}><p className="settings-eyebrow">NEW PATTERN</p><label><span>Pattern name</span><input autoFocus value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} placeholder="e.g. Evening play burst" /></label><label><span>Description</span><textarea value={draftDetail} onChange={(event) => setDraftDetail(event.target.value)} placeholder="Describe what usually happens and when." /></label>{windowFields}<label><span>Supporting information</span><textarea value={draftEvidence} onChange={(event) => setDraftEvidence(event.target.value)} placeholder="Owner notes or selected records" /></label>{saveError && <p className="inline-save-error" role="alert">{saveError}</p>}<div className="source-detail-actions"><button type="button" className="cancel-button" onClick={() => setAdding(false)}>Cancel</button><button className="primary-button" disabled={!draftTitle.trim() || !draftDetail.trim()}>Add pattern</button></div></form>}
+    <PatternSuggestions petId={petId} records={records} ownerName={ownerName} existing={patterns} onSave={onSave} enabled={live && canManage} />
     <div className="pattern-management-list">{visible.map((pattern) => <button key={pattern.id} className={`pattern-management-row ${selectedId === pattern.id ? 'selected' : ''}`} onClick={() => { setSelectedId(pattern.id); setAdding(false); setEditing(false); setSaveError(''); }}><span><strong>{pattern.title}</strong><small>{pattern.detail}</small></span><em className={pattern.status}>{pattern.status === 'archived' ? 'Archived' : 'Confirmed'}</em></button>)}{!visible.length && !adding && <div className="management-empty"><strong>No patterns here</strong><p>Add a pattern after an owner has confirmed it.</p></div>}</div>
-    {selected && <section className="pattern-detail-card">{editing && canManage ? <><label><span>Pattern name</span><input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} /></label><label><span>Description</span><textarea value={draftDetail} onChange={(event) => setDraftDetail(event.target.value)} /></label><label><span>Supporting information</span><textarea value={draftEvidence} onChange={(event) => setDraftEvidence(event.target.value)} /></label><div className="source-detail-actions"><button className="cancel-button" onClick={() => setEditing(false)}>Cancel</button><button className="primary-button" onClick={saveEdit}>Save changes</button></div></> : <><p className="settings-eyebrow">{selected.status.toUpperCase()}</p><h2>{selected.title}</h2><p>{selected.detail}</p><div className="pattern-evidence"><strong>Supporting information</strong><span>{selected.evidence}</span><small>Confirmed by {selected.confirmedBy} · {new Date(selected.updatedAt).toLocaleDateString('en-AU')}</small></div>{canManage && <div className="source-detail-actions"><button className="cancel-button" onClick={() => startEdit(selected)}>Edit pattern</button><button className="danger-outline-button" onClick={() => toggleArchive(selected)}>{selected.status === 'archived' ? 'Restore' : 'Archive'}</button><button className="danger-outline-button" onClick={() => setPendingDelete(selected)}>Delete</button></div>}</>}{saveError && <p className="inline-save-error" role="alert">{saveError}</p>}</section>}
+    {selected && <section className="pattern-detail-card">{editing && canManage ? <><label><span>Pattern name</span><input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} /></label><label><span>Description</span><textarea value={draftDetail} onChange={(event) => setDraftDetail(event.target.value)} /></label>{windowFields}<label><span>Supporting information</span><textarea value={draftEvidence} onChange={(event) => setDraftEvidence(event.target.value)} /></label><div className="source-detail-actions"><button className="cancel-button" onClick={() => setEditing(false)}>Cancel</button><button className="primary-button" onClick={saveEdit}>Save changes</button></div></> : <><p className="settings-eyebrow">{selected.status.toUpperCase()}</p><h2>{selected.title}</h2><p>{selected.detail}</p><div className="pattern-evidence"><strong>Supporting information</strong><span>{selected.evidence}</span><div>{selected.sourceIds?.slice(0,12).map(id => { const r = records.find(r => r.id === id); return r ? <button className="profile-link" key={id} onClick={() => onMoment(id)}>{r.title} · {new Date(r.savedAt).toLocaleDateString('en-GB')} →</button> : null; })}</div><small>Confirmed by {selected.confirmedBy} · {new Date(selected.updatedAt).toLocaleDateString('en-AU')}</small></div>{canManage && <div className="source-detail-actions"><button className="cancel-button" onClick={() => startEdit(selected)}>Edit pattern</button><button className="danger-outline-button" onClick={() => toggleArchive(selected)}>{selected.status === 'archived' ? 'Restore' : 'Archive'}</button><button className="danger-outline-button" onClick={() => setPendingDelete(selected)}>Delete</button></div>}</>}{saveError && <p className="inline-save-error" role="alert">{saveError}</p>}</section>}
     {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-pattern-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-pattern-title">Delete “{pendingDelete.title}”?</h2><p>This permanently removes the pattern from {petName}’s owner-confirmed knowledge.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={deletePattern}>Delete pattern</button></div></section></div>}
   </section>;
 }
@@ -2575,7 +2324,7 @@ type AppProps = {
     cancelInvitation: (id: string) => Promise<void>;
     removeCareMember: (groupId: string, memberId: string) => Promise<void>;
     updateCareMember: (groupId: string, memberId: string, role: 'Caregiver' | 'Viewer') => Promise<void>;
-    saveCareGroup: (groupId: string, pet: { name: string; breed: string; age: string; avatar: string; species: 'Dog' | 'Cat' }, groupName: string, workspace: Record<string, unknown>) => Promise<void>;
+    saveCareGroup: (groupId: string, pet: { name: string; breed: string; age: string; avatar: string; species: 'Dog' | 'Cat' }, groupName: string, workspace: Record<string, unknown>, expectedUpdatedAt: string) => Promise<string>;
   };
   guest?: boolean;
   onExit?: () => void;
@@ -2692,7 +2441,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const [draftObservationContext, setDraftObservationContext] = useState('');
   const [draftPrivateRecord, setDraftPrivateRecord] = useState(false);
   const [selectedMomentId, setSelectedMomentId] = useState('window');
-  const [selectedActivityMoment, setSelectedActivityMoment] = useState<StoryObservation | null>(null);
+  const [selectedActivityMoment] = useState<StoryObservation | null>(null);
   const [editingContextId, setEditingContextId] = useState<string | null>(null);
   const [lastSavedContextId, setLastSavedContextId] = useState<string | null>(null);
   const [note, setNote] = useState('');
@@ -2739,6 +2488,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const [askPending, setAskPending] = useState<AskMessage | null>(null);
   const askRequest = useRef<AbortController | null>(null);
   const [accountActionError, setAccountActionError] = useState('');
+  const [sharedSaveTick, setSharedSaveTick] = useState(0);
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showPetSwitcher, setShowPetSwitcher] = useState(false);
   const [petSwitcherStartsAdding, setPetSwitcherStartsAdding] = useState(false);
@@ -2780,21 +2530,9 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const activeGroupName = groupOwnerPet?.workspace.groupName ?? activePetRecord?.workspace.groupName ?? 'Care circle';
   const primaryMemberId = activePetRecord?.sharedGroupId ? groupOwnerAccountId ?? '' : 'emily';
   const petSpecies = activePetRecord?.species === 'Cat' ? 'Cat' : 'Dog';
-  useEffect(() => {
-    if (!cloud) return;
-    let alive = true;
-    const refreshSharedCare = async () => {
-      try {
-        const [groups, invites] = await Promise.all([cloud.listGroups(), cloud.listInvitations()]);
-        if (!alive) return;
-        const currentGroup = activePetRecord?.sharedGroupId ? groups.find((group) => group.groupId === activePetRecord.sharedGroupId) : undefined;
-        if (currentGroup) setCareMembers(careMembersFromCloudGroup(currentGroup));
-        setCareInvitations(invites.map(displayCareInvitation));
-      } catch { /* Keep the current view usable while the network is unavailable. */ }
-    };
-    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refreshSharedCare(); }, 7000);
-    return () => { alive = false; window.clearInterval(timer); };
-  }, [cloud, activePetRecord?.sharedGroupId]);
+  const sharedSync = useRef({ id: '', baseline: '', updatedAt: '', busy: false, failed: false });
+  const refreshSharedRef = useRef<() => Promise<void>>(async () => {});
+
 
   function workspaceFromState(): PetWorkspace {
     return {
@@ -2811,6 +2549,8 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       mediaSources,
       patterns: typicalPatterns,
       lifeEvents: lifeCareEvents,
+      scenarioDate: activePetRecord?.workspace.scenarioDate,
+      sharedUpdatedAt: activePetRecord?.workspace.sharedUpdatedAt,
     };
   }
 
@@ -2961,7 +2701,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   }
 
   useEffect(() => {
-    if (!activeAccount || !activePetRecord || activePetRecord.isEmptyProfile) return;
+    if (!activeAccount || !activePetRecord || activePetRecord.isEmptyProfile || activePetRecord.workspace.scenarioDate) return;
     // Only the synthetic Golden Retriever demo profile owns this rolling plan;
     // invited caregivers read the same shared records but must not seed copies.
     if (activePetRecord.sharedGroupId && groupOwnerAccountId !== activeAccount.id) return;
@@ -3085,6 +2825,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   }
 
   function switchPet(petId: string) {
+    if (sharedWritePending()) { setAccountActionError('Wait for shared changes to sync before switching pets.'); return; }
     if (!activeAccount) return;
     const captured = captureCurrentSpace(prototypeSession);
     const error = applyAccountSpace(captured, activeAccount.id, petId);
@@ -3097,6 +2838,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   }
 
   function addPet(name: string, breed: string, age: string, species: 'Dog' | 'Cat', avatar: string): string {
+    if (sharedWritePending()) return 'Wait for shared changes to sync before adding another pet.';
     if (!activeAccount) return 'Sign in before adding a pet.';
     const numericAge = Number(age);
     if (!name || !breed || !Number.isInteger(numericAge) || numericAge < 0 || numericAge > 40) return 'Enter a name, breed and an age from 0 to 40.';
@@ -3141,6 +2883,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   }
 
   function signOut() {
+    if (sharedWritePending()) { setAccountActionError('Shared changes are not synced yet. Keep this page open and resolve any sync error first.'); return; }
     if (cloud) { cloud.signOut(); return; }
     if (onExit) { onExit(); return; }
     const captured = captureCurrentSpace(prototypeSession);
@@ -3161,6 +2904,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
 
   async function confirmRemoveDeviceAccount() {
     if (!cloud || !pendingDeviceAccountRemoval) return;
+    if (sharedWritePending()) { setAccountActionError('Wait for shared changes to sync before removing a remembered account.'); return; }
     try {
       await cloud.removeAccount(pendingDeviceAccountRemoval.username);
       setPendingDeviceAccountRemoval(null);
@@ -3608,6 +3352,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     const observation: StoryObservation = {
       id: existing?.id ?? `story-observation-${Date.now()}`,
       note: draftObservation.trim(),
+      sourceKind: existing?.sourceKind ?? 'caregiver',
       title,
       image: uploadedSelected && draftUploadedMedia ? draftUploadedMedia.url : selected[0] ? asset(selected[0].image) : '',
       mediaType: uploadedSelected ? draftUploadedMedia?.type : undefined,
@@ -3688,19 +3433,69 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const currentCareMember = activeAccount ? careMembers.find((member) => member.id === activeAccount.id || (!!member.email && member.email.toLowerCase() === activeAccount.email.toLowerCase())) : undefined;
   const temporaryAccessExpired = currentCareMember?.role === 'Temporary caregiver' && !!currentCareMember.expiresAt && currentCareMember.expiresAt < new Date().toISOString().slice(0, 10);
   const canContributeToSharedPet = isPrimaryCaregiver || !activePetRecord?.sharedGroupId || (currentCareMember?.access === 'editor' && !temporaryAccessExpired);
-  const canInteractWithGroupContext = isPrimaryCaregiver || (!!activePetRecord?.sharedGroupId && !!currentCareMember && !temporaryAccessExpired);
+  const canInteractWithGroupContext = canContributeToSharedPet;
   const canManageLongTermCare = isPrimaryCaregiver || !activePetRecord?.sharedGroupId || (currentCareMember?.access === 'editor' && currentCareMember.role !== 'Temporary caregiver');
+  function sharedSnapshot() {
+    const workspace = workspaceFromState();
+    const observations = workspace.observations.filter(o => !o.privateRecord);
+    const ids = new Set(observations.map(o => o.id));
+    return { ...workspace, observations, lifeEvents: workspace.lifeEvents.filter(e => e.useForAsk), contexts: workspace.contexts.filter(c => ids.has(c.momentId)), askMessages: [], drafts: [], careMembers: [], askOwnerAccountId: undefined, sharedUpdatedAt: undefined };
+  }
+  const stableShared = (value: unknown): string => JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);
+  const sharedPayload = sharedSnapshot();
+  const sharedSerialized = stableShared({ workspace: sharedPayload, petName, petBreed, petAge, petAvatar, petSpecies });
+  const liveSharedSerialized = useRef(sharedSerialized); liveSharedSerialized.current = sharedSerialized;
+  const sharedId = activePetRecord?.sharedGroupId ?? '';
+  if (sharedSync.current.id !== sharedId) sharedSync.current = { id: sharedId, baseline: sharedSerialized, updatedAt: activePetRecord?.workspace.sharedUpdatedAt ?? '', busy: false, failed: false };
+  refreshSharedRef.current = async () => {
+    if (!cloud || !sharedId) return;
+    const sync = sharedSync.current;
+    if (sync.busy || sync.failed || sharedSerialized !== sync.baseline) return;
+    try {
+      const [groups, invites] = await Promise.all([cloud.listGroups(), cloud.listInvitations()]);
+      if (sharedSync.current !== sync || sync.busy || sync.failed || liveSharedSerialized.current !== sync.baseline) return;
+      const group = groups.find(g => g.groupId === sharedId);
+      setCareInvitations(invites.map(displayCareInvitation));
+      if (!group) { setAccountActionError('Care-group access is no longer available. Reload to update your pets.'); return; }
+      setCareMembers(careMembersFromCloudGroup(group));
+      if (group.updatedAt === sync.updatedAt) return;
+      const remote = normalizeWorkspace({ ...group.workspace, groupName: group.groupName }, ownerName, false);
+      const nextWorkspace = { ...remote, lifeEvents: [...lifeCareEvents.filter(e => !e.useForAsk), ...remote.lifeEvents.filter(e => e.useForAsk)], observations: [...storyObservations.filter(o => o.privateRecord), ...remote.observations.filter(o => !o.privateRecord)], askMessages, askOwnerAccountId: activeAccount!.id, drafts: storyDrafts, sharedUpdatedAt: group.updatedAt };
+      sync.updatedAt = group.updatedAt;
+      sync.baseline = stableShared({ workspace: { ...nextWorkspace, lifeEvents: nextWorkspace.lifeEvents.filter(e => e.useForAsk), observations: nextWorkspace.observations.filter(o => !o.privateRecord), contexts: nextWorkspace.contexts, askMessages: [], drafts: [], careMembers: [], askOwnerAccountId: undefined, sharedUpdatedAt: undefined }, petName: group.petName, petBreed: group.petBreed, petAge: group.petAge, petAvatar: group.petAvatar, petSpecies: group.petSpecies });
+      setPetName(group.petName); setPetBreed(group.petBreed); setPetAge(group.petAge); setPetAvatar(group.petAvatar);
+      setStoryObservations(nextWorkspace.observations); setSavedContexts(remote.contexts); setTypicalPatterns(remote.patterns); setLifeCareEvents(nextWorkspace.lifeEvents); setMediaSources(remote.mediaSources); setMomentEngagement(remote.momentEngagement); setIncludedStoryMoments(remote.visibility);
+      setPrototypeSession(session => ({ ...session, accounts: session.accounts.map(a => a.id !== activeAccount!.id ? a : { ...a, pets: a.pets.map(p => p.id !== activePetRecord!.id ? p : { ...p, name: group.petName, breed: group.petBreed, age: group.petAge, avatar: group.petAvatar, workspace: nextWorkspace }) }) }));
+    } catch (cause) { setAccountActionError(cause instanceof Error ? cause.message : 'Shared updates are temporarily unavailable.'); }
+  };
   useEffect(() => {
-    if (!cloud || !activePetRecord?.sharedGroupId || !canContributeToSharedPet) return;
-    const timer = window.setTimeout(() => {
-      void cloud.saveCareGroup(activePetRecord.sharedGroupId!, {
-        name: petName, breed: petBreed, age: petAge, avatar: petAvatar, species: petSpecies,
-      }, activeGroupName, workspaceFromState()).catch((error) => {
-        setAccountActionError(error instanceof Error ? error.message : 'Shared care changes could not be synced.');
-      });
+    if (!sharedId) return;
+    void refreshSharedRef.current();
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refreshSharedRef.current(); }, 5000);
+    return () => clearInterval(timer);
+  }, [sharedId]);
+  useEffect(() => {
+    const sync = sharedSync.current;
+    if (!cloud || !sharedId || !canContributeToSharedPet || sync.busy || sync.failed || sharedSerialized === sync.baseline) return;
+    const timer = window.setTimeout(async () => {
+      if (sync.busy || sync.failed || sharedSync.current !== sync) return;
+      sync.busy = true;
+      try {
+        if (!sync.updatedAt) { const groups = await cloud.listGroups(); sync.updatedAt = groups.find(g => g.groupId === sharedId)?.updatedAt ?? ''; }
+        if (!sync.updatedAt) throw new Error('Reload before editing this shared pet.');
+        sync.updatedAt = await cloud.saveCareGroup(sharedId, { name: petName, breed: petBreed, age: petAge, avatar: petAvatar, species: petSpecies }, activeGroupName, sharedPayload, sync.updatedAt);
+        sync.baseline = sharedSerialized;
+      } catch (cause) { sync.failed = true; setAccountActionError(cause instanceof Error ? cause.message : 'Shared changes could not be synced. Your edits remain on this device.'); }
+      finally { sync.busy = false; setSharedSaveTick(t => t + 1); }
     }, 700);
-    return () => window.clearTimeout(timer);
-  }, [cloud, prototypeSession, activePetRecord?.sharedGroupId, canContributeToSharedPet, petName, petBreed, petAge, petAvatar, petSpecies, activeGroupName]);
+    return () => clearTimeout(timer);
+  }, [cloud, sharedId, sharedSerialized, canContributeToSharedPet, sharedSaveTick]);
+
+  function sharedWritePending() { return Boolean(cloud && sharedId && (sharedSync.current.busy || sharedSync.current.failed || sharedSerialized !== sharedSync.current.baseline)); }
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => { if (sharedSync.current.id && (sharedSync.current.busy || sharedSync.current.failed || liveSharedSerialized.current !== sharedSync.current.baseline)) { event.preventDefault(); event.returnValue = ''; } };
+    window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn);
+  }, []);
   const orderedCareMembers = [...displayedCareMembers].sort((left, right) => {
     const rank = (member: CareMember) => member.id === activeAccount?.id ? 0 : member.id === primaryMemberId ? 1 : 2;
     return rank(left) - rank(right);
@@ -3923,10 +3718,11 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     <div className="app-stage">
       <div className={`phone ${devicePreferences.largeText ? 'large-reading-text' : ''} ${devicePreferences.reducedMotion ? 'reduce-motion' : ''}`}>
         {notice}
+        {sharedId && sharedWritePending() && <p className="shared-sync-pending" role="status">{sharedSync.current.failed ? 'Shared sync paused. Your local edits are kept; resolve the sync error before leaving.' : 'Syncing shared changes…'}</p>}
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
-          <StatusBar />
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
-            {view === 'today' && <TodayPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onEvidence={() => navigateTo('overview')} onPetsNavigate={() => navigateTo('pets')} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} />}
+            {view === 'today' && <TodayPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onPetsNavigate={() => navigateTo('pets')} onPatterns={() => openPatternKnowledge()} />}
+
             {view === 'activitySummary' && selectedActivityMoment && <PetActivitySummaryPage moment={selectedActivityMoment} moments={visibleStoryObservations(storyObservations, includedStoryMoments)} petName={petName} petAvatar={petAvatar} onBack={() => goBack('today')} />}
             {view === 'story' && <StoryPage onMoment={openMomentDetail} onEditStory={() => navigateTo('storyEdit')} onEditMoment={(item) => editStoryRow({ id: item.id, image: item.image, mediaType: item.mediaType, title: item.title, meta: `${item.time} · story moment`, note: item.note })} onDeleteMoment={deleteStoryMoment} onPetsNavigate={() => navigateTo('pets')} onAddPet={openAddPetForm} petName={petName} petAvatar={petAvatar} ownerName={ownerName} accounts={prototypeSession.accounts} contexts={savedContexts} observations={storyObservations} includedMoments={includedStoryMoments} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} canEdit={canContributeToSharedPet} />}
             {view === 'storyEdit' && <StoryEditPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} hasDemoMoments={activePetRecord.hasDemoMoments} onBack={() => goBack('story')} onEdit={editStoryRow} onDelete={deleteStoryRow} onSave={(ids) => { if (!persistWorkspacePatch({ visibility: ids })) return; setIncludedStoryMoments(ids); if (!cloud) try {
@@ -3952,7 +3748,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
             {view === 'ask' && <AskPage onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} messages={askMessages} messageEndRef={askEndRef} noPetYet={activePetRecord.isEmptyProfile ?? false} busy={askBusy} pending={askPending} live={Boolean(cloud)} />}
             {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} accounts={prototypeSession.accounts} onPetsNavigate={() => navigateTo('pets')} onSettingsNavigate={() => navigateTo('settings')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={activePetRecord.isEmptyProfile ? openAddPetForm : () => setShowPetSwitcher(true)} careMembers={orderedCareMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} patterns={typicalPatterns} lifeEvents={lifeCareEvents} mediaSources={mediaSources} onPatternHistory={() => openPatternKnowledge()} onPattern={(id) => openPatternKnowledge(id)} onLifeCare={openLifeCare} onConnectedMedia={openConnectedMedia} invitations={view === 'you' ? receivedCareInvitations : []} onAcceptInvitation={acceptCareInvitation} onDeclineInvitation={(id) => updateInvitationStatus(id, 'declined')} careOwnerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} careOwnerAvatar={primaryCaregiverAvatar} careOwnerRole="Primary caregiver" groupName={activeGroupName} canManageCareGroup={isPrimaryCaregiver} canEditPetDetails={isPrimaryCaregiver} canAddLifeCare={canManageLongTermCare} canManageConnectedMedia={canManageLongTermCare} noPetYet={activePetRecord.isEmptyProfile ?? false} />}
             {view === 'connectedMedia' && <ConnectedMediaPage petName={petName} sources={mediaSources} initialSourceId={selectedMediaSourceId} onBack={() => goBack('you')} onUpdate={saveMediaSource} onDelete={deleteMediaSource} />}
-            {view === 'patternHistory' && <PatternKnowledgePage petName={petName} ownerName={ownerName} patterns={typicalPatterns} initialPatternId={selectedPatternId} canManage={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveTypicalPattern} onDelete={deleteTypicalPattern} />}
+            {view === 'patternHistory' && <PatternKnowledgePage onMoment={openMomentDetail} petId={activePetRecord.id} records={visibleStoryObservations(storyObservations, includedStoryMoments)} live={Boolean(cloud)} petName={petName} ownerName={ownerName} patterns={typicalPatterns} initialPatternId={selectedPatternId} canManage={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveTypicalPattern} onDelete={deleteTypicalPattern} />}
             {view === 'careEvent' && <LifeCarePage petName={petName} ownerName={ownerName} primaryOwnerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} currentAccountId={activeAccount.id} events={lifeCareEvents} initialCategory={lifeCareInitialCategory} startAdding={lifeCareStartAdding} canAdd={canManageLongTermCare} canManageAll={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveLifeCareEvent} onDelete={deleteLifeCareEvent} />}
             {view === 'settings' && !cloud && <SettingsHubPage accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onBack={() => goBack('you')} onSwitchAccount={switchAccount} onRegister={registerAccount} onDeleteAccount={deleteSavedAccount} onSignOut={() => setShowSignOutConfirm(true)} onAction={(title, detail) => setProfileAction({ title, detail })} />}
             {view === 'settings' && cloud && <section className="settings-hub-page">
@@ -3968,7 +3764,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
                         member.name.toLowerCase() === account.name.toLowerCase()
                         || member.name.toLowerCase() === account.username.toLowerCase());
                       return <div key={account.username} className={`settings-account-row ${isCurrent ? 'current' : ''}`}>
-                        <button className="settings-account-switch" aria-current={isCurrent ? 'true' : undefined} onClick={() => { if (!isCurrent) cloud.switchAccount(account.username, account.loginEmail); }}>
+                        <button className="settings-account-switch" aria-current={isCurrent ? 'true' : undefined} onClick={() => { if (!isCurrent) { if (sharedWritePending()) setAccountActionError('Wait for shared changes to sync before switching accounts.'); else cloud.switchAccount(account.username, account.loginEmail); } }}>
                           <OwnerAvatar src={isCurrent ? ownerAvatar : account.avatar || sharedMember?.avatar || ''} name={isCurrent ? ownerName : account.name} />
                           <span><strong>{isCurrent ? ownerName : account.name}</strong><small>{account.username}</small></span>
                           <em>{isCurrent ? 'Current' : 'Switch'}</em>
@@ -3976,7 +3772,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
                         <button className="settings-account-delete" aria-label={`Remove ${account.name} from this device`} title="Remove from this device" onClick={() => setPendingDeviceAccountRemoval(account)}>Remove</button>
                       </div>;
                     })}
-                    <button className="settings-create-account" onClick={cloud.addAnotherAccount}>＋ Add another account</button>
+                    <button className="settings-create-account" onClick={() => { if (sharedWritePending()) setAccountActionError('Wait for shared changes to sync before switching accounts.'); else cloud.addAnotherAccount(); }}>＋ Add another account</button>
                   </div>
                   {cloud.requestEmailChange && cloud.verifyEmailCode ? (
                     <CloudEmailLink email={activeAccount.email} onSubmit={cloud.requestEmailChange} onVerify={cloud.verifyEmailCode} />
