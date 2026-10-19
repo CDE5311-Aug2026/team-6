@@ -56,8 +56,17 @@ export class CloudMedia {
         // The private Storage RLS policy still decides whether this member may read it.
         const { data, error } = await supabase!.storage.from('pawsona-media').download(path);
         if (error) throw error;
-        const display = URL.createObjectURL(data);
-        this.objectUrls.push(display);
+        // WebKit may fail to reload downloaded video blob URLs. Keep small
+        // prototype clips in a self-contained URL; encode maps it back to Storage.
+        const display = data.type.startsWith('video/')
+          ? await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not read video.'));
+            reader.onerror = () => reject(new Error('Could not read video.'));
+            reader.readAsDataURL(data);
+          })
+          : URL.createObjectURL(data);
+        if (display.startsWith('blob:')) this.objectUrls.push(display);
         this.decoded.set(value, display);
         this.encoded.set(display, value);
         return display;

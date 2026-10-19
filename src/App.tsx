@@ -391,6 +391,11 @@ function readStorageString(key: string, fallback: string) {
   }
 }
 
+function careIdentityLabel(email?: string) {
+  if (!email) return 'Care group member';
+  return email.toLowerCase().endsWith('@users.pawsona.invalid') ? `@${email.split('@')[0]}` : email;
+}
+
 function formatPetAge(age: string) {
   return `${age} ${Number(age) === 1 ? 'year' : 'years'} old`;
 }
@@ -1255,8 +1260,9 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
       setUploadError('Choose an image or video file.');
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setUploadError('Choose a file smaller than 2 MB for this prototype.');
+    const maxBytes = file.type.startsWith('video/') ? 5 * 1024 * 1024 : 2 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      setUploadError(file.type.startsWith('video/') ? 'Choose a video up to 5 MB. Trim it or export at 720p before uploading.' : 'Choose an image up to 2 MB.');
       return;
     }
 
@@ -1949,7 +1955,7 @@ function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, own
         <h2>Who looks after {petName}?</h2>
         <div className="profile-card care-card">
           <div className="card-topline"><strong>{groupName}</strong><button className="profile-link" onClick={onCareMembers}>Manage members →</button></div>
-        {careMembers.map((member) => { const linkedAccount = accounts.find((account) => account.id === member.id || (!!member.email && account.email.toLowerCase() === member.email.toLowerCase())); const memberName = member.id === primaryMemberId ? careOwnerName : linkedAccount?.name ?? member.name; const memberAvatar = member.id === primaryMemberId ? careOwnerAvatar : linkedAccount?.avatar ?? member.avatar ?? ''; return <button className="member-row" key={member.id} onClick={() => onMemberClick(member.id)}><OwnerAvatar src={memberAvatar} name={memberName} className={member.id === primaryMemberId ? '' : `${member.id}-avatar`} /><span><strong>{memberName}</strong>{member.id === primaryMemberId && <small>{careOwnerRole}</small>}</span><i>›</i></button>; })}
+        {careMembers.map((member) => { const linkedAccount = accounts.find((account) => account.id === member.id || (!!member.email && account.email.toLowerCase() === member.email.toLowerCase())); const memberName = member.id === primaryMemberId ? careOwnerName : linkedAccount?.name ?? member.name; const memberAvatar = member.id === primaryMemberId ? careOwnerAvatar : linkedAccount?.avatar ?? member.avatar ?? ''; return <button className="member-row" key={member.id} onClick={() => onMemberClick(member.id)}><OwnerAvatar src={memberAvatar} name={memberName} className={member.id === primaryMemberId ? '' : `${member.id}-avatar`} /><span><strong>{memberName}</strong><small>{member.id === primaryMemberId ? careOwnerRole : member.access === 'viewer' ? 'Viewer' : member.role || 'Caregiver'}</small></span><i>›</i></button>; })}
         </div>
       </section>
 
@@ -2412,7 +2418,7 @@ function PetSecondaryPage({ kind, petName, ownerName, ownerEmail, ownerAvatar = 
         {careMembers.map((member) => { const linkedAccount = accounts.find((account) => account.id === member.id || (!!member.email && account.email.toLowerCase() === member.email.toLowerCase())); const memberName = member.id === primaryMemberId ? ownerName : linkedAccount?.name ?? member.name; const memberAvatar = member.id === primaryMemberId ? ownerAvatar : linkedAccount?.avatar ?? member.avatar ?? ''; return <div className="care-person-wrap" key={member.id}>
           <button className="care-person-card" onClick={() => onMemberClick(member.id)}>
             <OwnerAvatar src={memberAvatar} name={memberName} className={`care-person-avatar ${member.id === primaryMemberId ? '' : `${member.id}-avatar`}`} />
-            <span className="care-person-copy"><strong>{memberName}</strong><small>{member.email ?? (member.id === primaryMemberId ? ownerEmail : linkedAccount?.email ?? 'No linked account')}</small><span>{member.id === primaryMemberId ? 'Primary caregiver · Manages the profile' : (member.access ?? 'editor') === 'viewer' ? 'View shared records' : `${member.role} · Can add observations`}{member.role === 'Temporary caregiver' && member.expiresAt ? ` · Until ${member.expiresAt}` : ''}</span></span>
+            <span className="care-person-copy"><strong>{memberName}</strong><small>{careIdentityLabel(member.email ?? (member.id === primaryMemberId ? ownerEmail : linkedAccount?.email))}</small><span>{member.id === primaryMemberId ? 'Primary caregiver · Manages the profile' : (member.access ?? 'editor') === 'viewer' ? 'View shared records' : `${member.role} · Can add observations`}{member.role === 'Temporary caregiver' && member.expiresAt ? ` · Until ${member.expiresAt}` : ''}</span></span>
           </button>
         </div>; })}
       </div> : isPatternHistory ? <div className="pattern-history-details">
@@ -2463,7 +2469,7 @@ function PetSecondaryPage({ kind, petName, ownerName, ownerEmail, ownerAvatar = 
           <h2 id="group-settings-title">Group settings</h2>
           <p className="group-settings-intro">Manage member accounts and what they can do for {petName}.</p>
           <div className="group-settings-list">{careMembers.map((member) => <div className="group-settings-row" key={member.id}>
-            <div className="group-settings-identity"><strong>{member.id === primaryMemberId ? ownerName : member.name}</strong><small>{member.email ?? (member.id === primaryMemberId ? ownerEmail : 'No linked account')}</small></div>
+            <div className="group-settings-identity"><strong>{member.id === primaryMemberId ? ownerName : member.name}</strong><small>{careIdentityLabel(member.email ?? (member.id === primaryMemberId ? ownerEmail : undefined))}</small></div>
             {member.id === primaryMemberId ? <>
               <span className="group-owner-tag">Primary caregiver</span>
               <div className="group-settings-controls"><button className="group-role-select group-transfer-button" disabled={!primaryCandidates.length} onClick={() => { setShowGroupSettings(false); setNextPrimaryId(primaryCandidates[0]?.id ?? ''); setTransferError(''); setShowTransferPrimary(true); }}>Transfer primary</button></div>
@@ -3518,29 +3524,8 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   }
 
   function cancelStoryObservation() {
-    const isUntouchedNewObservation =
-      activeStoryDraftId === null &&
-      editingStoryObservationId === null &&
-      draftObservation === '' &&
-      draftObservationTitle === '' &&
-      draftObservationContext === '' &&
-      !draftPrivateRecord &&
-      draftUploadedMedia === null &&
-      draftRelatedPhotos.length === 0 &&
-      draftMoments.length === 0;
-
+    // Cancel discards this editing session; existing saved records/drafts stay intact.
     const returnView: View = view === 'addSaved' && draftPrivateRecord ? 'today' : 'story';
-    if (
-      view !== 'addSaved' &&
-      !isUntouchedNewObservation &&
-      (draftObservation.trim() || draftObservationTitle.trim() || draftMoments.length || draftRelatedPhotos.length)
-    ) {
-      const draft: StoryDraft = { id: activeStoryDraftId ?? `story-draft-${Date.now()}`, selectedMoments: draftMoments, note: draftObservation, title: draftObservationTitle, momentAt: draftMomentAt, relatedPhotos: draftRelatedPhotos, context: draftObservationContext, savedAt: new Date().toISOString(), privateRecord: draftPrivateRecord, uploadedMedia: draftUploadedMedia ?? undefined };
-      const next = [draft, ...storyDrafts.filter((entry) => entry.id !== draft.id)];
-      if (!persistWorkspacePatch({ drafts: next })) setAccountActionError('The draft is available in this session, but browser storage is full.');
-      setStoryDrafts(next);
-      setStoryDraftSavedNotice(true);
-    }
     setActiveStoryDraftId(null);
     setEditingStoryObservationId(null);
     navigationHistory.current = navigationHistory.current.filter((previous) => !(['addMoments', 'addCompose', 'addPreview', 'addSaved', 'storyEdit'] as View[]).includes(previous));
@@ -3773,6 +3758,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   function editStoryRow(row: StoryEditRow) {
     if (!canContributeToSharedPet) return;
     const existing = storyObservations.find((entry) => entry.id === row.id);
+    setActiveStoryDraftId(null);
     setEditingStoryObservationId(existing?.id ?? null);
     setDraftMoments(existing?.momentIds ?? (existing ? [] : [row.id]));
     setDraftUploadedMedia(existing?.mediaType ? { name: 'Uploaded media', type: existing.mediaType, url: existing.image } : null);
@@ -3781,7 +3767,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setDraftMomentAt(toLocalDateTimeInput(existing ? new Date(existing.savedAt) : new Date()));
     setDraftRelatedPhotos(existing?.relatedPhotos ?? []);
     setDraftObservationContext(existing?.context ?? '');
-    setDraftPrivateRecord(false);
+    setDraftPrivateRecord(existing?.privateRecord ?? false);
     navigateTo('addCompose');
   }
   function resumeStoryDraft(draft: StoryDraft) {

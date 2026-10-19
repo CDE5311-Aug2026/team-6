@@ -21,3 +21,11 @@ test('a missing record creates a check at 75 percent of a confirmed window, and 
  assert.equal(dailyChecks([{...p,status:'archived'}],[r],at('10:15')).length,0);
  assert.equal(dailyChecks([p],[{...r,privateRecord:true}],at('10:15'))[0].state,'check');
 });
+test('negative, planned and uncertain care notes never resolve a routine check',()=>{
+ const now=new Date(2026,9,19,10,15);
+ for(const title of ['No breakfast yet','Breakfast bowl is still empty','Breakfast planned','Did Sunny eat breakfast?','Breakfast reminder']) {
+  assert.equal(dailyChecks([p],[{id:'r',title,savedAt:new Date(2026,9,19,9,30).toISOString()}],now)[0].state,'check',title);
+ }
+ assert.equal(dailyChecks([p],[{id:'r',title:'Breakfast',note:'Not eaten yet',savedAt:new Date(2026,9,19,9,30).toISOString()}],now)[0].state,'check');
+ assert.equal(dailyChecks([p],[{id:'r',title:'Breakfast recorded',note:'Mum fed Sunny at home.',savedAt:new Date(2026,9,19,9,30).toISOString()}],now)[0].state,'recorded');
+});

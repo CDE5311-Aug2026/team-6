@@ -97,3 +97,11 @@ The scenario's replay selector demonstrates 09:45, 10:15, 11:45 and 14:30. The a
 Apply supabase/shared_care_checked_save.sql before deploying this frontend. Current clients read the shared workspace's updated_at value and use an authenticated, member-checked compare-and-save RPC. Stale writes are rejected with a visible error instead of overwriting another caregiver's data. Shared records refresh while the page is visible (approximately every five seconds), only when no local edit is pending. Chat, drafts and private moments stay out of the shared write. All users must reload the current frontend before the study; the legacy save RPC is retained for compatibility and does not provide the new timestamp guard.
 
 Story now opens on today only. Selecting an empty date shows zero and an empty state; View all recorded days is an explicit separate mode. The decorative time/signal/Wi-Fi/battery bar has been removed, leaving system status to the device and respecting its safe-area inset.
+
+## User-test fixes: activity wording, clips and editing
+
+Routine checks inspect both title and note and conservatively exclude negative, missing, planned, uncertain or question wording before matching the supported English activity labels. This remains a simple rule-based aid, not video recognition or full natural-language understanding. A missing/unrecognized record leaves the caregiver check open.
+
+Main video uploads accept up to 5 MiB (shown as 5 MB in the UI); images and supplementary attachments retain the 2 MiB limit. Larger clips receive trimming/720p guidance before being read or uploaded. Public Samplelib road clips are used only for compatibility QA and are labelled as non-pet footage. Small downloaded videos use self-contained display URLs for WebKit compatibility; cloud saves still contain stable private Storage references, not duplicate video data.
+
+Cancel exits the observation editing session without auto-creating a draft; previously saved records and existing drafts stay intact. Shared member views display roles for every person and format internal username identities as @username rather than exposing Auth implementation emails.
