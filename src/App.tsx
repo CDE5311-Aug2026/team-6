@@ -3912,7 +3912,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     <div className="app-stage">
       <div className={`phone ${devicePreferences.largeText ? 'large-reading-text' : ''} ${devicePreferences.reducedMotion ? 'reduce-motion' : ''}`}>
         {notice}
-        {sharedId && sharedWritePending() && <p className="shared-sync-pending" role="status">{sharedSync.current.failed ? 'Shared sync paused. Your local edits are kept; resolve the sync error before leaving.' : 'Syncing shared changes…'}</p>}
+        {sharedId && sharedSync.current.failed && sharedWritePending() && <p className="shared-sync-pending" role="status">Shared sync paused. Your local edits are kept; resolve the sync error before leaving.</p>}
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
             {view === 'today' && <TodayPage onEvidence={() => navigateTo('overview')} saved={lastSavedContext} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onPetsNavigate={() => navigateTo('pets')} onPatterns={() => openPatternKnowledge()} />}
