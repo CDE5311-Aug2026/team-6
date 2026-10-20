@@ -2,7 +2,7 @@
 
 **Click here to explore our interactive prototype: https://pawsona-team6.vercel.app/**
 
-修改了story部分的新连接:补齐时间线，并在对应时间到达后逐步显示（通过提前预设未来一周活动来模拟）+ 通过日历会看以前的记录 [点这里](https://pawsona-team-6.vercel.app/)
+【链接已更新26.10.18 16：37】修改了admin ask ai白屏 + 滚动固定 + 点赞收藏弹窗 [点这里](https://pawsona-team-6.vercel.app/)
 
 【链接已更新26.10.18 00：15】是我测试用的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
 
