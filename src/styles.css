@@ -1322,3 +1322,15 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 
 /* Allow the home greeting to wrap without covering the story card. */
 .home-screen .main-header { height: auto; min-height: 97px; padding-bottom: 16px; }
+
+/* Fill the reserved top inset while the home header sticks, without moving it. */
+.home-screen .main-header::before {
+  content: "";
+  position: absolute;
+  top: calc(-1 * var(--status-bar-height));
+  right: 0;
+  left: 0;
+  height: var(--status-bar-height);
+  background: var(--color-home-bg);
+  pointer-events: none;
+}
