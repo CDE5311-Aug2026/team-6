@@ -67,10 +67,10 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .text-link { border: 0; background: none; color: var(--color-action); padding: 0; font: 600 14px/21px 'Poppins', sans-serif; text-align: left; }
 .text-link.standalone { display: block; margin: 24px 20px; }
 
-.today-hero { height: 265px; border-radius: var(--radius-hero); background: var(--color-accent-soft); padding: 28px 24px 20px; position: relative; }
+.today-hero { height: auto; border-radius: var(--radius-hero); background: var(--color-accent-soft); padding: 28px 24px; position: relative; }
 .story-badge { display: inline-flex; align-items: center; height: 35px; padding: 0 14px; background: var(--color-surface); border-radius: var(--radius-pill); color: #4e473d; font: 400 11px/16px 'Roboto', sans-serif; letter-spacing: .4px; }
 .hero-sparkle { position: absolute; right: 28px; top: 27px; width: 20px; height: 20px; }
-.today-hero h2 { margin: 14px 0 9px; max-width: 302px; font: 700 22px/29px 'Poppins', sans-serif; letter-spacing: -.3px; }
+.today-hero h2 { margin: 14px 0 9px; max-width: 100%; overflow: hidden; font: 700 22px/1.3 'Poppins', sans-serif; letter-spacing: -.3px; text-overflow: ellipsis; white-space: nowrap; }
 .today-hero p { margin: 0 0 11px; color: var(--color-text-secondary); font-size: 12px; line-height: 17px; }
 .today-empty-state { min-height: 300px; padding: 40px 26px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid var(--color-border); border-radius: var(--radius-hero); background: #fff; text-align: center; }
 .today-empty-state > span { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 18px; background: var(--color-accent-soft); color: #eeb500; font-size: 28px; }
@@ -80,7 +80,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .pet-photo-placeholder { display: grid; place-items: center; background: var(--color-accent-soft); color: #d4a700; font-size: 34px; }
 .today-section { margin-top: 16px; }
 .today-section h2, .section-heading h2 { margin: 0; color: #000; font: 600 20px/28px 'Poppins', sans-serif; letter-spacing: -.3px; }
-.daily-rhythm-card { margin-top: 18px; padding: 15px 14px 13px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 22px; background: #fff; box-shadow: 0 3px 12px #1a29210a; }
+.daily-rhythm-card { margin-top: 18px; padding: 15px 14px 13px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 22px; background: #fffcf5; box-shadow: 0 3px 12px #1a29210a; }
 .daily-rhythm-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .daily-rhythm-header > div:first-child { min-width: 0; }
 .daily-rhythm-header .eyebrow { margin: 0; font-size: 9px; line-height: 14px; }
@@ -88,10 +88,20 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-toggle { flex: none; display: flex; align-items: center; padding: 3px; border: 1px solid #e8e5dd; border-radius: 999px; background: #f2f0ea; }
 .daily-rhythm-toggle button { min-width: 52px; height: 29px; padding: 0 9px; border: 0; border-radius: 999px; background: transparent; color: var(--color-text-secondary); font: 500 11px/16px 'Roboto', sans-serif; }
 .daily-rhythm-toggle button.active { background: #fff; color: var(--color-text-primary); box-shadow: 0 1px 4px #1a29211c; }
-.daily-rhythm-caption { margin: 8px 0 0; color: var(--color-text-muted); font: 600 17px/23px 'Poppins', sans-serif; letter-spacing: -.25px; }
 .daily-rhythm-chart { width: 100%; margin-top: 5px; overflow: hidden; border-radius: 12px; }
-.daily-rhythm-daylight-bg { position: relative; width: 100%; height: 100%; overflow: hidden; opacity: .58; pointer-events: none; background: conic-gradient(from 0deg at 50% 100%, #fff2d9 0deg, #fff2d9 24deg, #f2e2ce 38deg, #c8c7d0 48deg, #a0abc0 58deg, #8794ae 78deg, #8794ae 90deg, #8794ae 270deg, #98a4ba 292deg, #c8c7d0 312deg, #f2e8d8 330deg, #fff2d9 348deg, #fff2d9 360deg); -webkit-mask-image: radial-gradient(ellipse 120% 130% at 50% 100%, #000 52%, transparent 100%); mask-image: radial-gradient(ellipse 120% 130% at 50% 100%, #000 52%, transparent 100%); }
-.daily-rhythm-daylight-bg::after { position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 68%, #fff 100%); content: ''; }
+.daily-rhythm-latest { display: flex; align-items: center; gap: 11px; min-height: 64px; margin: 4px 0 0; padding: 9px 14px; border: 1px solid #eff0df; border-radius: 22px; background: linear-gradient(100deg, #f4f5e6, #f8f8ed); box-sizing: border-box; }
+.daily-rhythm-latest-icon { display: grid; flex: 0 0 44px; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: #ffedb2; font: 22px/1 'Roboto', sans-serif; }
+.daily-rhythm-latest p { flex: 1; min-width: 0; overflow: hidden; margin: 0; color: #617b68; font: 500 14px/1.35 'Poppins', sans-serif; letter-spacing: -.25px; text-overflow: ellipsis; white-space: nowrap; }
+.daily-rhythm-latest strong { color: #193d2b; font-weight: 700; }
+@media (max-width: 380px) { .daily-rhythm-latest { gap: 8px; padding-right: 9px; padding-left: 9px; } .daily-rhythm-latest-icon { flex-basis: 40px; width: 40px; height: 40px; font-size: 20px; } .daily-rhythm-latest p { font-size: 12px; letter-spacing: -.35px; } }
+.daily-rhythm-daylight-bg { width: 100%; height: 100%; pointer-events: none; background: linear-gradient(180deg, #fffaf2 0%, #fff7e6 68%, #f8f0d9 100%); }
+.daily-rhythm-landscape { pointer-events: none; }
+.daily-rhythm-landscape-hill-back { fill: #f2e8bc; opacity: .7; }
+.daily-rhythm-landscape-hill-front { fill: #f8efcc; opacity: .84; }
+.daily-rhythm-landscape-sun { fill: #ffdf70; opacity: .9; }
+.daily-rhythm-landscape-ray { fill: none; stroke: #ffd34c; stroke-width: 4; stroke-linecap: round; opacity: .82; }
+.daily-rhythm-landscape-tree { fill: #d8d69b; opacity: .8; }
+.daily-rhythm-landscape-trunk { fill: none; stroke: #d8d69b; stroke-width: 4; stroke-linecap: round; opacity: .78; }
 .daily-rhythm-horizon-backdrop { fill: url(#rhythm-orb-surface); filter: drop-shadow(0 5px 12px #8e75412e); }
 .daily-rhythm-orb-highlight { fill: url(#rhythm-orb-gloss); pointer-events: none; }
 .daily-rhythm-chart svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; cursor: grab; outline: none; }
@@ -99,12 +109,13 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-chart svg:focus-visible { border-radius: 10px; outline: 2px solid #e8b51e; outline-offset: -2px; }
 .daily-rhythm-chart svg [role="button"]:focus { outline: none; }
 .daily-rhythm-chart svg [role="button"]:focus-visible { outline: none; }
-.daily-rhythm-chart .daily-rhythm-moment-popover:focus-visible { filter: drop-shadow(0 0 4px #d19c00); }
-.daily-rhythm-chart .daily-rhythm-popover-button:focus { outline: none; box-shadow: none; }
+.daily-rhythm-chart .daily-rhythm-time-trigger { cursor: pointer; }
+.daily-rhythm-chart .daily-rhythm-time-trigger:focus-visible { filter: drop-shadow(0 0 4px #d19c00); }
 .daily-rhythm-side-glow { fill: #fff7d7; opacity: .9; }
 .daily-rhythm-band-shadow { fill: none; stroke: #e9bf45; stroke-width: 8; opacity: .2; transform: translateY(4px); }
 .daily-rhythm-band { fill: none; stroke: url(#rhythm-gradient); stroke-width: 4.5; }
 .daily-rhythm-band-highlight { fill: none; stroke: #fff1bd; stroke-width: 1.5; opacity: .78; }
+.daily-rhythm-leader-line { stroke: #c3a150; stroke-width: 2.4; stroke-linecap: round; opacity: .92; pointer-events: none; }
 .daily-rhythm-horizon-fill { fill: url(#rhythm-horizon); }
 .daily-rhythm-horizon { fill: none; stroke: #f0d88d; stroke-width: 2.5; stroke-linecap: round; }
 .daily-rhythm-arrow { fill: none; stroke: var(--color-action); stroke-width: 3.5; stroke-linecap: round; }
@@ -121,6 +132,13 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-point { cursor: pointer; }
 .daily-rhythm-point:focus-visible { outline: none; filter: drop-shadow(0 0 4px #d19c00); }
 .daily-rhythm-point .daily-rhythm-point-hit { fill: transparent; stroke: none; pointer-events: all; }
+.daily-rhythm-time-hit { fill: transparent; pointer-events: all; }
+.daily-rhythm-activity-label { cursor: pointer; }
+.daily-rhythm-activity-badge { fill: #fff0bd; stroke: #fff; stroke-width: 3.5; filter: drop-shadow(0 2px 3px #23312620); }
+.daily-rhythm-activity-label.walk .daily-rhythm-activity-badge { fill: #e9f2d6; }
+.daily-rhythm-activity-label.rest .daily-rhythm-activity-badge { fill: #e4edff; }
+.daily-rhythm-activity-label.play .daily-rhythm-activity-badge { fill: #ffebe5; }
+.daily-rhythm-activity-glyph { fill: #28452e !important; font: 22px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif !important; pointer-events: none; }
 .daily-rhythm-point .daily-rhythm-point-marker { fill: #ffcf29; stroke: #f4bf1d; stroke-width: 1; }
 .daily-rhythm-point .daily-rhythm-point-halo { fill: none; stroke: #e6b72b; stroke-width: 1.5; stroke-dasharray: 1 3; }
 .daily-rhythm-point .daily-rhythm-point-core { fill: #e2a900; }
@@ -134,9 +152,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-chart .daily-rhythm-center-sub { fill: #bd8a0a; font: 500 10px 'Roboto', sans-serif; letter-spacing: 2.5px; }
 .daily-rhythm-chart .daily-rhythm-center-title { fill: var(--color-text-primary); font: 700 17px 'Poppins', sans-serif; letter-spacing: 1px; }
 .daily-rhythm-chart .daily-rhythm-center-date { fill: var(--color-text-muted); font: 500 20px 'Roboto', sans-serif; }
-.daily-rhythm-popover-button { width: 176px; height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 13px; border: 1px solid #f0e2b2; border-radius: 14px; background: #fff; color: var(--color-text-primary); box-shadow: 0 5px 16px #1a29211c; font: 600 13px/18px 'Poppins', sans-serif; text-align: left; white-space: nowrap; }
-.daily-rhythm-popover-button > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.daily-rhythm-popover-arrow { color: #e8ad00; font-size: 20px; }
 .daily-rhythm-footnote { margin: -2px 2px 0; color: #87918b; font: 400 10px/15px 'Roboto', sans-serif; text-align: center; }
 .activity-summary-page { min-height: 100%; display: flex; flex-direction: column; gap: 16px; padding: 4px 20px 32px; }
 .activity-summary-header { display: flex; align-items: center; gap: 10px; min-height: 54px; margin: 0 -20px; padding: 0 20px 10px; border-bottom: 1px solid var(--color-border); }
@@ -1192,7 +1207,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .life-event-actions button:last-child { color: #963a34; }
 
 @media (min-width: 600px) { .phone { margin: 24px 0; height: min(calc(100dvh - 48px), 1079px); border-radius: 24px; } }
-@media (max-width: 370px) { .main-header h1 { font-size: 30px; } .today-hero h2 { font-size: 20px; line-height: 27px; } .quick-chips button { padding: 6px 7px; } }
+@media (max-width: 370px) { .main-header h1 { font-size: 30px; } .quick-chips button { padding: 6px 7px; } }
 
 
 
