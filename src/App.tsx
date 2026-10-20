@@ -344,6 +344,12 @@ function formatPageDate(date = new Date()) {
   return `${weekday} · ${dayAndMonth}`;
 }
 
+function formatTimelineDate(date = new Date()) {
+  const weekday = new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(date);
+  const dayAndMonth = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(date);
+  return `${weekday} · ${dayAndMonth}`;
+}
+
 function formatShortDate(value: string | Date = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return 'Unknown date';
@@ -648,6 +654,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
   const currentPoint = pointOnDial(now.getHours() * 60 + now.getMinutes(), 220);
   const openMomentPoint = momentPoints.find(point => point.moment.id === openMomentId);
   const popupWidth = 176;
+  const popupHeight = 48;
   const popupX = openMomentPoint ? Math.max(8, Math.min(600 - popupWidth - 8, openMomentPoint.x > 300 ? openMomentPoint.x - popupWidth - 12 : openMomentPoint.x + 12)) : 0;
   const popupY = openMomentPoint ? Math.max(8, Math.min(390 - 48, openMomentPoint.y - 58)) : 0;
   const goToPreviousDay = () => setDayOffset(offset => offset - 1);
@@ -735,7 +742,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
         </g>
         </g>
         {openMomentPoint && <g className="daily-rhythm-moment-popover" data-activity-popup={openMomentPoint.moment.id} role="button" tabIndex={0} aria-label={`Open ${openMomentPoint.moment.title} activity summary`} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpenActivitySummary(openMomentPoint.moment); } }}>
-          <foreignObject x={popupX} y={popupY} width={popupWidth} height="48">
+          <foreignObject x={popupX} y={popupY} width={popupWidth} height={popupHeight}>
             <button type="button" className="daily-rhythm-popover-button"><span>{openMomentPoint.moment.title}</span><span className="daily-rhythm-popover-arrow" aria-hidden="true">→</span></button>
           </foreignObject>
         </g>}
@@ -968,7 +975,7 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
     else recentGroups.set(item.dateKey, [...(recentGroups.get(item.dateKey) ?? []), item]);
   });
   const timelineGroups = [
-    ...Array.from(recentGroups, ([dateKey, items]) => ({ id: dateKey, title: dateKey === todayKey ? 'Today’s timeline' : `${formatPageDate(new Date(`${dateKey}T12:00:00`))} timeline`, items })),
+    ...Array.from(recentGroups, ([dateKey, items]) => ({ id: dateKey, title: dateKey === todayKey ? 'Today’s timeline' : `${formatTimelineDate(new Date(`${dateKey}T12:00:00`))} timeline`, items })),
     ...(earlierItems.length ? [{ id: 'earlier', title: 'Earlier timeline', items: earlierItems }] : []),
   ];
   const timelineGroupKey = timelineGroups.map((group) => group.id).join('|');
@@ -1000,7 +1007,7 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
     };
   }, [todayKey, timelineGroupKey, selectedDate]);
   const summaryCount = timelineItems.filter((item) => item.dateKey === (selectedDate ? selectedKey : summaryDateKey)).length;
-  const displayedGroups = selectedDate ? [{ id: selectedKey, title: `${formatPageDate(selectedDay)} timeline`, items: timelineItems.filter(item => item.dateKey === selectedKey) }].filter(group => group.items.length) : timelineGroups;
+  const displayedGroups = selectedDate ? [{ id: selectedKey, title: `${formatTimelineDate(selectedDay)} timeline`, items: timelineItems.filter(item => item.dateKey === selectedKey) }].filter(group => group.items.length) : timelineGroups;
   const daysWithRecords = new Set(visibleObservations.map((observation) => localDayKey(new Date(observation.savedAt))));
   if (hasDemoMoments) daysWithRecords.add(todayKey);
 
@@ -1031,7 +1038,7 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
         {displayedGroups.length ? displayedGroups.map((group, groupIndex) => <section className={`timeline-day-group ${selectedDate && localDayKey(selectedDate) === group.id && summaryDateKey === group.id ? 'calendar-target' : ''}`} id={`story-day-${group.id}`} key={group.id}>
           <div className="section-heading" data-story-date={group.id === 'earlier' ? undefined : group.id}><h2>{group.title}</h2>{canEdit && groupIndex === 0 && <button className="text-link" onClick={onEditStory}>Edit story ✎</button>}</div>
           <div className="timeline-list">{group.items.map((item) => <StoryTimelineRow key={item.id} item={item} canEdit={canEdit} menuOpen={openMenuId === item.id} onMenuToggle={() => setOpenMenuId(openMenuId === item.id ? null : item.id)} onView={() => { setOpenMenuId(null); onMoment(item.id); }} onEdit={() => { setOpenMenuId(null); onEditMoment(item); }} onDelete={() => { setOpenMenuId(null); setDeleteError(''); setPendingDelete(item); }} />)}</div>
-        </section>) : <><div className="section-heading"><h2>{selectedKey === todayKey ? 'Today’s timeline' : `${formatPageDate(selectedDay)} timeline`}</h2>{canEdit && <button className="text-link" onClick={onEditStory}>Edit story ✎</button>}</div><p className="timeline-empty-state">{selectedKey === todayKey ? 'No moments today yet' : 'No moments recorded on this day'}</p></>}
+        </section>) : <><div className="section-heading"><h2>{selectedKey === todayKey ? 'Today’s timeline' : `${formatTimelineDate(selectedDay)} timeline`}</h2>{canEdit && <button className="text-link" onClick={onEditStory}>Edit story ✎</button>}</div><p className="timeline-empty-state">{selectedKey === todayKey ? 'No moments today yet' : 'No moments recorded on this day'}</p></>}
       </section>
       {((selectedDate && selectedKey !== todayKey) || summaryDateKey !== todayKey) && <button className="story-back-top" type="button" aria-label="Back to today" title="Back to today" onClick={() => { setSelectedDate(new Date()); setSummaryDateKey(todayKey); document.querySelector<HTMLElement>('.screen-scroll')?.scrollTo({ top: 0, behavior: preferredScrollBehavior() }); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg></button>}
       {openMenuId && <button className="timeline-menu-dismiss" aria-label="Close moment actions" onClick={() => setOpenMenuId(null)} />}

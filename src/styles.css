@@ -784,7 +784,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .member-row > span:nth-child(2), .you-row > span:nth-child(2), .media-row > span:nth-child(2) { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
 .member-row strong, .you-row strong, .media-row strong, .knowledge-row strong { font: 600 13px/19px 'Poppins', sans-serif; }
 .member-row small, .you-row small, .media-row small, .knowledge-row small { color: #78644a; font: 400 11px/17px 'Roboto', sans-serif; white-space: nowrap; }
-.member-row i, .knowledge-row i, .media-row i { margin-left: auto; color: #95a399; font: 400 20px/22px 'Roboto', sans-serif; font-style: normal; }
+.member-row i, .knowledge-row i, .media-row i { flex: none; margin-left: auto; color: #95a399; font: 400 20px/22px 'Roboto', sans-serif; font-style: normal; }
 .pets-page > .profile-section:not(.care-section) { margin-top: 26px; }
 .pattern-card { height: auto; min-height: 241px; margin-top: 10px; padding: 12px 21px 10px; }
 .card-caption { display: block; height: 24px; }
@@ -798,6 +798,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .knowledge-icon, .media-icon { width: 37px; height: 37px; flex: none; display: grid; place-items: center; border-radius: 13px; background: #fff0a7; color: #ffc313; font: 400 24px/1 'Roboto', sans-serif; }
 .knowledge-icon { border-radius: 50%; }
 .knowledge-row > span:nth-child(2) { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pattern-card .knowledge-row > span:nth-child(2) { flex: 1; }
+.pattern-card .knowledge-row small { white-space: normal; overflow-wrap: anywhere; }
 .knowledge-row strong { font-size: 12px; }
 .knowledge-row small { font-size: 10px; }
 .context-section { margin-top: 26px !important; }
@@ -1308,6 +1310,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .plan-notifications article strong { display: block; margin-top: 5px; }
 .plan-notifications .is-read { opacity: .65; }
 .pattern-suggestions { margin: 20px 0; padding: 16px; background: #f1f5eb; border-radius: 18px; }
+.knowledge-management-page .pattern-suggestions { margin-right: 20px; margin-left: 20px; }
 .pattern-suggestions h2 { font-size: 18px; }
 .pattern-suggestions p { font-size: 13px; line-height: 1.6; }
 .pattern-suggestions article { background: white; padding: 14px; border-radius: 12px; margin-top: 18px; }
