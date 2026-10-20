@@ -1697,11 +1697,11 @@ function normalizeWorkspace(value: unknown, ownerName: string, hasDemoData: bool
 }
 
 function privateAskMessagesFor(pet: PrototypePet | undefined, accountId: string | undefined): AskMessage[] {
-  if (!pet) return readAskMessages();
-  if (!pet.sharedGroupId) return pet.workspace.askMessages;
+  const messages = pet && Array.isArray(pet.workspace.askMessages) ? pet.workspace.askMessages : pet ? [] : readAskMessages();
+  if (!pet || !pet.sharedGroupId) return messages;
   const historyOwnerId = pet.workspace.askOwnerAccountId;
   const belongsToAccount = historyOwnerId ? historyOwnerId === accountId : accountId === pet.sharedOwnerAccountId;
-  return belongsToAccount ? pet.workspace.askMessages : [];
+  return belongsToAccount ? messages : [];
 }
 
 function createInitialPrototypeSession(): PrototypeSession {
@@ -1803,12 +1803,13 @@ function persistLocalPrototypeSession(session: PrototypeSession) {
 }
 
 function AskPage({ onPetsNavigate, petName, petAvatar, messages, messageEndRef, noPetYet, busy, pending, live }: { onPetsNavigate: () => void; petName: string; petAvatar: string; messages: AskMessage[]; messageEndRef: RefObject<HTMLDivElement | null>; noPetYet: boolean; busy: boolean; pending: AskMessage | null; live: boolean }) {
+  const safeMessages = Array.isArray(messages) ? messages : [];
   return <div className="ask-page">
     <MainHeader eyebrow="ASK AI · OBSERVATION DIALOGUE" title="Ask Pawsona" onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
     <p className="ask-ai-notice">{!live ? 'Log in to chat with Pawsona. Guest conversations are available to review only.' : noPetYet ? 'Add your pet profile to start a conversation.' : 'Ask a question or share a photo. Your messages, attached photos and pet basics are sent to OpenAI. When enabled in Settings, a limited recent Story text extract is included too. AI observations can be mistaken.'}</p>
     <section className="ask-thread" aria-label="Conversation with Pawsona" aria-busy={busy}>
-      {messages.length === 0 && <article className="chat-message ai">Hi! What would you like to know about {petName}? You can ask a question or attach a photo. I can help describe what is visible, but a photo alone cannot tell me how your pet feels or establish a diagnosis.</article>}
-      {[...messages, ...(pending ? [pending] : [])].map((message, index) => <article className={`chat-message ${message.role === 'user' ? 'owner' : 'ai dynamic-answer'}`} key={index}>
+      {safeMessages.length === 0 && <article className="chat-message ai">Hi! What would you like to know about {petName}? You can ask a question or attach a photo. I can help describe what is visible, but a photo alone cannot tell me how your pet feels or establish a diagnosis.</article>}
+      {[...safeMessages, ...(pending ? [pending] : [])].map((message, index) => <article className={`chat-message ${message.role === 'user' ? 'owner' : 'ai dynamic-answer'}`} key={index}>
         {message.attachment && (message.attachment.kind === 'image' ? <img className="chat-attachment" src={message.attachment.url} alt={message.attachment.name} /> : <audio src={message.attachment.url} controls aria-label={message.attachment.name} />)}
         <span>{message.text}</span>
       </article>)}
@@ -3911,7 +3912,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     <div className="app-stage">
       <div className={`phone ${devicePreferences.largeText ? 'large-reading-text' : ''} ${devicePreferences.reducedMotion ? 'reduce-motion' : ''}`}>
         {notice}
-        {sharedId && sharedWritePending() && <p className="shared-sync-pending" role="status">{sharedSync.current.failed ? 'Shared sync paused. Your local edits are kept; resolve the sync error before leaving.' : 'Syncing shared changes…'}</p>}
+        {sharedId && sharedSync.current.failed && sharedWritePending() && <p className="shared-sync-pending" role="status">Shared sync paused. Your local edits are kept; resolve the sync error before leaving.</p>}
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
             {view === 'today' && <TodayPage onEvidence={() => navigateTo('overview')} saved={lastSavedContext} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onPetsNavigate={() => navigateTo('pets')} onPatterns={() => openPatternKnowledge()} />}

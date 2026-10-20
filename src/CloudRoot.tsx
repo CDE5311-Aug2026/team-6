@@ -90,7 +90,13 @@ function attachCloudCareGroups(session: PrototypeSession, groups: Awaited<Return
           }
           return restored;
         }) : [];
-        const recoveredWorkspace = { ...workspace, observations: sharedObservations };
+        const recoveredWorkspace = {
+          ...workspace,
+          observations: sharedObservations,
+          // Ask AI history is private to the signed-in account, not part of the shared group workspace.
+          askMessages: Array.isArray(ownerPet.workspace.askMessages) ? ownerPet.workspace.askMessages : [],
+          askOwnerAccountId: ownerPet.workspace.askOwnerAccountId,
+        };
         const groupAvatar = usableMediaUrl(group.petAvatar, media) ? group.petAvatar : '';
         const ownerAvatar = usableMediaUrl(ownerPet.avatar, media) ? ownerPet.avatar : '';
         const observationAvatar = sharedObservations.find(value => value && typeof value === 'object' && usableMediaUrl((value as Record<string, unknown>).image, media));
@@ -114,7 +120,14 @@ function attachCloudCareGroups(session: PrototypeSession, groups: Awaited<Return
       const sharedPet = { id: sharedPetId, sharedGroupId: group.groupId, sharedOwnerAccountId: group.ownerId,
         name: group.petName, breed: group.petBreed, age: group.petAge,
         avatar: preferGoldenStoryImage ? storyAvatar || (usableMediaUrl(group.petAvatar, media) ? group.petAvatar : '') : (usableMediaUrl(group.petAvatar, media) ? group.petAvatar : '') || storyAvatar, hasDemoMoments: false,
-        workspace: workspace as typeof pets[number]['workspace'] };
+        workspace: {
+          ...workspace,
+          // Keep this account's private Ask AI history separate from shared group data.
+          askMessages: Array.isArray(index >= 0 ? pets[index].workspace.askMessages : undefined)
+            ? pets[index].workspace.askMessages
+            : [],
+          askOwnerAccountId: index >= 0 ? pets[index].workspace.askOwnerAccountId : undefined,
+        } as typeof pets[number]['workspace'] };
       if (index >= 0) pets[index] = { ...pets[index], ...sharedPet };
       else pets.push(sharedPet);
     }
