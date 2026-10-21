@@ -17,7 +17,7 @@ export default function MomentCarousel({ children }: { children: ReactNode }) {
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
-  const pause = () => { pausedUntil.current = performance.now() + 7000; };
+  const pause = () => { pausedUntil.current = performance.now() + 3500; };
   const signature = cards.map(card => card.key).join('|');
   useEffect(() => {
     const el = viewport.current;
