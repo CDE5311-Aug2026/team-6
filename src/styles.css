@@ -89,11 +89,11 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-toggle button { min-width: 52px; height: 29px; padding: 0 9px; border: 0; border-radius: 999px; background: transparent; color: var(--color-text-secondary); font: 500 11px/16px 'Roboto', sans-serif; }
 .daily-rhythm-toggle button.active { background: #fff; color: var(--color-text-primary); box-shadow: 0 1px 4px #1a29211c; }
 .daily-rhythm-chart { position: relative; width: 100%; margin-top: 5px; overflow: hidden; border-radius: 12px; }
-.daily-rhythm-selected-banner { position: absolute; z-index: 3; top: 9px; left: 50%; display: flex; align-items: center; justify-content: center; gap: 10px; max-width: calc(100% - 40px); min-height: 68px; padding: 12px 22px 12px 24px; transform: translateX(-50%); border: 1px solid #e5c76b; border-radius: 24px; background: #fffdf5; box-shadow: 0 3px 10px #73591d1a; color: #28452e; cursor: pointer; animation: daily-rhythm-banner-in 220ms ease-out both; }
-.daily-rhythm-selected-banner-icon { flex: 0 0 auto; font: 25px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif; }
-.daily-rhythm-selected-banner-title { overflow: hidden; font: 600 24px/1.2 'Roboto', sans-serif; text-overflow: ellipsis; white-space: nowrap; }
-.daily-rhythm-selected-banner-time { flex: 0 0 auto; color: #805900; font: 600 22px/1.2 'Roboto', sans-serif; }
-.daily-rhythm-selected-banner-arrow { flex: 0 0 auto; color: #b68a10; font-size: 27px; }
+.daily-rhythm-selected-banner { position: absolute; z-index: 3; top: 9px; left: 50%; display: flex; align-items: center; justify-content: center; gap: 6px; max-width: calc(100% - 40px); min-height: 36px; padding: 5px 10px 5px 12px; transform: translateX(-50%); border: 1px solid #e5c76b; border-radius: 14px; background: #fffdf5; box-shadow: 0 3px 10px #73591d1a; color: #28452e; cursor: pointer; animation: daily-rhythm-banner-in 220ms ease-out both; }
+.daily-rhythm-selected-banner-icon { flex: 0 0 auto; font: 17px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif; }
+.daily-rhythm-selected-banner-title { overflow: hidden; font: 600 14px/1.2 'Roboto', sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.daily-rhythm-selected-banner-time { flex: 0 0 auto; color: #805900; font: 600 13px/1.2 'Roboto', sans-serif; }
+.daily-rhythm-selected-banner-arrow { flex: 0 0 auto; color: #b68a10; font-size: 16px; }
 .daily-rhythm-activity-label { transform-box: fill-box; transform-origin: center; transition: transform 220ms cubic-bezier(.2,.8,.2,1); }
 .daily-rhythm-activity-label.is-revealed { transform: scale(1.32); }
 .daily-rhythm-activity-label.is-revealed .daily-rhythm-activity-badge { stroke: #ffcf29; stroke-width: 4; }
