@@ -2,7 +2,7 @@
 
 **Click here to explore our interactive prototype: https://pawsona-team6.vercel.app/**
 
-【链接已更新26.10.21 11：16】修改了admin ask ai白屏 + 滚动固定 + 点赞收藏弹窗 + 日期 & TP格式问题 + 完善了时间轴 & Today页面 [点这里](https://pawsona-team-6.vercel.app/)
+【链接已更新26.10.22 0：00】修改了ai summary + worth a closer look [点这里](https://pawsona-team-6.vercel.app/)
 
 【修改中】是我测试用的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
 
