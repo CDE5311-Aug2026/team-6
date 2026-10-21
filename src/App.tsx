@@ -793,6 +793,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
     <>
     <div className="daily-rhythm-chart">
       {revealedMarker && <button type="button" className="daily-rhythm-selected-banner" aria-label={`Open details for ${revealedMarker.moment.title} at ${revealedMarker.time}`} onClick={() => openActivity(revealedMarker.moment)}>
+        <span className="daily-rhythm-selected-banner-icon" aria-hidden="true">{activityGlyph(revealedMarker.moment)}</span>
         <span className="daily-rhythm-selected-banner-title">{revealedMarker.moment.title}</span>
         <span className="daily-rhythm-selected-banner-time">{revealedMarker.time}</span>
         <span className="daily-rhythm-selected-banner-arrow" aria-hidden="true">→</span>
