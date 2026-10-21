@@ -777,6 +777,9 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
   const currentPoint = pointOnDial(currentMinute, isPattern ? 180 : 220);
   const patternPointerOuter = pointOnDial(currentMinute, 207);
   const revealedMarker = labeledMomentPoints.find(point => point.moment.id === revealedActivityId);
+  const activityLabelsOnTop = revealedMarker
+    ? [...labeledMomentPoints.filter(point => point.moment.id !== revealedActivityId), revealedMarker]
+    : labeledMomentPoints;
   const goToPreviousDay = () => { if (!isPattern) setDayOffset(offset => offset - 1); };
   const goToNewerDay = () => { if (!isPattern) setDayOffset(offset => Math.min(0, offset + 1)); };
   const handleNavKey = (event: React.KeyboardEvent<SVGGElement>, direction: 'previous' | 'newer') => {
@@ -875,7 +878,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
             <circle className="daily-rhythm-current-avatar-inner" cx={currentPoint.x} cy={currentPoint.y} r="20"/>
             <image href={currentPetAvatar} x={currentPoint.x - 18.5} y={currentPoint.y - 18.5} width="37" height="37" preserveAspectRatio="xMidYMid slice" clipPath="url(#rhythm-current-avatar-clip)"/>
           </g>}
-          {labeledMomentPoints.map(({ moment, label, time }) => <g className={`daily-rhythm-time-trigger daily-rhythm-activity-label ${moment.observationKind ?? 'other'} ${revealedActivityId === moment.id ? 'is-revealed' : ''}`} key={`${moment.id}-label`} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
+          {activityLabelsOnTop.map(({ moment, label, time }) => <g className={`daily-rhythm-time-trigger daily-rhythm-activity-label ${moment.observationKind ?? 'other'} ${revealedActivityId === moment.id ? 'is-revealed' : ''}`} key={`${moment.id}-label`} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
             <rect className="daily-rhythm-time-hit" x={label.iconX - 37} y={label.iconY - 37} width="74" height="88"/>
             <circle className="daily-rhythm-activity-badge" cx={label.iconX} cy={label.iconY} r="27"/>
             <text className="daily-rhythm-activity-glyph" x={label.iconX} y={label.iconY + 1} textAnchor="middle" dominantBaseline="middle">{activityGlyph(moment)}</text>
@@ -898,14 +901,14 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
           <text className="daily-rhythm-center-title" x="300" y="306" textAnchor="middle">{isPattern ? 'PATTERN' : dayTitle}</text>
           <text className="daily-rhythm-center-date" x="300" y="332" textAnchor="middle">{isPattern ? 'Select an activity' : selectedDateLabel}</text>
         </g>
-      </svg>
+    </svg>
     </div>
-    {isPattern ? <div className="daily-pattern-summary"><span>{timedPatterns.length ? `${timedPatterns.length} confirmed daily patterns · Usual time windows` : 'No confirmed activity times yet.'}</span><button type="button" className="profile-link" onClick={() => onPatterns()}>{timedPatterns.length ? 'View pattern evidence →' : 'Set up typical patterns →'}</button></div> : <div className="daily-rhythm-latest" aria-live="polite">
+    {isPattern ? <div className="daily-pattern-summary"><span>{timedPatterns.length ? `${timedPatterns.length} confirmed daily patterns · Usual time windows` : 'No confirmed activity times yet.'}</span><button type="button" className="profile-link" onClick={() => onPatterns()}>{timedPatterns.length ? 'View pattern evidence →' : 'Set up typical patterns →'}</button></div> : <button type="button" className="daily-rhythm-latest" aria-live="polite" aria-label={latestMoment ? `Open summary for latest activity: ${latestMoment.title}` : 'No recorded activities'} disabled={!latestMoment} onClick={() => { if (latestMoment) onOpenActivitySummary(latestMoment); }}>
       <span className="daily-rhythm-latest-icon" aria-hidden="true">{latestMoment ? activityGlyph(latestMoment) : '✦'}</span>
       <div className="daily-rhythm-latest-copy">
         {latestMoment ? <>
           <span className="daily-rhythm-latest-prefix">Latest activity</span>
-          <span className={`daily-rhythm-latest-title-viewport ${latestLabelOverflow ? 'is-overflowing' : ''}`} ref={latestLabelViewportRef} tabIndex={latestLabelOverflow ? 0 : undefined} title={latestMoment.title}>
+          <span className={`daily-rhythm-latest-title-viewport ${latestLabelOverflow ? 'is-overflowing' : ''}`} ref={latestLabelViewportRef} title={latestMoment.title}>
             <span className="daily-rhythm-latest-title-track" style={{ '--marquee-distance': `-${latestLabelDistance}px`, '--marquee-duration': `${Math.max(8, latestLabelDistance / 24 + 2)}s` } as CSSProperties}>
               <strong ref={latestLabelTextRef}>{latestMoment.title}</strong>
               {latestLabelOverflow && <strong aria-hidden="true">{latestMoment.title}</strong>}
@@ -913,7 +916,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
           </span>
         </> : <span>No recorded moments yet</span>}
       </div>
-    </div>}
+    </button>}
     </>
   </section>;
 }
@@ -928,31 +931,97 @@ function formatActivityDuration(minutes: number) {
 }
 
 function PetActivitySummaryPage({ moment, moments, petName, petAvatar, onBack }: { moment: StoryObservation; moments: StoryObservation[]; petName: string; petAvatar: string; onBack: () => void }) {
+  const [selectedTrendPoint, setSelectedTrendPoint] = useState<{ index: number; series: 'total' | 'morning' | 'afternoon' | 'evening' } | null>(null);
+  const [focusedTrendSeries, setFocusedTrendSeries] = useState<'total' | 'morning' | 'afternoon' | 'evening' | null>(null);
+  const [flippedStats, setFlippedStats] = useState({ total: false, today: false });
+  const [momentPeriod, setMomentPeriod] = useState<'total' | 'morning' | 'afternoon' | 'evening'>('total');
+  const [showMoreRecords, setShowMoreRecords] = useState(false);
   const today = new Date();
   const related = moments.filter(entry => moment.observationKind ? entry.observationKind === moment.observationKind : entry.title === moment.title);
   const duration = (entry: StoryObservation) => Math.max(0, Number(entry.metrics?.durationMinutes) || 0);
   const totalMinutes = related.reduce((sum, entry) => sum + duration(entry), 0);
   const todayMoments = related.filter(entry => isSameLocalDay(entry.savedAt, today));
   const todayMinutes = todayMoments.reduce((sum, entry) => sum + duration(entry), 0);
-  const category = moment.observationKind === 'rest' ? 'sleeping' : moment.observationKind === 'meal' ? 'feeding' : moment.observationKind ?? 'activity';
+  const activityKind = moment.observationKind ?? (/breakfast|lunch|dinner|food|feed|meal/i.test(moment.title) ? 'meal' : /walk/i.test(moment.title) ? 'walk' : /rest|sleep|nap/i.test(moment.title) ? 'rest' : /play|toy|fetch/i.test(moment.title) ? 'play' : 'activity');
+  const category = activityKind === 'rest' ? 'Rest' : activityKind === 'meal' ? 'Feeding' : activityKind === 'play' ? 'Play' : activityKind === 'walk' ? 'Walk' : 'Activity';
   const days = Array.from({ length: 7 }, (_, index) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6 + index));
   const hasDurations = related.some(entry => duration(entry) > 0);
+  const periodFor = (entry: StoryObservation) => {
+    const hour = new Date(entry.savedAt).getHours();
+    return hour >= 5 && hour < 12 ? 'morning' : hour >= 12 && hour < 18 ? 'afternoon' : 'evening';
+  };
+  const periodSummary = (entries: StoryObservation[]) => (['morning', 'afternoon', 'evening'] as const).map(period => {
+    const matches = entries.filter(entry => periodFor(entry) === period);
+    return { period, count: matches.length, minutes: matches.reduce((sum, entry) => sum + duration(entry), 0) };
+  });
+  const totalPeriodSummary = periodSummary(related);
+  const todayPeriodSummary = periodSummary(todayMoments);
   const trend = days.map(date => {
     const entries = related.filter(entry => isSameLocalDay(entry.savedAt, date));
-    return { date, value: hasDurations ? entries.reduce((sum, entry) => sum + duration(entry), 0) : entries.length };
+    const valueForPeriod = (period: 'morning' | 'afternoon' | 'evening') => {
+      const periodEntries = entries.filter(entry => periodFor(entry) === period);
+      return hasDurations ? periodEntries.reduce((sum, entry) => sum + duration(entry), 0) : periodEntries.length;
+    };
+    return {
+      date,
+      total: hasDurations ? entries.reduce((sum, entry) => sum + duration(entry), 0) : entries.length,
+      morning: valueForPeriod('morning'),
+      afternoon: valueForPeriod('afternoon'),
+      evening: valueForPeriod('evening'),
+    };
   });
-  const maxTrend = Math.max(1, ...trend.map(entry => entry.value));
-  const chartPoints = trend.map((entry, index) => `${24 + index * 45},${96 - entry.value / maxTrend * 68}`).join(' ');
+  const maxTrend = Math.max(0, ...trend.map(entry => entry.total));
+  const chartMax = maxTrend ? Math.max(2, Math.ceil(maxTrend / 2) * 2) : 0;
+  const chartY = (value: number) => 96 - (chartMax ? value / chartMax * 68 : 0);
+  const trendX = (index: number) => 50 + index * 45;
+  const formatTrendValue = (value: number) => {
+    if (!hasDurations) return `${value} ${value === 1 ? 'moment' : 'moments'}`;
+    const minutes = Math.round(value);
+    const hours = Math.floor(minutes / 60);
+    const remainder = minutes % 60;
+    if (hours && remainder) return `${hours}h ${remainder}m`;
+    if (hours) return `${hours}h`;
+    return `${remainder}m`;
+  };
+  const activityIcon = (entry: StoryObservation) => entry.observationKind === 'meal' ? '🥣'
+    : entry.observationKind === 'walk' ? '🐾'
+      : entry.observationKind === 'rest' ? '💤'
+        : entry.observationKind === 'play' ? '🎾'
+          : /food|dinner|breakfast|lunch/i.test(entry.title) ? '🥣'
+            : /walk/i.test(entry.title) ? '🐾'
+              : /rest|sleep/i.test(entry.title) ? '💤' : /play|toy|fetch/i.test(entry.title) ? '🎾' : '✨';
+  const recordDateLabel = (entry: StoryObservation) => {
+    const date = new Date(entry.savedAt);
+    return `${new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).format(date)} · ${formatObservationTime(entry.savedAt).replace('\n', ' · ')}`;
+  };
+  const periodRecords = momentPeriod === 'total' ? related : related.filter(entry => periodFor(entry) === momentPeriod);
+  const displayedMoment = momentPeriod === 'total' ? moment : [...periodRecords].sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime())[0];
+  const displayedOtherRecords = periodRecords.filter(entry => entry.id !== displayedMoment?.id).sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime());
+  const trendSeries = [
+    { key: 'total' as const, label: 'Total', values: trend.map(entry => entry.total) },
+    { key: 'morning' as const, label: 'Morning', values: trend.map(entry => entry.morning) },
+    { key: 'afternoon' as const, label: 'Afternoon', values: trend.map(entry => entry.afternoon) },
+    { key: 'evening' as const, label: 'Evening', values: trend.map(entry => entry.evening) },
+  ];
   const dateLabel = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(moment.savedAt));
   return <section className="activity-summary-page">
     <header className="activity-summary-header">
       <button className="back-button" type="button" aria-label="Back to daily rhythm" onClick={onBack}>←</button>
-      <div><p className="eyebrow">PET ACTIVITY</p><h1>{moment.title} summary</h1></div>
+      <div><p className="eyebrow">PET ACTIVITY</p><h1>{category} summary</h1></div>
     </header>
     <div className="activity-summary-pet"><Avatar name={petName} src={petAvatar} /><span><strong>{petName}</strong><small>{dateLabel} · {formatObservationTime(moment.savedAt).replace('\n', ' · ')}</small></span></div>
     <section className="activity-summary-stats" aria-label="Activity duration">
-      <article><span>Total {category} time</span><strong>{formatActivityDuration(totalMinutes)}</strong><small>{related.length} recorded {related.length === 1 ? 'moment' : 'moments'}</small></article>
-      <article><span>Today’s {category} time</span><strong>{formatActivityDuration(todayMinutes)}</strong><small>{todayMoments.length} {todayMoments.length === 1 ? 'moment' : 'moments'} today</small></article>
+      {([
+        { key: 'total' as const, title: `Total ${category} time`, value: totalMinutes, count: related.length, label: `${related.length} recorded ${related.length === 1 ? 'moment' : 'moments'}`, breakdown: totalPeriodSummary },
+        { key: 'today' as const, title: `Today’s ${category} time`, value: todayMinutes, count: todayMoments.length, label: `${todayMoments.length} ${todayMoments.length === 1 ? 'moment' : 'moments'} today`, breakdown: todayPeriodSummary },
+      ]).map(card => <button type="button" key={card.key} className={`activity-summary-stat-flip ${flippedStats[card.key] ? 'is-flipped' : ''}`} aria-pressed={flippedStats[card.key]} aria-label={`${card.title}. ${flippedStats[card.key] ? 'Show total' : 'Show morning, afternoon and evening breakdown'}`} onClick={() => setFlippedStats(current => ({ ...current, [card.key]: !current[card.key] }))}>
+        <span className="activity-summary-stat-face activity-summary-stat-front" aria-hidden={flippedStats[card.key]}>
+          <span>{card.title}</span><strong>{formatActivityDuration(card.value)}</strong><small>{card.label}</small>
+        </span>
+        <span className="activity-summary-stat-face activity-summary-stat-back" aria-hidden={!flippedStats[card.key]}>
+          {card.breakdown.map(row => <span className="activity-summary-stat-period" key={row.period}><span><b>{row.period[0].toUpperCase() + row.period.slice(1)}</b><small>{row.count} {row.count === 1 ? 'record' : 'records'}</small></span><strong>{row.minutes ? formatActivityDuration(row.minutes) : '0 min'}</strong></span>)}
+        </span>
+      </button>)}
     </section>
     <section className="activity-summary-ai">
       <div><span className="activity-summary-ai-icon" aria-hidden="true">✦</span><div><h2>AI summary</h2><p>Activity insights will appear here as more moments are collected.</p></div></div>
@@ -960,14 +1029,60 @@ function PetActivitySummaryPage({ moment, moments, petName, petAvatar, onBack }:
     </section>
     <section className="activity-summary-trend">
       <div className="activity-summary-section-heading"><div><h2>Activity trend</h2><p>Last 7 days · {hasDurations ? 'duration' : 'recorded moments'}</p></div></div>
-      <svg viewBox="0 0 320 132" role="img" aria-label={`Activity trend for the last seven days: ${trend.map(entry => entry.value).join(', ')}`}>
-        <path className="activity-summary-chart-grid" d="M16 28H304 M16 62H304 M16 96H304" />
-        <polyline className="activity-summary-chart-line" points={chartPoints} />
-        {trend.map((entry, index) => <g key={entry.date.toISOString()}><circle className="activity-summary-chart-point" cx={24 + index * 45} cy={96 - entry.value / maxTrend * 68} r="4"/><text x={24 + index * 45} y="122" textAnchor="middle">{new Intl.DateTimeFormat('en-US', { weekday: 'narrow' }).format(entry.date)}</text></g>)}
+      <div className="activity-summary-chart-legend" aria-label="Chart series">
+        {trendSeries.map(series => <button className={`activity-summary-legend-item ${series.key} ${focusedTrendSeries && focusedTrendSeries !== series.key ? 'is-muted' : ''} ${focusedTrendSeries === series.key ? 'is-focused' : ''}`} key={series.key} type="button" aria-pressed={focusedTrendSeries === series.key} aria-label={`${focusedTrendSeries === series.key ? 'Show all curves; currently highlighting' : 'Highlight'} ${series.label}`} onClick={() => setFocusedTrendSeries(current => current === series.key ? null : series.key)}><i aria-hidden="true"/>{series.label}</button>)}
+      </div>
+      <p className="activity-summary-period-note">By start time · Morning 05:00–12:00 · Afternoon 12:00–18:00 · Evening 18:00–05:00</p>
+      <svg viewBox="0 0 360 132" role="img" aria-label={`Activity trend for the last seven days, in ${hasDurations ? 'duration' : 'recorded moments'}. Total: ${trend.map(entry => formatTrendValue(entry.total)).join(', ')}.`}>
+        <path className="activity-summary-chart-grid" d="M44 28H344 M44 62H344 M44 96H344" />
+        {[chartMax, chartMax / 2, 0].map((value, index) => <text key={`y-${index}`} className="activity-summary-chart-axis-label" x="38" y={31 + index * 34} textAnchor="end">{formatTrendValue(value)}</text>)}
+        {trendSeries.map(series => <polyline className={`activity-summary-chart-line ${series.key} ${focusedTrendSeries && focusedTrendSeries !== series.key ? 'is-muted' : ''}`} key={`${series.key}-line`} points={series.values.map((value, index) => `${trendX(index)},${chartY(value)}`).join(' ')} />)}
+        {trend.map((entry, index) => <text key={`${entry.date.toISOString()}-day`} className="activity-summary-chart-day-label" x={trendX(index)} y="122" textAnchor="middle">{new Intl.DateTimeFormat('en-US', { weekday: 'narrow' }).format(entry.date)}</text>)}
+        {trendSeries.flatMap(series => trend.map((entry, index) => {
+          const value = series.values[index];
+          if (series.key !== 'total' && value === 0) return null;
+          const x = trendX(index);
+          const y = chartY(value);
+          const selected = selectedTrendPoint?.index === index && selectedTrendPoint.series === series.key;
+          const dateText = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'short', day: 'numeric' }).format(entry.date);
+          return <g key={`${series.key}-${entry.date.toISOString()}`} className={`activity-summary-chart-day ${series.key} ${selected ? 'is-selected' : ''} ${focusedTrendSeries && focusedTrendSeries !== series.key ? 'is-muted' : ''}`} role="button" tabIndex={0} aria-pressed={selected} aria-label={`${series.label}, ${dateText}: ${formatTrendValue(value)}`} onClick={() => setSelectedTrendPoint({ index, series: series.key })} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedTrendPoint({ index, series: series.key }); } }}>
+            {selected && <text className="activity-summary-chart-value" x={x} y={Math.max(14, y - 11)} textAnchor="middle">{series.label} · {formatTrendValue(value)}</text>}
+            <circle className="activity-summary-chart-hit" cx={x} cy={y} r="13" />
+            <circle className="activity-summary-chart-point" cx={x} cy={y} r={selected ? 5 : 4} />
+          </g>;
+        }))}
       </svg>
       {!related.length && <p className="activity-summary-empty">No activity moments have been recorded yet.</p>}
     </section>
-    <section className="activity-summary-moment-card"><span className="eyebrow">SELECTED MOMENT</span><h2>{moment.title}</h2><p>{moment.note || 'No additional notes for this moment.'}</p></section>
+    <section className="activity-summary-moment-card">
+      <span className="eyebrow">SELECTED MOMENT</span>
+      <div className="activity-summary-moment-periods" role="group" aria-label="Filter records by time of day">
+        {(['total', 'morning', 'afternoon', 'evening'] as const).map(period => <button type="button" key={period} className={momentPeriod === period ? 'is-active' : ''} aria-pressed={momentPeriod === period} onClick={() => setMomentPeriod(period)}>{period === 'total' ? 'Total' : period[0].toUpperCase() + period.slice(1)}</button>)}
+      </div>
+      {!displayedMoment ? <p className="activity-summary-period-empty">No {momentPeriod} records for this activity in the available history.</p> : <>
+      <article className="activity-summary-selected-record">
+        <div className="activity-summary-record-copy">
+          <time dateTime={displayedMoment.savedAt}>{recordDateLabel(displayedMoment)}</time>
+          <h2>{displayedMoment.title}</h2>
+          <p>{displayedMoment.note || 'No additional notes for this moment.'}</p>
+          {duration(displayedMoment) > 0 && <small>{formatActivityDuration(duration(displayedMoment))}</small>}
+        </div>
+        {displayedMoment.image ? <img className="activity-summary-selected-image" src={displayedMoment.image} alt="" /> : <span className="activity-summary-record-fallback" aria-hidden="true">{activityIcon(displayedMoment)}</span>}
+      </article>
+      {displayedOtherRecords.length > 0 && <>
+        <button className="activity-summary-more-toggle" type="button" aria-expanded={showMoreRecords} aria-controls="activity-summary-more-records" onClick={() => setShowMoreRecords(open => !open)}>
+          {showMoreRecords ? 'Show fewer records' : `Show more records · ${displayedOtherRecords.length}`}
+          <span aria-hidden="true">{showMoreRecords ? '↑' : '↓'}</span>
+        </button>
+        {showMoreRecords && <div className="activity-summary-more-records" id="activity-summary-more-records">
+          {displayedOtherRecords.map(entry => <article className="activity-summary-more-record" key={entry.id}>
+            {entry.image ? <img src={entry.image} alt="" /> : <span className="activity-summary-record-fallback" aria-hidden="true">{activityIcon(entry)}</span>}
+            <div><time dateTime={entry.savedAt}>{recordDateLabel(entry)}</time><strong>{entry.title}</strong><p>{entry.note || 'No additional notes for this moment.'}</p>{duration(entry) > 0 && <small>{formatActivityDuration(duration(entry))}</small>}</div>
+          </article>)}
+        </div>}
+      </>}
+      </>}
+    </section>
   </section>;
 }
 
