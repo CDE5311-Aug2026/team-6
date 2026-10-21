@@ -792,6 +792,11 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
     </header>
     <>
     <div className="daily-rhythm-chart">
+      {revealedMarker && <button type="button" className="daily-rhythm-selected-banner" aria-label={`Open details for ${revealedMarker.moment.title} at ${revealedMarker.time}`} onClick={() => openActivity(revealedMarker.moment)}>
+        <span className="daily-rhythm-selected-banner-title">{revealedMarker.moment.title}</span>
+        <span className="daily-rhythm-selected-banner-time">{revealedMarker.time}</span>
+        <span className="daily-rhythm-selected-banner-arrow" aria-hidden="true">→</span>
+      </button>}
       <svg viewBox="0 0 600 424" role="application" tabIndex={0} aria-label={isPattern ? `Confirmed daily patterns for ${displayName}. Select an activity to reveal its time window, then select again for details.` : `Daily moments for ${dayTitle.toLowerCase()} on a true 24-hour scale. Select an activity to reveal its time, then select again for details. Swipe right to view the previous day.`}
         onPointerDown={event => {
           const target = event.target as Element;
@@ -885,9 +890,8 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
         </g>
         </>}
         <g className="daily-rhythm-center-selection" {...(revealedMarker ? { role: 'button', tabIndex: 0, 'data-moment-trigger': revealedMarker.moment.id, 'aria-label': `Open details for ${revealedMarker.moment.title}`, onKeyDown: (event: React.KeyboardEvent<SVGGElement>) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(revealedMarker.moment); } } } : {})}>
-          {revealedMarker && <rect className="daily-rhythm-center-hit" x="190" y="277" width="220" height="68" rx="18" />}
-          <text className="daily-rhythm-center-title" x="300" y="306" textAnchor="middle">{revealedMarker ? (revealedMarker.moment.title.length > 19 ? `${revealedMarker.moment.title.slice(0,18)}…` : revealedMarker.moment.title) : isPattern ? 'PATTERN' : dayTitle}</text>
-          <text className="daily-rhythm-center-date" x="300" y="332" textAnchor="middle">{revealedMarker ? revealedMarker.time : isPattern ? 'Select an activity' : selectedDateLabel}</text>
+          <text className="daily-rhythm-center-title" x="300" y="306" textAnchor="middle">{isPattern ? 'PATTERN' : dayTitle}</text>
+          <text className="daily-rhythm-center-date" x="300" y="332" textAnchor="middle">{isPattern ? 'Select an activity' : selectedDateLabel}</text>
         </g>
       </svg>
     </div>
