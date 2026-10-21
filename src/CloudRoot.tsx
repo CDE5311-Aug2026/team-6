@@ -101,9 +101,9 @@ function attachCloudCareGroups(session: PrototypeSession, groups: Awaited<Return
         const ownerAvatar = usableMediaUrl(ownerPet.avatar, media) ? ownerPet.avatar : '';
         const observationAvatar = sharedObservations.find(value => value && typeof value === 'object' && usableMediaUrl((value as Record<string, unknown>).image, media));
         const storyAvatar = observationAvatar ? String((observationAvatar as Record<string, unknown>).image) : '';
-        const preferGoldenStoryImage = !group.workspace.scenarioDate && isSyntheticSunnyProfile({ id: group.petId, name: group.petName, breed: group.petBreed });
+        const preferGoldenStoryImage = !group.workspace.scenarioDate && !group.petAvatar.includes('/assets/breeds/') && isSyntheticSunnyProfile({ id: group.petId, name: group.petName, breed: group.petBreed });
         pets[index] = { ...ownerPet, sharedGroupId: group.groupId, sharedOwnerAccountId: group.ownerId,
-          name: group.petName, breed: group.petBreed, age: group.petAge,
+          name: group.petName, breed: group.petBreed, species: group.petSpecies, sex: group.petSex, age: group.petAge,
           // The shared care-group avatar can be stale (for example, left over
           // from another test profile). Prefer the pet's own Storage-backed
           // Story image so Sunny's header stays tied to the Golden Retriever
@@ -116,9 +116,9 @@ function attachCloudCareGroups(session: PrototypeSession, groups: Awaited<Return
       const index = pets.findIndex(pet => pet.sharedGroupId === group.groupId);
       const observationAvatar = groupObservations.find(value => value && typeof value === 'object' && usableMediaUrl((value as Record<string, unknown>).image, media));
       const storyAvatar = observationAvatar ? String((observationAvatar as Record<string, unknown>).image) : '';
-      const preferGoldenStoryImage = !group.workspace.scenarioDate && isSyntheticSunnyProfile({ id: group.petId, name: group.petName, breed: group.petBreed });
+      const preferGoldenStoryImage = !group.workspace.scenarioDate && !group.petAvatar.includes('/assets/breeds/') && isSyntheticSunnyProfile({ id: group.petId, name: group.petName, breed: group.petBreed });
       const sharedPet = { id: sharedPetId, sharedGroupId: group.groupId, sharedOwnerAccountId: group.ownerId,
-        name: group.petName, breed: group.petBreed, age: group.petAge,
+        name: group.petName, breed: group.petBreed, species: group.petSpecies, sex: group.petSex, age: group.petAge,
         avatar: preferGoldenStoryImage ? storyAvatar || (usableMediaUrl(group.petAvatar, media) ? group.petAvatar : '') : (usableMediaUrl(group.petAvatar, media) ? group.petAvatar : '') || storyAvatar, hasDemoMoments: false,
         workspace: {
           ...workspace,

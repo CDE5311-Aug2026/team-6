@@ -105,3 +105,9 @@ Routine checks inspect both title and note and conservatively exclude negative, 
 Main video uploads accept up to 5 MiB (shown as 5 MB in the UI); images and supplementary attachments retain the 2 MiB limit. Larger clips receive trimming/720p guidance before being read or uploaded. Public Samplelib road clips are used only for compatibility QA and are labelled as non-pet footage. Small downloaded videos use self-contained display URLs for WebKit compatibility; cloud saves still contain stable private Storage references, not duplicate video data.
 
 Cancel exits the observation editing session without auto-creating a draft; previously saved records and existing drafts stay intact. Shared member views display roles for every person and format internal username identities as @username rather than exposing Auth implementation emails.
+
+## Pet details and sex metadata
+
+Pet details uses compact name/type/breed/age/sex controls. Each species has eight common breeds plus Mixed breed and Other breed; unlisted existing breeds are kept as custom text. The local SVG breed examples are illustrative and are not inferred from photographs. Choosing a breed keeps an uploaded pet photo; using the breed illustration as the profile image is explicit.
+
+Apply `supabase/pet_profile_sex.sql` before deploying this version. Personal pets store optional `sex` in the existing private workspace JSON; legacy values normalize to Unknown. Shared circles store canonical `pet_sex` constrained to Female/Male/Unknown. The checked-save RPC copies it from owner-authored workspace metadata, and keeps the canonical value for non-owner writes. New circles initialize it from the owner's metadata. Existing records are not assigned a guessed sex. Shared pet species is also read back when switching or refreshing accounts.

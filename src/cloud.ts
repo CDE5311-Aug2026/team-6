@@ -1,3 +1,4 @@
+import { normalizePetSex, type PetSex } from './petBreeds';
 import { createClient } from '@supabase/supabase-js';
 import { normalizeUsername, usernameEmail } from '../supabase/functions/_shared/username';
 
@@ -143,7 +144,7 @@ export type CloudCareInvitation = {
 };
 export type CloudCareGroup = {
   updatedAt: string; groupId: string; ownerId: string; petId: string; petName: string; petBreed: string; petAge: string; petAvatar: string;
-  petSpecies: 'Dog' | 'Cat'; groupName: string; workspace: Record<string, unknown>; role: 'Caregiver' | 'Viewer'; isOwner: boolean;
+  petSpecies: 'Dog' | 'Cat'; petSex: PetSex; groupName: string; workspace: Record<string, unknown>; role: 'Caregiver' | 'Viewer'; isOwner: boolean;
   members: { id: string; name: string; email: string; avatar: string; role: 'Caregiver' | 'Viewer'; isOwner: boolean }[];
 };
 
@@ -160,7 +161,7 @@ function mapCareInvitation(row: Record<string, unknown>): CloudCareInvitation {
 
 function mapCareGroup(row: Record<string, unknown>): CloudCareGroup {
   return {
-    updatedAt: String(row.updated_at ?? ''), groupId: String(row.group_id), ownerId: String(row.owner_id), petId: String(row.pet_id), petName: String(row.pet_name),
+    petSex: normalizePetSex(row.pet_sex), updatedAt: String(row.updated_at ?? ''), groupId: String(row.group_id), ownerId: String(row.owner_id), petId: String(row.pet_id), petName: String(row.pet_name),
     petBreed: String(row.pet_breed ?? ''), petAge: String(row.pet_age ?? ''), petAvatar: String(row.pet_avatar ?? ''),
     petSpecies: row.pet_species === 'Cat' ? 'Cat' : 'Dog', groupName: String(row.group_name ?? 'Care circle'),
     workspace: (row.workspace && typeof row.workspace === 'object' ? row.workspace : {}) as Record<string, unknown>,
@@ -206,9 +207,9 @@ export async function cancelCloudCareInvitation(invitationId: string) {
 export async function listCloudCareGroups() {
   const { data, error } = await client().rpc('list_my_care_groups');
   if (error) throw new Error(error.message);
-  const { data: versions, error: versionError } = await client().from('care_groups').select('id,updated_at');
+  const { data: versions, error: versionError } = await client().from('care_groups').select('id,updated_at,pet_sex');
   if (versionError) throw versionError;
-  return ((data ?? []) as Record<string, unknown>[]).map(row => mapCareGroup({ ...row, updated_at: versions?.find(v => v.id === row.group_id)?.updated_at }));
+  return ((data ?? []) as Record<string, unknown>[]).map(row => mapCareGroup({ ...row, updated_at: versions?.find(v => v.id === row.group_id)?.updated_at, pet_sex: versions?.find(v => v.id === row.group_id)?.pet_sex }));
 }
 
 export async function saveCloudCareGroup(groupId: string, pet: { name: string; breed: string; age: string; avatar: string; species: 'Dog' | 'Cat' }, groupName: string, workspace: Record<string, unknown>, expectedUpdatedAt: string) {

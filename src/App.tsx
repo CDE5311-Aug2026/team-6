@@ -1,3 +1,5 @@
+import BreedPicker from './BreedPicker';
+import { breedAvatar, normalizePetSex, type PetSex } from './petBreeds';
 import ThinkingAvatar from './ThinkingAvatar';
 import MomentCarousel from './MomentCarousel';
 import PatternSuggestions from './PatternSuggestions';
@@ -256,12 +258,14 @@ type PetWorkspace = {
   lifeEvents: LifeCareEvent[];
   scenarioDate?: string;
   sharedUpdatedAt?: string;
+  petSex?: PetSex;
 };
 type PrototypePet = {
   id: string;
   name: string;
   breed: string;
   species?: 'Dog' | 'Cat';
+  sex?: PetSex;
   age: string;
   avatar: string;
   hasDemoMoments: boolean;
@@ -766,21 +770,6 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
               : /rest|sleep/i.test(moment.title) ? '💤' : /play|toy|fetch/i.test(moment.title) ? '🎾' : '✨';
   const currentPoint = pointOnDial(now.getHours() * 60 + now.getMinutes(), 220);
   const revealedMarker = labeledMomentPoints.find(point => point.moment.id === revealedActivityId);
-  const popoverWidth = 220, popoverHeight = 68;
-  const popoverPosition = revealedMarker ? (() => {
-    const icon = revealedMarker.label;
-    const clampX = (x: number) => Math.max(8, Math.min(592 - popoverWidth, x));
-    const candidates = [
-      { x: clampX(icon.iconX - popoverWidth / 2), y: icon.iconY - 110 },
-      { x: clampX(icon.iconX + 40), y: icon.iconY - popoverHeight / 2 },
-      { x: clampX(icon.iconX - popoverWidth - 40), y: icon.iconY - popoverHeight / 2 },
-      ...[8, 36, 64].flatMap(y => [190, 8, 372].map(x => ({ x, y }))),
-    ];
-    const obstacles = [...activityMarkers.map(marker => ({ x: marker.iconX, y: marker.iconY, r: 35 })), ...(isToday ? [{ ...currentPoint, r: 30 }] : [])];
-    return candidates.find(box => box.y >= 6 && box.y + popoverHeight < 285 && obstacles.every(o =>
-      box.x + popoverWidth + 6 < o.x - o.r || box.x - 6 > o.x + o.r || box.y + popoverHeight + 6 < o.y - o.r || box.y - 6 > o.y + o.r
-    )) ?? { x: 190, y: 8 };
-  })() : null;
   const goToPreviousDay = () => { if (!isPattern) setDayOffset(offset => offset - 1); };
   const goToNewerDay = () => { if (!isPattern) setDayOffset(offset => Math.min(0, offset + 1)); };
   const handleNavKey = (event: React.KeyboardEvent<SVGGElement>, direction: 'previous' | 'newer') => {
@@ -859,7 +848,6 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
           <circle className="daily-rhythm-inner-arc" cx="300" cy="390" r="156"/>
           <circle className="daily-rhythm-inner-arc inner-arc-two" cx="300" cy="390" r="136"/>
           {isPattern && timedPatterns.map(p => { const start = pointOnDial(p.startMinute!, 220), end = pointOnDial(p.endMinute!, 220); return <path key={`${p.id}-window`} className="daily-pattern-window" d={`M${start.x} ${start.y} A220 220 0 0 1 ${end.x} ${end.y}`}>{revealedActivityId === p.id && <title>{p.activity} · {clockMinute(p.startMinute!)}–{clockMinute(p.endMinute!)}</title>}</path>; })}
-          {revealedMarker && popoverPosition && <line className="daily-rhythm-popover-leader" x1={popoverPosition.x + popoverWidth / 2} y1={popoverPosition.y + popoverHeight} x2={revealedMarker.label.iconX} y2={revealedMarker.label.iconY - 30} aria-hidden="true" />}
           {timeLabelLeaders.map(line => <line key={`${line.id}-leader`} className="daily-rhythm-leader-line" x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} aria-hidden="true"/>)}
           {momentPoints.map(({ moment, x, y, time }) => <g className="daily-rhythm-point" key={moment.id} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
             <circle className="daily-rhythm-point-hit" cx={x} cy={y} r="28"/>
@@ -891,13 +879,11 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
           <path className="daily-rhythm-arrow" d="M370 276 A136 136 0 0 1 424 336" markerEnd="url(#rhythm-arrow)"/>
         </g>
         </>}
-        <text className="daily-rhythm-center-title" x="300" y="306" textAnchor="middle">{isPattern ? 'PATTERN' : dayTitle}</text>
-        <text className="daily-rhythm-center-date" x="300" y="327" textAnchor="middle">{isPattern ? 'Usual routine' : selectedDateLabel}</text>
-        {revealedMarker && popoverPosition && <g className="daily-rhythm-activity-popover" data-moment-trigger={revealedMarker.moment.id} role="button" tabIndex={0} aria-label={`Open details for ${revealedMarker.moment.title} at ${revealedMarker.time}`} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(revealedMarker.moment); } }}>
-          <rect x={popoverPosition.x} y={popoverPosition.y} width={popoverWidth} height={popoverHeight} rx="17" />
-          <text className="daily-rhythm-popover-name" x={popoverPosition.x + popoverWidth / 2} y={popoverPosition.y + 26} textAnchor="middle">{revealedMarker.moment.title.length > 25 ? `${revealedMarker.moment.title.slice(0, 24)}…` : revealedMarker.moment.title}</text>
-          <text className="daily-rhythm-popover-time" x={popoverPosition.x + popoverWidth / 2} y={popoverPosition.y + 51} textAnchor="middle">{revealedMarker.time}</text>
-        </g>}
+        <g className="daily-rhythm-center-selection" {...(revealedMarker ? { role: 'button', tabIndex: 0, 'data-moment-trigger': revealedMarker.moment.id, 'aria-label': `Open details for ${revealedMarker.moment.title}`, onKeyDown: (event: React.KeyboardEvent<SVGGElement>) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(revealedMarker.moment); } } } : {})}>
+          {revealedMarker && <rect className="daily-rhythm-center-hit" x="190" y="277" width="220" height="68" rx="18" />}
+          <text className="daily-rhythm-center-title" x="300" y="306" textAnchor="middle">{revealedMarker ? (revealedMarker.moment.title.length > 19 ? `${revealedMarker.moment.title.slice(0,18)}…` : revealedMarker.moment.title) : isPattern ? 'PATTERN' : dayTitle}</text>
+          <text className="daily-rhythm-center-date" x="300" y="332" textAnchor="middle">{revealedMarker ? revealedMarker.time : isPattern ? 'Select an activity' : selectedDateLabel}</text>
+        </g>
       </svg>
     </div>
     {isPattern ? <div className="daily-pattern-summary"><span>{timedPatterns.length ? `${timedPatterns.length} confirmed daily patterns · Usual time windows` : 'No confirmed activity times yet.'}</span><button type="button" className="profile-link" onClick={() => onPatterns()}>{timedPatterns.length ? 'View pattern evidence →' : 'Set up typical patterns →'}</button></div> : <div className="daily-rhythm-latest" aria-live="polite">
@@ -979,44 +965,13 @@ function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, on
     .sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime());
   const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
   const featured = todayRecords.length ? todayRecords : visibleRecords.filter(record => new Date(record.savedAt).toDateString() === new Date(visibleRecords[0]?.savedAt).toDateString());
-  const first = featured.at(-1);
-  const last = featured[0];
   const clock = (value: string) => formatObservationTime(value).split('\n').at(-1);
-  const storyHeading = `${featured.length} ${featured.length === 1 ? 'moment' : 'moments'} from ${displayName}’s day.`;
-  const reviewRecord = featured.find(record => /rest/i.test(record.title)) ?? last;
-  const storyHeadingRef = useRef<HTMLHeadingElement>(null);
-
-  useEffect(() => {
-    const heading = storyHeadingRef.current;
-    if (!heading) return;
-    const fitHeading = () => {
-      heading.style.fontSize = '22px';
-      const availableWidth = heading.clientWidth;
-      const naturalWidth = heading.scrollWidth;
-      if (availableWidth > 0 && naturalWidth > availableWidth) {
-        const fittedSize = Math.max(13, 22 * availableWidth / naturalWidth);
-        heading.style.fontSize = `${fittedSize}px`;
-      }
-    };
-    const observer = new ResizeObserver(fitHeading);
-    observer.observe(heading.parentElement ?? heading);
-    fitHeading();
-    document.fonts?.ready.then(fitHeading);
-    return () => observer.disconnect();
-  }, [storyHeading, hasDemoMoments]);
+  const reviewRecord = featured.find(record => /rest/i.test(record.title)) ?? featured[0];
 
   return (
     <>
       <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       {!hasDemoMoments && !visibleRecords.length ? noPetYet ? <section className="today-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section> : <>
-      <section className="today-hero">
-        <span className="story-badge">✦ &nbsp; {hasDemoMoments || todayRecords.length ? 'TODAY’S STORY' : 'LATEST STORY'}</span>
-        <img className="hero-sparkle" src={asset('sparkle.svg')} alt="" />
-        <h2 ref={storyHeadingRef}>{hasDemoMoments ? 'Sunny naps, a playful afternoon, and one very good toy.' : storyHeading}</h2>
-        <p>{hasDemoMoments ? '9:00 AM–6:00 PM' : first && last ? `${todayRecords.length ? '' : formatPageDate(new Date(last.savedAt)) + ' · '}${clock(first.savedAt)}–${clock(last.savedAt)}` : ''}</p>
-        <button className="primary-button" onClick={onStory}>Read {displayName}’s story →</button>
-      </section>
-
       <DailyRhythmCard petName={petName} petAvatar={petAvatar} moments={visibleRecords} onOpenActivitySummary={onActivitySummary} patterns={patterns} onPatterns={onPatterns} />
       <section className="today-section">
         <h2>Moments you might love</h2>
@@ -1872,6 +1827,7 @@ function normalizeWorkspace(value: unknown, ownerName: string, hasDemoData: bool
     mediaSources: Array.isArray(workspace.mediaSources) ? workspace.mediaSources : defaultMediaSources(hasDemoData),
     patterns: Array.isArray(workspace.patterns) ? workspace.patterns : defaultTypicalPatterns(ownerName, hasDemoData),
     lifeEvents: Array.isArray(workspace.lifeEvents) ? workspace.lifeEvents : [],
+    petSex: normalizePetSex(workspace.petSex),
     scenarioDate: typeof workspace.scenarioDate === 'string' ? workspace.scenarioDate : undefined,
     sharedUpdatedAt: typeof workspace.sharedUpdatedAt === 'string' ? workspace.sharedUpdatedAt : undefined,
   };
@@ -1935,6 +1891,7 @@ function readPrototypeSession(): PrototypeSession {
           name: pet.name,
           breed: typeof pet.breed === 'string' ? pet.breed : 'Mixed breed',
           species: (pet.species === 'Cat' ? 'Cat' : 'Dog') as 'Dog' | 'Cat',
+          sex: normalizePetSex(pet.sex),
           age: typeof pet.age === 'string' ? pet.age : '1',
           avatar: typeof pet.avatar === 'string' ? pet.avatar : '',
           hasDemoMoments,
@@ -2121,7 +2078,8 @@ function PetSwitcher({ pets, activePetId, onClose, onSwitch, onAdd, onDelete, in
 
 function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', ownerPreference = 'Manage your profile details here.', pets, activePetId, onPetsNavigate, onSettingsNavigate, onPetEdit, onProfileEdit, onPetSwitcher, careMembers, accounts, primaryMemberId, onMemberClick, onCareMembers, patterns, lifeEvents, mediaSources, onPatternHistory, onPattern, onLifeCare, onConnectedMedia, invitations = [], onAcceptInvitation, onDeclineInvitation, careOwnerName = ownerName, careOwnerAvatar = ownerAvatar, careOwnerRole = ownerRole, groupName = 'Care circle', canManageCareGroup = primaryMemberId === 'emily', canEditPetDetails = true, canAddLifeCare = true, canManageConnectedMedia = true, noPetYet = false }: { kind: 'pets' | 'you'; petName: string; petAvatar: string; petBreed: string; petAge: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; ownerPreference?: string; pets: PrototypePet[]; activePetId: string; accounts: PrototypeAccount[]; onPetsNavigate: () => void; onSettingsNavigate: () => void; onPetEdit: () => void; onProfileEdit: () => void; onPetSwitcher: () => void; careMembers: CareMember[]; primaryMemberId: string; onMemberClick: (id: string) => void; onCareMembers: () => void; patterns: TypicalPattern[]; lifeEvents: LifeCareEvent[]; mediaSources: MediaSource[]; onPatternHistory: () => void; onPattern: (id: string) => void; onLifeCare: (category?: 'life' | 'health') => void; onConnectedMedia: (sourceId?: string) => void; invitations?: CareInvitation[]; onAcceptInvitation?: (invite: CareInvitation) => void; onDeclineInvitation?: (inviteId: string) => void; careOwnerName?: string; careOwnerAvatar?: string; careOwnerRole?: string; groupName?: string; canManageCareGroup?: boolean; canEditPetDetails?: boolean; canAddLifeCare?: boolean; canManageConnectedMedia?: boolean; noPetYet?: boolean }) {
   void canManageCareGroup;
-  const petDetailsLabel = `${petBreed} · ${formatPetAge(petAge)}`;
+  const shownSex = normalizePetSex(pets.find(p => p.id === activePetId)?.sex);
+  const petDetailsLabel = `${petBreed} · ${formatPetAge(petAge)}${shownSex === 'Unknown' ? '' : ` · ${shownSex}`}`;
   const displayPets = pets.filter((pet) => !pet.isEmptyProfile);
   const confirmedPatterns = patterns.filter((pattern) => pattern.status === 'confirmed');
   return kind === 'pets' ? (
@@ -2413,10 +2371,12 @@ function AvatarCropDialog({ src, onCancel, onSave }: { src: string; onCancel: ()
   </section></div>;
 }
 
-function SettingsPage({ kind, initialName, initialBreed = 'Golden Retriever', initialAge = '3', initialAvatar = '', initialPreference = 'Manage your profile details here.', onBack, onSaved, onPetSaved, onProfileSaved }: { kind: 'petDetails' | 'profile'; initialName: string; initialBreed?: string; initialAge?: string; initialAvatar?: string; initialPreference?: string; onBack: () => void; onSaved: (name: string) => void; onPetSaved?: (profile: { name: string; breed: string; age: string; avatar: string }) => void; onProfileSaved?: (profile: { name: string; avatar: string; preference: string }) => void }) {
+function SettingsPage({ kind, initialName, initialSpecies = 'Dog', initialSex = 'Unknown', initialBreed = 'Golden Retriever', initialAge = '3', initialAvatar = '', initialPreference = 'Manage your profile details here.', onBack, onSaved, onPetSaved, onProfileSaved }: { kind: 'petDetails' | 'profile'; initialName: string; initialSpecies?: 'Dog' | 'Cat'; initialSex?: PetSex; initialBreed?: string; initialAge?: string; initialAvatar?: string; initialPreference?: string; onBack: () => void; onSaved: (name: string) => void; onPetSaved?: (profile: { name: string; breed: string; species: 'Dog' | 'Cat'; sex: PetSex; age: string; avatar: string }) => void; onProfileSaved?: (profile: { name: string; avatar: string; preference: string }) => void }) {
   const pet = kind === 'petDetails';
   const [name, setName] = useState(initialName);
   const [breed, setBreed] = useState(initialBreed);
+  const [species, setSpecies] = useState(initialSpecies);
+  const [sex, setSex] = useState<PetSex>(initialSex);
   const [age, setAge] = useState(initialAge);
   const [avatar, setAvatar] = useState(initialAvatar);
   const [preference, setPreference] = useState(initialPreference);
@@ -2434,7 +2394,7 @@ function SettingsPage({ kind, initialName, initialBreed = 'Golden Retriever', in
     const nextAge = age.trim();
     onSaved(nextName);
     if (pet) {
-      onPetSaved?.({ name: nextName, breed: nextBreed, age: nextAge, avatar });
+      onPetSaved?.({ name: nextName, breed: nextBreed, species, sex, age: nextAge, avatar: avatar || breedAvatar(species, nextBreed) });
       onBack();
     } else {
       onProfileSaved?.({ name: nextName, avatar, preference });
@@ -2465,7 +2425,7 @@ function SettingsPage({ kind, initialName, initialBreed = 'Golden Retriever', in
   }
 
   return (
-    <section className="settings-page">
+    <section className={`settings-page ${pet ? 'pet-details-page' : ''}`}>
       <header className="settings-header">
         <button className="back-button" aria-label={pet ? 'Back to Pets' : 'Back to You'} onClick={onBack}>←</button>
         <h1>{pet ? `${name || 'Luna'}’s details` : 'My profile'}</h1>
@@ -2473,13 +2433,13 @@ function SettingsPage({ kind, initialName, initialBreed = 'Golden Retriever', in
       <p className="settings-eyebrow">{pet ? 'PET PROFILE' : 'MY SPACE'}</p>
       <section className="settings-summary profile-summary">
         <label className="profile-avatar-upload" aria-label={pet ? 'Upload pet photo' : 'Upload profile photo'}>
-          {pet ? <img className="profile-edit-avatar pet-edit-avatar" src={avatar || asset('luna-avatar.png')} alt={name || 'Pet'} /> : <OwnerAvatar src={avatar} name={name} className="profile-edit-avatar" />}
+          {pet ? <img className="profile-edit-avatar pet-edit-avatar" src={avatar || breedAvatar(species, breed)} alt={name || 'Pet'} /> : <OwnerAvatar src={avatar} name={name} className="profile-edit-avatar" />}
           <span className="avatar-edit-badge" aria-hidden="true">✎</span>
           <input type="file" accept="image/*" aria-label={pet ? 'Choose pet photo' : 'Choose profile photo'} onChange={(event) => readAvatar(event.target.files?.[0])} />
         </label>
         <div className="profile-summary-copy">
         <strong>{pet ? name || 'Luna' : name || 'Emily'}</strong>
-        <p>{pet ? `Keep the details that help carers recognise ${name || 'this pet'}.` : preference}</p>
+        <p>{pet ? `${species} · ${breed || 'Choose a breed'}` : preference}</p>
         </div>
       </section>
       {cropSource && <AvatarCropDialog src={cropSource} onCancel={() => setCropSource('')} onSave={cropped => { setAvatar(cropped); setCropSource(''); setSaved(false); }} />}
@@ -2492,8 +2452,10 @@ function SettingsPage({ kind, initialName, initialBreed = 'Golden Retriever', in
           </section>
         </>}
         {pet ? <>
-          <label className="settings-field"><strong>Breed</strong><input value={breed} onChange={(event) => { setBreed(event.target.value); setSaved(false); }} aria-label="Pet breed" /></label>
-          <label className={`settings-field${ageIsInvalid ? ' has-error' : ''}`}><strong>Age</strong><input type="number" min="0" max="40" step="1" value={age} onChange={(event) => { setAge(event.target.value); setSaved(false); }} aria-label="Pet age in years" aria-invalid={ageIsInvalid} />{ageIsInvalid && <small className="settings-validation" role="alert">Enter a whole number from 0 to 40.</small>}</label>
+          <section className="pet-type-field"><strong>Pet type</strong><div className="pet-type-options">{(['Dog','Cat'] as const).map(type => <button type="button" key={type} aria-pressed={species === type} className={species === type ? 'selected' : ''} onClick={() => { setSpecies(type); setBreed('Mixed breed'); if (!avatar || avatar.includes('/assets/breeds/')) setAvatar(breedAvatar(type, 'Mixed breed')); }}>{type === 'Dog' ? '🐶 Dog' : '🐱 Cat'}</button>)}</div></section>
+          <BreedPicker key={species} species={species} value={breed} onChange={next => { setBreed(next); if (!avatar || avatar.includes('/assets/breeds/')) setAvatar(breedAvatar(species, next)); }} />
+          <div className="pet-details-pair"><label className={`settings-field${ageIsInvalid ? ' has-error' : ''}`}><strong>Age (years)</strong><input type="number" min="0" max="40" step="1" value={age} onChange={e => setAge(e.target.value)} aria-label="Pet age in years" aria-invalid={ageIsInvalid} />{ageIsInvalid && <small role="alert">Use 0–40 whole years.</small>}</label><label className="settings-field"><strong>Sex</strong><select value={sex} aria-label="Pet sex" onChange={e => setSex(normalizePetSex(e.target.value))}><option>Unknown</option><option>Female</option><option>Male</option></select></label></div>
+          <button type="button" className="profile-link breed-avatar-action" onClick={() => setAvatar(breedAvatar(species, breed))}>Use breed illustration as photo</button>
         </> : <>
           <label className="settings-field profile-preference-field"><strong>Preferences</strong><input value={preference} onChange={(event) => { setPreference(event.target.value); setSaved(false); }} aria-label="Preferences" /></label>
         </>}
@@ -2925,6 +2887,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const activeGroupName = groupOwnerPet?.workspace.groupName ?? activePetRecord?.workspace.groupName ?? 'Care circle';
   const primaryMemberId = activePetRecord?.sharedGroupId ? groupOwnerAccountId ?? '' : 'emily';
   const petSpecies = activePetRecord?.species === 'Cat' ? 'Cat' : 'Dog';
+  const petSex = normalizePetSex(activePetRecord?.sex);
   const sharedSync = useRef({ id: '', baseline: '', updatedAt: '', busy: false, failed: false });
   const refreshSharedRef = useRef<() => Promise<void>>(async () => {});
 
@@ -2946,6 +2909,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       lifeEvents: lifeCareEvents,
       scenarioDate: activePetRecord?.workspace.scenarioDate,
       sharedUpdatedAt: activePetRecord?.workspace.sharedUpdatedAt,
+      petSex,
     };
   }
 
@@ -3309,7 +3273,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     }
   }
 
-  function updateActivePetRecord(profile: { name: string; breed: string; age: string; avatar: string }) {
+  function updateActivePetRecord(profile: { name: string; breed: string; species: 'Dog' | 'Cat'; sex: PetSex; age: string; avatar: string }) {
     setPrototypeSession((current) => {
       if (!current.activeAccountId) return current;
       const groupId = activePetRecord?.sharedGroupId;
@@ -3469,7 +3433,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         const sharedPetId = 'shared-' + group.groupId;
         const workspace = { ...emptyPetWorkspace(group.ownerId), ...(group.workspace as Partial<PetWorkspace>), groupName: group.groupName, careMembers: members, askMessages: [] } as PetWorkspace;
         const sharedPet: PrototypePet = { id: sharedPetId, sharedGroupId: group.groupId, sharedOwnerAccountId: group.ownerId,
-          name: group.petName, breed: group.petBreed, age: group.petAge, avatar: group.petAvatar, hasDemoMoments: false, isEmptyProfile: false, workspace };
+          name: group.petName, breed: group.petBreed, species: group.petSpecies, sex: group.petSex, age: group.petAge, avatar: group.petAvatar, hasDemoMoments: false, isEmptyProfile: false, workspace };
         const captured = captureCurrentSpace(prototypeSession);
         const next = { ...captured, accounts: captured.accounts.map((account) => account.id !== activeAccount.id ? account : {
           ...account, pets: [...account.pets.filter((pet) => !pet.isEmptyProfile && pet.sharedGroupId !== group.groupId), sharedPet], activePetId: sharedPetId,
@@ -3834,12 +3798,12 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       setCareMembers(careMembersFromCloudGroup(group));
       if (group.updatedAt === sync.updatedAt) return;
       const remote = normalizeWorkspace({ ...group.workspace, groupName: group.groupName }, ownerName, false);
-      const nextWorkspace = { ...remote, lifeEvents: [...lifeCareEvents.filter(e => !e.useForAsk), ...remote.lifeEvents.filter(e => e.useForAsk)], observations: [...storyObservations.filter(o => o.privateRecord), ...remote.observations.filter(o => !o.privateRecord)], askMessages, askOwnerAccountId: activeAccount!.id, drafts: storyDrafts, sharedUpdatedAt: group.updatedAt };
+      const nextWorkspace = { ...remote, petSex: group.petSex, lifeEvents: [...lifeCareEvents.filter(e => !e.useForAsk), ...remote.lifeEvents.filter(e => e.useForAsk)], observations: [...storyObservations.filter(o => o.privateRecord), ...remote.observations.filter(o => !o.privateRecord)], askMessages, askOwnerAccountId: activeAccount!.id, drafts: storyDrafts, sharedUpdatedAt: group.updatedAt };
       sync.updatedAt = group.updatedAt;
       sync.baseline = stableShared({ workspace: { ...nextWorkspace, lifeEvents: nextWorkspace.lifeEvents.filter(e => e.useForAsk), observations: nextWorkspace.observations.filter(o => !o.privateRecord), contexts: nextWorkspace.contexts, askMessages: [], drafts: [], careMembers: [], askOwnerAccountId: undefined, sharedUpdatedAt: undefined }, petName: group.petName, petBreed: group.petBreed, petAge: group.petAge, petAvatar: group.petAvatar, petSpecies: group.petSpecies });
       setPetName(group.petName); setPetBreed(group.petBreed); setPetAge(group.petAge); setPetAvatar(group.petAvatar);
       setStoryObservations(nextWorkspace.observations); setSavedContexts(remote.contexts); setTypicalPatterns(remote.patterns); setLifeCareEvents(nextWorkspace.lifeEvents); setMediaSources(remote.mediaSources); setMomentEngagement(remote.momentEngagement); setIncludedStoryMoments(remote.visibility);
-      setPrototypeSession(session => ({ ...session, accounts: session.accounts.map(a => a.id !== activeAccount!.id ? a : { ...a, pets: a.pets.map(p => p.id !== activePetRecord!.id ? p : { ...p, name: group.petName, breed: group.petBreed, age: group.petAge, avatar: group.petAvatar, workspace: nextWorkspace }) }) }));
+      setPrototypeSession(session => ({ ...session, accounts: session.accounts.map(a => a.id !== activeAccount!.id ? a : { ...a, pets: a.pets.map(p => p.id !== activePetRecord!.id ? p : { ...p, name: group.petName, breed: group.petBreed, species: group.petSpecies, sex: group.petSex, age: group.petAge, avatar: group.petAvatar, workspace: nextWorkspace }) }) }));
     } catch (cause) { setAccountActionError(cause instanceof Error ? cause.message : 'Shared updates are temporarily unavailable.'); }
   };
   useEffect(() => {
@@ -4165,7 +4129,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
                 </section>
               </div>
             </section>}
-            {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} initialAvatar={petAvatar} initialBreed={petBreed} initialAge={petAge} onSaved={setPetName} onPetSaved={({ name, breed, age, avatar }) => { setPetName(name); setPetBreed(breed); setPetAge(age); setPetAvatar(avatar); updateActivePetRecord({ name, breed, age, avatar }); setProfileSaveNotice('Pet details saved successfully'); }} onBack={() => goBack('pets')} />}
+            {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} initialAvatar={petAvatar} initialSpecies={petSpecies} initialSex={petSex} initialBreed={petBreed} initialAge={petAge} onSaved={setPetName} onPetSaved={({ name, breed, species, sex, age, avatar }) => { setPetName(name); setPetBreed(breed); setPetAge(age); setPetAvatar(avatar); updateActivePetRecord({ name, breed, species, sex, age, avatar }); setProfileSaveNotice('Pet details saved successfully'); }} onBack={() => goBack('pets')} />}
             {view === 'profile' && <SettingsPage kind="profile" initialName={ownerName} initialAvatar={ownerAvatar} initialPreference={ownerPreference} onSaved={setOwnerName} onProfileSaved={({ name, avatar, preference }) => { setOwnerName(name); setOwnerAvatar(avatar); setOwnerPreference(preference); updateActiveAccountRecord({ name, avatar, preference }); setProfileSaveNotice('Profile saved successfully'); }} onBack={() => goBack('you')} />}
             {view === 'memberDetails' && selectedCareMember && <CareMemberDetailsPage member={selectedCareMember} ownerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} ownerRole={groupOwnerAccount?.role ?? 'Primary caregiver'} ownerAvatar={primaryCaregiverAvatar} ownerPreference={groupOwnerAccount?.preference ?? ownerPreference} memberAvatar={selectedMemberAccount?.avatar ?? selectedCareMember.avatar ?? ''} memberPreference={selectedMemberAccount?.preference ?? ''} primaryMemberId={primaryMemberId} isPrimaryCaregiver={isPrimaryCaregiver} petName={petName} onBack={() => goBack('careMembers')} />}
             {view === 'careMembers' && (

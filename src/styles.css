@@ -1412,3 +1412,38 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-popover-leader { stroke: #ae913c; stroke-width: 2; pointer-events: none; }
 .daily-rhythm-popover-name { fill: #28452e; font: 600 21px 'Roboto', sans-serif; pointer-events: none; }
 .daily-rhythm-popover-time { fill: #805900; font: 600 20px 'Roboto', sans-serif; pointer-events: none; }
+
+/* Selected activity details live in the centre of the dial. */
+.daily-rhythm-center-selection { cursor: pointer; }
+.daily-rhythm-center-hit { fill: #fff7d2; stroke: #e7cf79; stroke-width: 1; }
+.daily-rhythm-center-selection text { pointer-events: none; }
+.daily-rhythm-center-selection[role="button"] .daily-rhythm-center-title { font-size: 21px; }
+.daily-rhythm-center-selection[role="button"] .daily-rhythm-center-date { font-size: 21px; fill: #805900; }
+/* Compact pet details, with a visual breed selector and paired age/sex fields. */
+.pet-details-page .settings-header { height: 60px; min-height: 60px; }
+.pet-details-page > .settings-eyebrow { margin: 14px 20px 8px; }
+.pet-details-page .settings-summary { min-height: 88px; margin: 0 20px; padding: 14px; gap: 14px; border-radius: 20px; }
+.pet-details-page .profile-edit-avatar, .pet-details-page .profile-avatar-upload { width: 64px; height: 64px; flex-basis: 64px; }
+.pet-details-page .profile-summary-copy strong { font-size: 20px; }
+.pet-details-page .profile-summary-copy p { margin-top: 4px; font-size: 12px; line-height: 18px; }
+.pet-details-page .settings-fields { margin: 14px 20px 0; gap: 12px; }
+.pet-details-page .settings-field { height: auto; min-height: 70px; padding: 10px 12px; border-radius: 15px; }
+.pet-details-page .settings-field strong, .pet-type-field > strong, .pet-breed-picker > strong { font: 600 12px/18px 'Poppins',sans-serif; }
+.pet-details-page .settings-field input { margin-top: 5px; height: 24px; font-size: 14px; }
+.pet-details-page select { width: 100%; margin-top: 5px; min-height: 28px; border: 0; background: transparent; color: var(--color-text-primary); font-size: 14px; }
+.pet-details-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pet-type-options { display: flex; gap: 8px; margin-top: 6px; }
+.pet-type-options button { flex: 1; min-height: 40px; border: 1px solid var(--color-border); border-radius: 13px; background: white; color: var(--color-text-primary); }
+.pet-type-options button.selected { background: #fff0a7; border-color: #e6be31; }
+.breed-current { width: 100%; margin-top: 6px; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 15px; background: white; text-align: left; color: var(--color-text-primary); }
+.breed-current img { width: 42px; height: 42px; border-radius: 12px; }
+.breed-current span:nth-child(2) { flex: 1; font-size: 14px; }
+.breed-options-panel { margin-top: 8px; padding: 10px; border: 1px solid var(--color-border); border-radius: 15px; background: white; }
+.breed-options-panel input, .pet-breed-picker > input { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 10px; margin-bottom: 8px; }
+.breed-options { max-height: 226px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.breed-options button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border: 1px solid var(--color-border); border-radius: 12px; background: #fffdf5; color: var(--color-text-primary); font-size: 11px; }
+.breed-options button.selected { border-color: #d4a51c; background: #fff0a7; }
+.breed-options img { width: 48px; height: 48px; }
+.breed-options-panel small { display: block; margin-top: 8px; color: var(--color-text-muted); font-size: 10px; }
+.pet-details-page .settings-action { margin-top: 14px; padding: 12px 20px 18px; background: var(--color-page-bg); }
+.breed-avatar-action { align-self: flex-start; font-size: 11px; }
