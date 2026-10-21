@@ -1,5 +1,5 @@
 import { supabase, verifiedUser } from './cloud';
-import { stableReferenceForBlob } from './cloudMediaReferences';
+import { isUnavailableMediaError, unavailableMediaPlaceholder, stableReferenceForBlob } from './cloudMediaReferences';
 
 const prefix = 'pawsona-media://';
 const mediaKeys = new Set(['avatar', 'url', 'image', 'petAvatar', 'authorAvatar', 'momentImage']);
@@ -55,7 +55,13 @@ export class CloudMedia {
         // Shared care-group workspaces can reference media uploaded by their owner.
         // The private Storage RLS policy still decides whether this member may read it.
         const { data, error } = await supabase!.storage.from('pawsona-media').download(path);
-        if (error) throw error;
+        if (error) {
+          if (!isUnavailableMediaError(error)) throw error;
+          const placeholder = unavailableMediaPlaceholder(value);
+          this.decoded.set(value, placeholder);
+          this.encoded.set(placeholder, value);
+          return placeholder;
+        }
         // WebKit may fail to reload downloaded video blob URLs. Keep small
         // prototype clips in a self-contained URL; encode maps it back to Storage.
         const display = data.type.startsWith('video/')
