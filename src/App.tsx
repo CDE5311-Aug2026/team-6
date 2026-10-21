@@ -865,7 +865,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
             <circle className="daily-rhythm-point-marker" cx={x} cy={y} r="7"/>
             <circle className="daily-rhythm-point-core" cx={x} cy={y} r="2.5"/>
           </g>)}
-          {isToday && <g className="daily-rhythm-current-point" aria-label={`Current time ${timeLabel(now)}`}>
+          {(isToday || isPattern) && <g className="daily-rhythm-current-point" aria-label={`Current time ${timeLabel(now)}`}>
             <title>Now · {timeLabel(now)}</title>
             <circle className="daily-rhythm-current-avatar-outer" cx={currentPoint.x} cy={currentPoint.y} r="23"/>
             <circle className="daily-rhythm-current-avatar-inner" cx={currentPoint.x} cy={currentPoint.y} r="20"/>
