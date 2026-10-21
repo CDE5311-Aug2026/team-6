@@ -633,16 +633,6 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
   const isPattern = view === 'pattern';
   const timedPatterns = patterns.filter(p => p.status === 'confirmed' && p.activity && Number.isFinite(p.startMinute) && Number.isFinite(p.endMinute) && p.startMinute! >= 0 && p.endMinute! <= 1440 && p.startMinute! < p.endMinute!);
   const patternById = new Map(timedPatterns.map(p => [p.id, p]));
-  const patternTrackRadiusById = new Map<string, number>();
-  if (isPattern) {
-    const laneEnds: number[] = [];
-    [...timedPatterns].sort((left, right) => left.startMinute! - right.startMinute! || left.endMinute! - right.endMinute!).forEach(pattern => {
-      let lane = laneEnds.findIndex(endMinute => endMinute <= pattern.startMinute!);
-      if (lane < 0) lane = laneEnds.length;
-      laneEnds[lane] = pattern.endMinute!;
-      patternTrackRadiusById.set(pattern.id, 220 - lane * 22);
-    });
-  }
   const selectedMoments: StoryObservation[] = isPattern ? timedPatterns.map(p => {
     const at = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, (p.startMinute! + p.endMinute!) / 2);
     return { id: p.id, title: p.activity!, note: p.detail, image: '', momentCount: 0, context: '', privateRecord: false, savedAt: at.toISOString(), observationKind: /Breakfast|Lunch|Dinner/.test(p.activity!) ? 'meal' : p.activity!.toLowerCase() };
@@ -871,7 +861,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
           <circle className="daily-rhythm-inner-arc" cx="300" cy="390" r="156"/>
           <circle className="daily-rhythm-inner-arc inner-arc-two" cx="300" cy="390" r="136"/>
           {isPattern && <path className="daily-rhythm-pattern-current-track" d="M120 390 A180 180 0 0 1 480 390" aria-hidden="true"/>}
-          {isPattern && timedPatterns.map(p => { const radius = patternTrackRadiusById.get(p.id) ?? 220; const start = pointOnDial(p.startMinute!, radius), end = pointOnDial(p.endMinute!, radius); return <path key={`${p.id}-window`} className="daily-pattern-window" d={`M${start.x} ${start.y} A${radius} ${radius} 0 0 1 ${end.x} ${end.y}`}>{revealedActivityId === p.id && <title>{p.activity} · {clockMinute(p.startMinute!)}–{clockMinute(p.endMinute!)}</title>}</path>; })}
+          {isPattern && timedPatterns.map(p => { const start = pointOnDial(p.startMinute!, radius), end = pointOnDial(p.endMinute!, radius); return <path key={`${p.id}-window`} className="daily-pattern-window" d={`M${start.x} ${start.y} A220 220 0 0 1 ${end.x} ${end.y}`}>{revealedActivityId === p.id && <title>{p.activity} · {clockMinute(p.startMinute!)}–{clockMinute(p.endMinute!)}</title>}</path>; })}
           {timeLabelLeaders.map(line => <line key={`${line.id}-leader`} className="daily-rhythm-leader-line" x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} aria-hidden="true"/>)}
           {momentPoints.map(({ moment, x, y, time }) => <g className="daily-rhythm-point" key={moment.id} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
             <circle className="daily-rhythm-point-hit" cx={x} cy={y} r="28"/>
