@@ -1382,3 +1382,5 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .moment-carousel-pause { position: absolute; z-index: 2; right: 6px; top: 6px; border: 1px solid var(--color-border); border-radius: 12px; padding: 5px 8px; background: var(--color-surface); color: var(--color-text-primary); font-size: 11px; opacity: 0; }
 .moment-carousel:focus-within .moment-carousel-pause, .moment-carousel:hover .moment-carousel-pause { opacity: 1; }
 @media (hover: none) { .moment-carousel-pause { opacity: 1; } }
+
+.ask-thinking-avatar, .ask-thinking-avatar img { display: block; width: 32px; height: 32px; flex: 0 0 32px; object-fit: contain; }
