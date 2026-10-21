@@ -605,9 +605,11 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
 }
 
 
-function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, patterns, onPatterns }: { petName: string; petAvatar: string; moments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; patterns: TypicalPattern[]; onPatterns: () => void; scenarioDate?: string }) {
+function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, patterns, onPatterns }: { petName: string; petAvatar: string; moments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; scenarioDate?: string }) {
   const [view, setView] = useState<'today' | 'pattern'>('today');
+  const [revealedActivityId, setRevealedActivityId] = useState<string | null>(null);
   const [dayOffset, setDayOffset] = useState(0);
+  useEffect(() => setRevealedActivityId(null), [view, dayOffset]);
   const latestLabelViewportRef = useRef<HTMLSpanElement>(null);
   const latestLabelTextRef = useRef<HTMLElement>(null);
   const [latestLabelOverflow, setLatestLabelOverflow] = useState(false);
@@ -626,7 +628,10 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
     const at = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, (p.startMinute! + p.endMinute!) / 2);
     return { id: p.id, title: p.activity!, note: p.detail, image: '', momentCount: 0, context: '', privateRecord: false, savedAt: at.toISOString(), observationKind: /Breakfast|Lunch|Dinner/.test(p.activity!) ? 'meal' : p.activity!.toLowerCase() };
   }) : moments.filter(moment => isSameLocalDay(moment.savedAt, selectedDate));
-  const openActivity = (moment: StoryObservation) => { if (isPattern) onPatterns(); else onOpenActivitySummary(moment); };
+  const openActivity = (moment: StoryObservation) => {
+    if (revealedActivityId !== moment.id) { setRevealedActivityId(moment.id); return; }
+    if (isPattern) onPatterns(moment.id); else onOpenActivitySummary(moment);
+  };
   const displayTime = (moment: StoryObservation, date: Date) => isPattern ? `${clockMinute(patternById.get(moment.id)!.startMinute!)}–${clockMinute(patternById.get(moment.id)!.endMinute!)}` : timeLabel(date);
   const latestMoment = [...moments].sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime())[0];
   useEffect(() => {
@@ -748,8 +753,8 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
       id: moment.id,
       x1: x + radialX * 9,
       y1: y + radialY * 9,
-      x2: label.iconX - radialX * 19,
-      y2: label.iconY - radialY * 19,
+      x2: label.iconX - radialX * 26,
+      y2: label.iconY - radialY * 26,
     };
   });
   const activityGlyph = (moment: StoryObservation) => moment.observationKind === 'meal' ? '🥣'
@@ -777,7 +782,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
     </header>
     <>
     <div className="daily-rhythm-chart">
-      <svg viewBox="0 0 600 424" role="application" tabIndex={0} aria-label={isPattern ? `Confirmed daily patterns for ${displayName}. Activity labels show usual time windows.` : `Daily moments for ${dayTitle.toLowerCase()} on a true 24-hour scale. Crowded activity points are spaced for clarity, and labels show actual times. Swipe right to view the previous day.`}
+      <svg viewBox="0 0 600 424" role="application" tabIndex={0} aria-label={isPattern ? `Confirmed daily patterns for ${displayName}. Select an activity to reveal its time window, then select again for details.` : `Daily moments for ${dayTitle.toLowerCase()} on a true 24-hour scale. Select an activity to reveal its time, then select again for details. Swipe right to view the previous day.`}
         onPointerDown={event => {
           const target = event.target as Element;
           dragStart.current = event.clientX;
@@ -837,9 +842,9 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
           <circle className="daily-rhythm-orb-highlight" cx="300" cy="390" r="156"/>
           <circle className="daily-rhythm-inner-arc" cx="300" cy="390" r="156"/>
           <circle className="daily-rhythm-inner-arc inner-arc-two" cx="300" cy="390" r="136"/>
-          {isPattern && timedPatterns.map(p => { const start = pointOnDial(p.startMinute!, 220), end = pointOnDial(p.endMinute!, 220); return <path key={`${p.id}-window`} className="daily-pattern-window" d={`M${start.x} ${start.y} A220 220 0 0 1 ${end.x} ${end.y}`}><title>{p.activity} · {clockMinute(p.startMinute!)}–{clockMinute(p.endMinute!)}</title></path>; })}
+          {isPattern && timedPatterns.map(p => { const start = pointOnDial(p.startMinute!, 220), end = pointOnDial(p.endMinute!, 220); return <path key={`${p.id}-window`} className="daily-pattern-window" d={`M${start.x} ${start.y} A220 220 0 0 1 ${end.x} ${end.y}`}>{revealedActivityId === p.id && <title>{p.activity} · {clockMinute(p.startMinute!)}–{clockMinute(p.endMinute!)}</title>}</path>; })}
           {timeLabelLeaders.map(line => <line key={`${line.id}-leader`} className="daily-rhythm-leader-line" x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} aria-hidden="true"/>)}
-          {momentPoints.map(({ moment, x, y, time }) => <g className="daily-rhythm-point" key={moment.id} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={`Open ${moment.title} at ${time}`} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
+          {momentPoints.map(({ moment, x, y, time }) => <g className="daily-rhythm-point" key={moment.id} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
             <circle className="daily-rhythm-point-hit" cx={x} cy={y} r="28"/>
             <circle className="daily-rhythm-point-marker" cx={x} cy={y} r="7"/>
             <circle className="daily-rhythm-point-core" cx={x} cy={y} r="2.5"/>
@@ -850,12 +855,15 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
             <circle className="daily-rhythm-current-avatar-inner" cx={currentPoint.x} cy={currentPoint.y} r="20"/>
             <image href={currentPetAvatar} x={currentPoint.x - 18.5} y={currentPoint.y - 18.5} width="37" height="37" preserveAspectRatio="xMidYMid slice" clipPath="url(#rhythm-current-avatar-clip)"/>
           </g>}
-          {labeledMomentPoints.map(({ moment, label, time }) => <g className={`daily-rhythm-time-trigger daily-rhythm-activity-label ${moment.observationKind ?? 'other'}`} key={`${moment.id}-label`} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={`Open ${moment.title} at ${time}`} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
-            <rect className="daily-rhythm-time-hit" x={Math.max(0, Math.min(514, label.iconX - 43))} y={label.timeY - 19} width="86" height="82"/>
-            <circle className="daily-rhythm-activity-badge" cx={label.iconX} cy={label.iconY} r="21"/>
+          {labeledMomentPoints.map(({ moment, label, time }) => <g className={`daily-rhythm-time-trigger daily-rhythm-activity-label ${moment.observationKind ?? 'other'} ${revealedActivityId === moment.id ? 'is-revealed' : ''}`} key={`${moment.id}-label`} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
+            <rect className="daily-rhythm-time-hit" x={label.iconX - 37} y={label.iconY - 37} width="74" height="88"/>
+            <circle className="daily-rhythm-activity-badge" cx={label.iconX} cy={label.iconY} r="27"/>
             <text className="daily-rhythm-activity-glyph" x={label.iconX} y={label.iconY + 1} textAnchor="middle" dominantBaseline="middle">{activityGlyph(moment)}</text>
-            <text className="daily-rhythm-time" x={label.timeX} y={label.timeY} textAnchor="middle" dominantBaseline="middle">{time}</text>
-            {isPattern && <text className="daily-pattern-activity-name" x={label.iconX} y={label.iconY + 34} textAnchor="middle">{moment.title}</text>}
+            {revealedActivityId === moment.id && <g className="daily-rhythm-revealed-time">
+              <rect x={Math.max(76, Math.min(524, label.iconX)) - (isPattern ? 75 : 45)} y={Math.max(22, label.iconY - 51) - 16} width={isPattern ? 150 : 90} height="32" rx="16" />
+              <text className="daily-rhythm-time" x={Math.max(76, Math.min(524, label.iconX))} y={Math.max(22, label.iconY - 51)} textAnchor="middle" dominantBaseline="middle">{time}</text>
+            </g>}
+            {isPattern && <text className="daily-pattern-activity-name" x={label.iconX} y={label.iconY + 43} textAnchor="middle">{moment.title}</text>}
           </g>)}
         </g>
         </g>
@@ -874,18 +882,18 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
         <text className="daily-rhythm-center-date" x="300" y="327" textAnchor="middle">{isPattern ? 'Usual routine' : selectedDateLabel}</text>
       </svg>
     </div>
-    {isPattern ? <div className="daily-pattern-summary"><span>{timedPatterns.length ? `${timedPatterns.length} confirmed daily patterns · Usual time windows` : 'No confirmed activity times yet.'}</span><button type="button" className="profile-link" onClick={onPatterns}>{timedPatterns.length ? 'View pattern evidence →' : 'Set up typical patterns →'}</button></div> : <div className="daily-rhythm-latest" aria-live="polite">
+    {isPattern ? <div className="daily-pattern-summary"><span>{timedPatterns.length ? `${timedPatterns.length} confirmed daily patterns · Usual time windows` : 'No confirmed activity times yet.'}</span><button type="button" className="profile-link" onClick={() => onPatterns()}>{timedPatterns.length ? 'View pattern evidence →' : 'Set up typical patterns →'}</button></div> : <div className="daily-rhythm-latest" aria-live="polite">
       <span className="daily-rhythm-latest-icon" aria-hidden="true">{latestMoment ? activityGlyph(latestMoment) : '✦'}</span>
       <div className="daily-rhythm-latest-copy">
         {latestMoment ? <>
-          <span className="daily-rhythm-latest-prefix">{displayName}’s latest activity:</span>
+          <span className="daily-rhythm-latest-prefix">Latest activity</span>
           <span className={`daily-rhythm-latest-title-viewport ${latestLabelOverflow ? 'is-overflowing' : ''}`} ref={latestLabelViewportRef} tabIndex={latestLabelOverflow ? 0 : undefined} title={latestMoment.title}>
             <span className="daily-rhythm-latest-title-track" style={{ '--marquee-distance': `-${latestLabelDistance}px`, '--marquee-duration': `${Math.max(8, latestLabelDistance / 24 + 2)}s` } as CSSProperties}>
               <strong ref={latestLabelTextRef}>{latestMoment.title}</strong>
               {latestLabelOverflow && <strong aria-hidden="true">{latestMoment.title}</strong>}
             </span>
           </span>
-        </> : <span>{displayName} has no recorded moments yet</span>}
+        </> : <span>No recorded moments yet</span>}
       </div>
     </div>}
     </>
@@ -945,7 +953,7 @@ function PetActivitySummaryPage({ moment, moments, petName, petAvatar, onBack }:
   </section>;
 }
 
-function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, onActivitySummary, petName, petAvatar, saved, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns }: { onStory: () => void; onMoment: (momentId: string) => void; onEvidence: () => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; petName: string; petAvatar: string; saved: OwnerContext | null; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: () => void; scenarioDate?: string }) {
+function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, onActivitySummary, petName, petAvatar, saved, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns }: { onStory: () => void; onMoment: (momentId: string) => void; onEvidence: () => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; petName: string; petAvatar: string; saved: OwnerContext | null; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; scenarioDate?: string }) {
   const now = useCurrentTime();
   const displayName = petName.replace(/\s*[（(]test[^）)]*[）)]$/i, '');
   const visibleRecords = visibleStoryObservations(observations, includedMoments)
@@ -4070,7 +4078,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         {sharedId && sharedSync.current.failed && sharedWritePending() && <p className="shared-sync-pending" role="status">Shared sync paused. Your local edits are kept; resolve the sync error before leaving.</p>}
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
-            {view === 'today' && <TodayPage onEvidence={() => navigateTo('overview')} saved={lastSavedContext} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onPetsNavigate={() => navigateTo('pets')} onPatterns={() => openPatternKnowledge()} />}
+            {view === 'today' && <TodayPage onEvidence={() => navigateTo('overview')} saved={lastSavedContext} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
 
             {view === 'activitySummary' && selectedActivityMoment && <PetActivitySummaryPage moment={selectedActivityMoment} moments={visibleStoryObservations(storyObservations, includedStoryMoments)} petName={petName} petAvatar={petAvatar} onBack={() => goBack('today')} />}
             {view === 'story' && <StoryPage onMoment={openMomentDetail} onEditStory={() => navigateTo('storyEdit')} onEditMoment={(item) => editStoryRow({ id: item.id, image: item.image, mediaType: item.mediaType, title: item.title, meta: `${item.time} · story moment`, note: item.note })} onDeleteMoment={deleteStoryMoment} onPetsNavigate={() => navigateTo('pets')} onAddPet={openAddPetForm} petName={petName} petAvatar={petAvatar} ownerName={ownerName} accounts={prototypeSession.accounts} contexts={savedContexts} observations={storyObservations} includedMoments={includedStoryMoments} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} canEdit={canContributeToSharedPet} />}

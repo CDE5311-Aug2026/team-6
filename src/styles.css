@@ -1393,3 +1393,15 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-pattern-activity-name { fill: #6e551d; font: 600 18px 'Roboto', sans-serif; }
 .daily-pattern-summary { min-height: 64px; margin-top: 4px; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 10px 14px; border-radius: 22px; border: 1px solid #f1e3aa; background: #fff0bc; color: #73591d; font-size: 11px; line-height: 1.5; }
 .daily-pattern-summary .profile-link { align-self: flex-start; color: #73591d; }
+
+/* Two-step activity selection: reveal time, then open the selected activity. */
+.daily-rhythm-activity-glyph { font-size: 28px !important; }
+.daily-rhythm-activity-label.is-revealed .daily-rhythm-activity-badge { stroke: #476747; stroke-width: 4; }
+.daily-rhythm-revealed-time rect { fill: #fffdf5; stroke: #e6c56a; stroke-width: 1.5; }
+.daily-rhythm-revealed-time .daily-rhythm-time { fill: #805900; font-size: 21px; }
+.daily-rhythm-latest { background: #fff0a7; border-color: #f0df91; }
+.daily-rhythm-latest-icon { background: #ffdf70; }
+.daily-rhythm-latest-copy { flex-direction: column; align-items: stretch; gap: 4px; white-space: normal; }
+.daily-rhythm-latest-prefix { font-size: 11px; line-height: 15px; color: #78644a; letter-spacing: 0; }
+.daily-rhythm-latest-title-viewport { flex: none; width: 100%; }
+.daily-rhythm-latest-title-track { font-size: 14px; line-height: 20px; }
