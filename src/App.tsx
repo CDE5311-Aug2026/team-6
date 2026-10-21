@@ -4,6 +4,7 @@ import ThinkingAvatar from './ThinkingAvatar';
 import MomentCarousel from './MomentCarousel';
 import PatternSuggestions from './PatternSuggestions';
 import SettingsPanels, { readPreferences } from './SettingsPanels';
+import { activityCategoryLabel, activityCategoryRecords, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight, type ActivityPeriod } from './activitySummary';
 import { clockMinute, type DailyPattern } from '../supabase/functions/_shared/dailyPatterns';
 import Welcome from './Welcome';
 import { requestAskAI } from './askAI';
@@ -28,6 +29,7 @@ type View =
   | 'careEvent'
   | 'connectedMedia'
   | 'activitySummary'
+  | 'activityInsights'
   | 'momentDetail'
   | 'overview'
   | 'clip'
@@ -614,10 +616,9 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
 }
 
 
-function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, patterns, onPatterns }: { petName: string; petAvatar: string; moments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; scenarioDate?: string }) {
+function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, patterns, onPatterns, dayOffset, onDayOffsetChange }: { petName: string; petAvatar: string; moments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
   const [view, setView] = useState<'today' | 'pattern'>('today');
   const [revealedActivityId, setRevealedActivityId] = useState<string | null>(null);
-  const [dayOffset, setDayOffset] = useState(0);
   useEffect(() => setRevealedActivityId(null), [view, dayOffset]);
   const latestLabelViewportRef = useRef<HTMLSpanElement>(null);
   const latestLabelTextRef = useRef<HTMLElement>(null);
@@ -780,8 +781,8 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
   const activityLabelsOnTop = revealedMarker
     ? [...labeledMomentPoints.filter(point => point.moment.id !== revealedActivityId), revealedMarker]
     : labeledMomentPoints;
-  const goToPreviousDay = () => { if (!isPattern) setDayOffset(offset => offset - 1); };
-  const goToNewerDay = () => { if (!isPattern) setDayOffset(offset => Math.min(0, offset + 1)); };
+  const goToPreviousDay = () => { if (!isPattern) onDayOffsetChange(dayOffset - 1); };
+  const goToNewerDay = () => { if (!isPattern) onDayOffsetChange(Math.min(0, dayOffset + 1)); };
   const handleNavKey = (event: React.KeyboardEvent<SVGGElement>, direction: 'previous' | 'newer') => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
@@ -797,6 +798,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
     </header>
     <>
     <div className="daily-rhythm-chart">
+      {!isPattern && dayOffset < 0 && <button type="button" className="daily-rhythm-go-today" onClick={() => onDayOffsetChange(0)}>Today</button>}
       {revealedMarker && <button type="button" className="daily-rhythm-selected-banner" aria-label={`Open details for ${revealedMarker.moment.title} at ${revealedMarker.time}`} onClick={() => openActivity(revealedMarker.moment)}>
         <span className="daily-rhythm-selected-banner-icon" aria-hidden="true">{activityGlyph(revealedMarker.moment)}</span>
         <span className="daily-rhythm-selected-banner-title">{revealedMarker.moment.title}</span>
@@ -930,32 +932,123 @@ function formatActivityDuration(minutes: number) {
   return `${remainder} min`;
 }
 
-function PetActivitySummaryPage({ moment, moments, petName, petAvatar, onBack }: { moment: StoryObservation; moments: StoryObservation[]; petName: string; petAvatar: string; onBack: () => void }) {
+function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, onBack }: { moment: StoryObservation; moments: StoryObservation[]; petId: string; petName: string; petAvatar: string; onBack: () => void }) {
+  const summaryIdentity = activitySummaryIdentity(moment);
   const [selectedTrendPoint, setSelectedTrendPoint] = useState<{ index: number; series: 'total' | 'morning' | 'afternoon' | 'evening' } | null>(null);
-  const [focusedTrendSeries, setFocusedTrendSeries] = useState<'total' | 'morning' | 'afternoon' | 'evening' | null>(null);
+  const [focusedTrendSeries, setFocusedTrendSeries] = useState<'total' | ActivityPeriod | null>(summaryIdentity.defaultPeriod);
   const [flippedStats, setFlippedStats] = useState({ total: false, today: false });
-  const [momentPeriod, setMomentPeriod] = useState<'total' | 'morning' | 'afternoon' | 'evening'>('total');
+  const [momentPeriod, setMomentPeriod] = useState<'total' | ActivityPeriod>(summaryIdentity.defaultPeriod);
   const [showMoreRecords, setShowMoreRecords] = useState(false);
-  const today = new Date();
-  const related = moments.filter(entry => moment.observationKind ? entry.observationKind === moment.observationKind : entry.title === moment.title);
+  const [weeklyInsight, setWeeklyInsight] = useState('');
+  const [showWeeklyWhy, setShowWeeklyWhy] = useState(false);
+  const [weeklyInsightBusy, setWeeklyInsightBusy] = useState(false);
+  const [weeklyInsightError, setWeeklyInsightError] = useState('');
+  const weeklyInsightController = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    const controller = weeklyInsightController.current;
+    weeklyInsightController.current = null;
+    controller?.abort();
+  }, []);
+  const selectedDate = new Date(moment.savedAt);
+  selectedDate.setHours(0, 0, 0, 0);
+  const related = moments.filter(entry => activitySummaryIdentity(entry).key === summaryIdentity.key);
+  const categoryRecords = activityCategoryRecords(moments, summaryIdentity);
+  const recordsThroughSelectedDate = activityRecordsThroughDate(categoryRecords, selectedDate);
   const duration = (entry: StoryObservation) => Math.max(0, Number(entry.metrics?.durationMinutes) || 0);
-  const totalMinutes = related.reduce((sum, entry) => sum + duration(entry), 0);
-  const todayMoments = related.filter(entry => isSameLocalDay(entry.savedAt, today));
-  const todayMinutes = todayMoments.reduce((sum, entry) => sum + duration(entry), 0);
-  const activityKind = moment.observationKind ?? (/breakfast|lunch|dinner|food|feed|meal/i.test(moment.title) ? 'meal' : /walk/i.test(moment.title) ? 'walk' : /rest|sleep|nap/i.test(moment.title) ? 'rest' : /play|toy|fetch/i.test(moment.title) ? 'play' : 'activity');
-  const category = activityKind === 'rest' ? 'Rest' : activityKind === 'meal' ? 'Feeding' : activityKind === 'play' ? 'Play' : activityKind === 'walk' ? 'Walk' : 'Activity';
-  const days = Array.from({ length: 7 }, (_, index) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6 + index));
-  const hasDurations = related.some(entry => duration(entry) > 0);
-  const periodFor = (entry: StoryObservation) => {
-    const hour = new Date(entry.savedAt).getHours();
-    return hour >= 5 && hour < 12 ? 'morning' : hour >= 12 && hour < 18 ? 'afternoon' : 'evening';
+  const totalMinutes = recordsThroughSelectedDate.reduce((sum, entry) => sum + duration(entry), 0);
+  const selectedDayMoments = activityRecordsOnDate(categoryRecords, selectedDate);
+  const selectedDayMinutes = selectedDayMoments.reduce((sum, entry) => sum + duration(entry), 0);
+  const category = summaryIdentity.label;
+  const statCategory = activityCategoryLabel(summaryIdentity.kind);
+  const days = activitySummaryDateWindow(selectedDate);
+  const weeklyComparison = compareActivityWeeks(related, selectedDate);
+  const weeklyHighlight = selectWeeklyInsight(weeklyComparison.current, weeklyComparison.previous);
+  const wallClockToday = new Date();
+  const wallClockYesterday = new Date(wallClockToday);
+  wallClockYesterday.setDate(wallClockYesterday.getDate() - 1);
+  const isSelectedToday = isSameLocalDay(moment.savedAt, wallClockToday);
+  const isSelectedYesterday = isSameLocalDay(moment.savedAt, wallClockYesterday);
+  const selectedDayLabel = isSelectedToday ? 'Today' : isSelectedYesterday ? 'Yesterday' : new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(selectedDate);
+  const selectedDayTitle = isSelectedToday ? `Today’s ${statCategory} time`
+    : isSelectedYesterday ? `Yesterday’s ${statCategory} time`
+      : `${statCategory} time · ${selectedDayLabel}`;
+  const selectedDayCountLabel = `${selectedDayMoments.length} ${selectedDayMoments.length === 1 ? 'moment' : 'moments'} ${isSelectedToday ? 'today' : isSelectedYesterday ? 'yesterday' : `on ${selectedDayLabel}`}`;
+  const formatSummaryDate = (date: Date) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+  const weeklyEvidence = `${formatSummaryDate(weeklyComparison.current.startDate)}–${formatSummaryDate(weeklyComparison.current.endDate)} vs ${formatSummaryDate(weeklyComparison.previous.startDate)}–${formatSummaryDate(weeklyComparison.previous.endDate)}`;
+  const formatDelta = (value: number) => `${value > 0 ? '+' : ''}${value}`;
+  const weeklyMetrics = [
+    { label: 'Records/week', current: weeklyComparison.current.recordCount, previous: weeklyComparison.previous.recordCount, unit: '' },
+    ...(weeklyComparison.current.durationRecordCount && weeklyComparison.previous.durationRecordCount ? [{ label: 'Avg min/record', current: weeklyComparison.current.durationMinutes / weeklyComparison.current.durationRecordCount, previous: weeklyComparison.previous.durationMinutes / weeklyComparison.previous.durationRecordCount, unit: 'm' }] : []),
+    ...(weeklyComparison.current.consumptionRecordCount && weeklyComparison.previous.consumptionRecordCount ? [{ label: 'Avg g/record', current: weeklyComparison.current.consumedGrams / weeklyComparison.current.consumptionRecordCount, previous: weeklyComparison.previous.consumedGrams / weeklyComparison.previous.consumptionRecordCount, unit: 'g' }] : []),
+  ];
+  const weeklyInsightLabel = weeklyHighlight?.key === 'duration' ? 'Average duration per record'
+    : weeklyHighlight?.key === 'food' ? 'Average food per record'
+      : weeklyHighlight?.key === 'records' ? 'Record frequency' : '';
+  const computedWeeklyConclusion = weeklyHighlight
+    ? `${weeklyInsightLabel} ${weeklyHighlight.relativeChange > 0 ? 'increased' : 'decreased'} ${Math.round(Math.abs(weeklyHighlight.relativeChange) * 100)}% vs the previous week.`
+    : 'No standout change in recorded activity this week.';
+  const requestWeeklyInsight = async () => {
+    if (!weeklyComparison.canCompare || weeklyInsightBusy) return;
+    const controller = new AbortController();
+    weeklyInsightController.current = controller;
+    setWeeklyInsightBusy(true);
+    setWeeklyInsightError('');
+    const timeout = setTimeout(() => controller.abort(), 45000);
+    const summarize = (stats: typeof weeklyComparison.current) => ({
+      startDate: formatSummaryDate(stats.startDate),
+      endDate: formatSummaryDate(stats.endDate),
+      recordedDays: stats.daysWithRecords,
+      recordCount: stats.recordCount,
+      durationMinutes: stats.durationRecordCount ? stats.durationMinutes : null,
+      recordsWithDuration: stats.durationRecordCount,
+      averageDurationMinutes: stats.averageDurationMinutes,
+      consumedGrams: stats.consumptionRecordCount ? stats.consumedGrams : null,
+      recordsWithConsumption: stats.consumptionRecordCount,
+    });
+    const currentStats = summarize(weeklyComparison.current);
+    const previousStats = summarize(weeklyComparison.previous);
+    const comparison = {
+      current7Days: currentStats,
+      previous7Days: previousStats,
+      precomputedChanges: {
+        recordCount: currentStats.recordCount - previousStats.recordCount,
+        recordedDays: currentStats.recordedDays - previousStats.recordedDays,
+        durationMinutes: currentStats.durationMinutes === null || previousStats.durationMinutes === null ? null : currentStats.durationMinutes - previousStats.durationMinutes,
+        averageDurationMinutes: currentStats.averageDurationMinutes === null || previousStats.averageDurationMinutes === null ? null : currentStats.averageDurationMinutes - previousStats.averageDurationMinutes,
+        consumedGrams: currentStats.consumedGrams === null || previousStats.consumedGrams === null ? null : currentStats.consumedGrams - previousStats.consumedGrams,
+      },
+    };
+    try {
+      const answer = await requestAskAI(petId, [{
+        role: 'user',
+        text: `Write one concise English headline (maximum 12 words) stating which selected metric increased or decreased and by what rounded percentage versus the previous week. Use the exact direction and percentage from the selected metric. Do not add an explanation, cause, health claim, or other metrics. Return plain text only. Selected metric: ${JSON.stringify(weeklyHighlight)}. Comparison context: ${JSON.stringify(comparison)}`,
+      }], controller.signal, false);
+      if (weeklyInsightController.current === controller) {
+        const headline = answer.trim().split(/(?<=[.!?])\s+/)[0].slice(0, 110);
+        const expectedChange = `${Math.round(Math.abs(weeklyHighlight?.relativeChange ?? 0) * 100)}%`;
+        const expectedDirection = (weeklyHighlight?.relativeChange ?? 0) > 0 ? 'increased' : 'decreased';
+        setWeeklyInsight(headline.includes(expectedChange) && headline.toLowerCase().includes(expectedDirection) ? headline : computedWeeklyConclusion);
+      }
+    } catch (cause) {
+      if (weeklyInsightController.current === controller) {
+        setWeeklyInsightError(controller.signal.aborted ? 'The summary took too long. Please try again.' : cause instanceof Error ? cause.message : 'AI summary is unavailable. Please try again.');
+      }
+    } finally {
+      clearTimeout(timeout);
+      if (weeklyInsightController.current === controller) {
+        weeklyInsightController.current = null;
+        setWeeklyInsightBusy(false);
+      }
+    }
   };
+  const hasDurations = related.some(entry => duration(entry) > 0);
+  const periodFor = activityPeriodFor;
   const periodSummary = (entries: StoryObservation[]) => (['morning', 'afternoon', 'evening'] as const).map(period => {
     const matches = entries.filter(entry => periodFor(entry) === period);
     return { period, count: matches.length, minutes: matches.reduce((sum, entry) => sum + duration(entry), 0) };
   });
-  const totalPeriodSummary = periodSummary(related);
-  const todayPeriodSummary = periodSummary(todayMoments);
+  const totalPeriodSummary = periodSummary(recordsThroughSelectedDate);
+  const selectedDayPeriodSummary = periodSummary(selectedDayMoments);
   const trend = days.map(date => {
     const entries = related.filter(entry => isSameLocalDay(entry.savedAt, date));
     const valueForPeriod = (period: 'morning' | 'afternoon' | 'evening') => {
@@ -1012,8 +1105,8 @@ function PetActivitySummaryPage({ moment, moments, petName, petAvatar, onBack }:
     <div className="activity-summary-pet"><Avatar name={petName} src={petAvatar} /><span><strong>{petName}</strong><small>{dateLabel} · {formatObservationTime(moment.savedAt).replace('\n', ' · ')}</small></span></div>
     <section className="activity-summary-stats" aria-label="Activity duration">
       {([
-        { key: 'total' as const, title: `Total ${category} time`, value: totalMinutes, count: related.length, label: `${related.length} recorded ${related.length === 1 ? 'moment' : 'moments'}`, breakdown: totalPeriodSummary },
-        { key: 'today' as const, title: `Today’s ${category} time`, value: todayMinutes, count: todayMoments.length, label: `${todayMoments.length} ${todayMoments.length === 1 ? 'moment' : 'moments'} today`, breakdown: todayPeriodSummary },
+        { key: 'total' as const, title: `Total ${statCategory} time`, value: totalMinutes, count: recordsThroughSelectedDate.length, label: `${recordsThroughSelectedDate.length} recorded ${recordsThroughSelectedDate.length === 1 ? 'moment' : 'moments'}`, breakdown: totalPeriodSummary },
+        { key: 'today' as const, title: selectedDayTitle, value: selectedDayMinutes, count: selectedDayMoments.length, label: selectedDayCountLabel, breakdown: selectedDayPeriodSummary },
       ]).map(card => <button type="button" key={card.key} className={`activity-summary-stat-flip ${flippedStats[card.key] ? 'is-flipped' : ''}`} aria-pressed={flippedStats[card.key]} aria-label={`${card.title}. ${flippedStats[card.key] ? 'Show total' : 'Show morning, afternoon and evening breakdown'}`} onClick={() => setFlippedStats(current => ({ ...current, [card.key]: !current[card.key] }))}>
         <span className="activity-summary-stat-face activity-summary-stat-front" aria-hidden={flippedStats[card.key]}>
           <span>{card.title}</span><strong>{formatActivityDuration(card.value)}</strong><small>{card.label}</small>
@@ -1024,8 +1117,12 @@ function PetActivitySummaryPage({ moment, moments, petName, petAvatar, onBack }:
       </button>)}
     </section>
     <section className="activity-summary-ai">
-      <div><span className="activity-summary-ai-icon" aria-hidden="true">✦</span><div><h2>AI summary</h2><p>Activity insights will appear here as more moments are collected.</p></div></div>
-      <span className="activity-summary-coming-soon">Coming soon</span>
+      <div className="activity-summary-ai-top">
+        <div className="activity-summary-ai-copy"><span className="activity-summary-ai-icon" aria-hidden="true">✦</span><div><h2>AI summary</h2><p className="activity-summary-ai-conclusion">{weeklyInsight || computedWeeklyConclusion}</p></div></div>
+        {weeklyComparison.canCompare && weeklyHighlight && <div className="activity-summary-ai-actions"><button type="button" className="activity-summary-ai-action" aria-expanded={showWeeklyWhy} aria-controls="activity-summary-ai-details" onClick={() => setShowWeeklyWhy(value => !value)}>{showWeeklyWhy ? 'Hide' : 'Why?'}</button><button type="button" className="activity-summary-ai-action" onClick={() => void requestWeeklyInsight()} disabled={weeklyInsightBusy}>{weeklyInsightBusy ? 'Refreshing…' : 'Refresh'}</button></div>}
+      </div>
+      {weeklyComparison.canCompare && showWeeklyWhy && <div id="activity-summary-ai-details"><div className="activity-summary-ai-metrics" aria-label="Current week compared with previous week">{weeklyMetrics.map(metric => <div className="activity-summary-ai-metric" key={metric.label}><span>{metric.label}</span><strong>{metric.current.toLocaleString('en-US', { maximumFractionDigits: 1 })}{metric.unit} <i>vs</i> {metric.previous.toLocaleString('en-US', { maximumFractionDigits: 1 })}{metric.unit}</strong><small>{metric.previous ? formatDelta(Number(((metric.current - metric.previous) / metric.previous * 100).toFixed(1))) : '0'}%</small></div>)}</div><p className="activity-summary-ai-evidence">{weeklyEvidence}</p></div>}
+      {weeklyInsightError && <p className="activity-summary-ai-error" role="alert">{weeklyInsightError}</p>}
     </section>
     <section className="activity-summary-trend">
       <div className="activity-summary-section-heading"><div><h2>Activity trend</h2><p>Last 7 days · {hasDurations ? 'duration' : 'recorded moments'}</p></div></div>
@@ -1086,7 +1183,36 @@ function PetActivitySummaryPage({ moment, moments, petName, petAvatar, onBack }:
   </section>;
 }
 
-function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, onActivitySummary, petName, petAvatar, saved, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns }: { onStory: () => void; onMoment: (momentId: string) => void; onEvidence: () => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; petName: string; petAvatar: string; saved: OwnerContext | null; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; scenarioDate?: string }) {
+function ActivityInsightsPage({ records, petName, onBack, onActivitySummary }: { records: StoryObservation[]; petName: string; onBack: () => void; onActivitySummary: (record: StoryObservation) => void }) {
+  const referenceDate = useCurrentTime();
+  const observedRecords = records.filter(record => new Date(record.savedAt).getTime() <= referenceDate.getTime());
+  const rankedInsights = rankDailyActivityInsights(observedRecords, referenceDate);
+  const topInsights = rankedInsights.slice(0, 3);
+  const formatDate = (date: Date) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+  const latestRecordFor = (activityKey: string, date: Date) => observedRecords
+    .filter(record => activitySummaryIdentity(record).key === activityKey && isSameLocalDay(record.savedAt, date))
+    .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime())[0];
+
+  return <section className="activity-summary-page activity-insights-page">
+    <header className="activity-summary-header"><button className="back-button" aria-label="Go back" onClick={onBack}>←</button><div><p className="eyebrow">PET ACTIVITY</p><h1>Worth a closer look</h1></div></header>
+    <p className="activity-insights-intro">{petName}’s standout recorded changes today · {topInsights[0] ? `${formatDate(topInsights[0].currentDate)} vs recorded history (${formatDate(topInsights[0].baselineStartDate)}–${formatDate(topInsights[0].baselineEndDate)})` : 'Today compared with prior recorded history'}</p>
+    {topInsights.length ? <div className="activity-insights-list">{topInsights.map((insight, index) => {
+      const direction = insight.relativeChange > 0 ? 'increased' : 'decreased';
+      const currentValue = insight.current.toFixed(1);
+      const previousValue = insight.previous.toFixed(1);
+      const record = latestRecordFor(insight.activityKey, insight.currentDate);
+      return <article className="activity-insight-card" key={insight.activityKey}>
+        <span className="activity-insight-rank" aria-label={`Rank ${index + 1}`}>{index + 1}</span>
+        <div className="activity-insight-copy"><h2>{insight.activityLabel}</h2><p>Today’s {insight.label.toLowerCase()} {direction} {Math.round(Math.abs(insight.relativeChange) * 100)}% vs usual</p><strong>{currentValue} vs {previousValue} {insight.unit}</strong><small>Today: {insight.currentSampleSize} {insight.currentSampleSize === 1 ? 'record' : 'records'} · baseline: {insight.baselineSampleSize} records across {insight.baselineDays} recorded days</small><small>{insight.meetsThreshold ? 'Meets the main change threshold' : 'Smaller shift · shown to complete the daily list'}</small><small>Ranked #{index + 1} by relative change</small></div>
+        {record && <button className="activity-insight-link" type="button" onClick={() => onActivitySummary(record)}>View activity →</button>}
+      </article>;
+    })}</div> : <div className="activity-insights-empty"><span aria-hidden="true">✦</span><p>No standout change today. Metrics need recorded values on at least 3 prior days and must exceed the change thresholds.</p></div>}
+    <details className="activity-insights-method"><summary>How we rank these</summary><p>For each behavior, we compare today’s average duration or food per record with its average daily value across all prior recorded days through yesterday. Days with no record are excluded, not counted as zero. A metric needs recorded values on at least 3 prior days. We show up to 3 changes: those meeting the main thresholds come first; if fewer than 3 qualify, smaller non-zero shifts fill the remaining spots. These smaller shifts may be normal variation, not an unusual change. Record count is context, not ranked by itself. Main thresholds: duration 10% and 1 minute; food 10% and 15 grams.</p></details>
+    <p className="activity-insights-health-note">This highlights changes in recorded activity, not a health assessment. If you notice other concerning signs or are worried, consult your veterinarian.</p>
+  </section>;
+}
+
+function TodayPage({ onStory, onMoment, onPetsNavigate, onAddPet, onActivitySummary, onOpenInsights, petName, petAvatar, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, dayOffset, onDayOffsetChange }: { onStory: () => void; onMoment: (momentId: string) => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; petName: string; petAvatar: string; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
   const now = useCurrentTime();
   const displayName = petName.replace(/\s*[（(]test[^）)]*[）)]$/i, '');
   const visibleRecords = visibleStoryObservations(observations, includedMoments)
@@ -1095,13 +1221,13 @@ function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, on
   const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
   const featured = todayRecords.length ? todayRecords : visibleRecords.filter(record => new Date(record.savedAt).toDateString() === new Date(visibleRecords[0]?.savedAt).toDateString());
   const clock = (value: string) => formatObservationTime(value).split('\n').at(-1);
-  const reviewRecord = featured.find(record => /rest/i.test(record.title)) ?? featured[0];
+  const standoutActivity = rankDailyActivityInsights(visibleRecords, now)[0];
 
   return (
     <>
       <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       {!hasDemoMoments && !visibleRecords.length ? noPetYet ? <section className="today-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section> : <>
-      <DailyRhythmCard petName={petName} petAvatar={petAvatar} moments={visibleRecords} onOpenActivitySummary={onActivitySummary} patterns={patterns} onPatterns={onPatterns} />
+      <DailyRhythmCard petName={petName} petAvatar={petAvatar} moments={visibleRecords} onOpenActivitySummary={onActivitySummary} patterns={patterns} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
       <section className="today-section">
         <h2>Moments you might love</h2>
         <MomentCarousel>
@@ -1124,9 +1250,9 @@ function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, on
 
       <section className="today-section closer-look">
         <h2>Worth a closer look</h2>
-        <button className="notice-card" onClick={hasDemoMoments ? onEvidence : () => reviewRecord && onMoment(reviewRecord.id)}>
+        <button className="notice-card" onClick={onOpenInsights}>
           <img src={asset('warning.png')} alt="" />
-          <span><strong>{!hasDemoMoments ? `Review ${reviewRecord?.title.toLowerCase() ?? 'today’s moments'}` : saved ? 'Your context is now linked' : 'Review the recorded moments'}</strong><small>{!hasDemoMoments ? 'Explore the observation and its owner context.' : saved ? 'Review the clips and your note.' : 'Open the source clips and caregiver notes.'}</small></span>
+          <span><strong>{standoutActivity ? `${standoutActivity.activityLabel} · ${standoutActivity.key === 'duration' ? 'avg duration' : 'avg food/record'} ${standoutActivity.relativeChange > 0 ? '+' : '−'}${Math.round(Math.abs(standoutActivity.relativeChange) * 100)}% today` : 'No change recorded today'}</strong><small>{standoutActivity ? `${standoutActivity.current.toFixed(1)} vs ${standoutActivity.previous.toFixed(1)} ${standoutActivity.unit} · ${standoutActivity.meetsThreshold ? 'meets main threshold' : 'small shift'} vs recorded history` : 'No measured change to compare against prior recorded history.'}</small></span>
         </button>
       </section>
       </>}
@@ -2887,6 +3013,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     return session;
   });
   const [view, setView] = useState<View>('today');
+  const [dailyRhythmDayOffset, setDailyRhythmDayOffset] = useState(0);
   const initialAccount = prototypeSession.accounts.find((entry) => entry.id === prototypeSession.activeAccountId);
   const initialPet = initialAccount?.pets.find((entry) => entry.id === initialAccount.activePetId) ?? initialAccount?.pets[0];
   const initialWorkspace = initialPet?.workspace;
@@ -2988,6 +3115,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [pendingDeviceAccountRemoval, setPendingDeviceAccountRemoval] = useState<{ username: string; name: string } | null>(null);
   const scrollRef = useRef<HTMLElement>(null);
+  const returnScrollPosition = useRef<number | null>(null);
   const askEndRef = useRef<HTMLDivElement>(null);
   const navigationHistory = useRef<View[]>([]);
   const contextReturnView = useRef<View>('momentDetail');
@@ -3634,6 +3762,12 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   }
 
   useEffect(() => {
+    if (view === 'today' && returnScrollPosition.current !== null) {
+      const top = returnScrollPosition.current;
+      returnScrollPosition.current = null;
+      requestAnimationFrame(() => scrollRef.current?.scrollTo({ top }));
+      return;
+    }
     scrollRef.current?.scrollTo({ top: 0 });
   }, [view]);
 
@@ -4196,9 +4330,10 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         {sharedId && sharedSync.current.failed && sharedWritePending() && <p className="shared-sync-pending" role="status">Shared sync paused. Your local edits are kept; resolve the sync error before leaving.</p>}
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
-            {view === 'today' && <TodayPage onEvidence={() => navigateTo('overview')} saved={lastSavedContext} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
+            {view === 'today' && <TodayPage hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenInsights={() => navigateTo('activityInsights')} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
+            {view === 'activityInsights' && <ActivityInsightsPage records={visibleStoryObservations(storyObservations, includedStoryMoments)} petName={petName} onBack={() => goBack('today')} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} />}
 
-            {view === 'activitySummary' && selectedActivityMoment && <PetActivitySummaryPage moment={selectedActivityMoment} moments={visibleStoryObservations(storyObservations, includedStoryMoments)} petName={petName} petAvatar={petAvatar} onBack={() => goBack('today')} />}
+            {view === 'activitySummary' && selectedActivityMoment && <PetActivitySummaryPage moment={selectedActivityMoment} moments={visibleStoryObservations(storyObservations, includedStoryMoments)} petId={activePetRecord.id} petName={petName} petAvatar={petAvatar} onBack={() => goBack('today')} />}
             {view === 'story' && <StoryPage onMoment={openMomentDetail} onEditStory={() => navigateTo('storyEdit')} onEditMoment={(item) => editStoryRow({ id: item.id, image: item.image, mediaType: item.mediaType, title: item.title, meta: `${item.time} · story moment`, note: item.note })} onDeleteMoment={deleteStoryMoment} onPetsNavigate={() => navigateTo('pets')} onAddPet={openAddPetForm} petName={petName} petAvatar={petAvatar} ownerName={ownerName} accounts={prototypeSession.accounts} contexts={savedContexts} observations={storyObservations} includedMoments={includedStoryMoments} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} canEdit={canContributeToSharedPet} />}
             {view === 'storyEdit' && <StoryEditPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} hasDemoMoments={activePetRecord.hasDemoMoments} onBack={() => goBack('story')} onEdit={editStoryRow} onDelete={deleteStoryRow} onSave={(ids) => { if (!persistWorkspacePatch({ visibility: ids })) return; setIncludedStoryMoments(ids); if (!cloud) try {
               localStorage.setItem(
