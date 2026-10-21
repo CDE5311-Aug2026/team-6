@@ -773,7 +773,9 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
           : /food|dinner|breakfast|lunch/i.test(moment.title) ? '🥣'
             : /walk/i.test(moment.title) ? '🐾'
               : /rest|sleep/i.test(moment.title) ? '💤' : /play|toy|fetch/i.test(moment.title) ? '🎾' : '✨';
-  const currentPoint = pointOnDial(now.getHours() * 60 + now.getMinutes(), 220);
+  const currentMinute = now.getHours() * 60 + now.getMinutes();
+  const currentPoint = pointOnDial(currentMinute, isPattern ? 180 : 220);
+  const patternPointerOuter = pointOnDial(currentMinute, 207);
   const revealedMarker = labeledMomentPoints.find(point => point.moment.id === revealedActivityId);
   const goToPreviousDay = () => { if (!isPattern) setDayOffset(offset => offset - 1); };
   const goToNewerDay = () => { if (!isPattern) setDayOffset(offset => Math.min(0, offset + 1)); };
@@ -858,6 +860,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
           <circle className="daily-rhythm-orb-highlight" cx="300" cy="390" r="156"/>
           <circle className="daily-rhythm-inner-arc" cx="300" cy="390" r="156"/>
           <circle className="daily-rhythm-inner-arc inner-arc-two" cx="300" cy="390" r="136"/>
+          {isPattern && <path className="daily-rhythm-pattern-current-track" d="M120 390 A180 180 0 0 1 480 390" aria-hidden="true"/>}
           {isPattern && timedPatterns.map(p => { const start = pointOnDial(p.startMinute!, 220), end = pointOnDial(p.endMinute!, 220); return <path key={`${p.id}-window`} className="daily-pattern-window" d={`M${start.x} ${start.y} A220 220 0 0 1 ${end.x} ${end.y}`}>{revealedActivityId === p.id && <title>{p.activity} · {clockMinute(p.startMinute!)}–{clockMinute(p.endMinute!)}</title>}</path>; })}
           {timeLabelLeaders.map(line => <line key={`${line.id}-leader`} className="daily-rhythm-leader-line" x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} aria-hidden="true"/>)}
           {momentPoints.map(({ moment, x, y, time }) => <g className="daily-rhythm-point" key={moment.id} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
@@ -867,6 +870,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
           </g>)}
           {(isToday || isPattern) && <g className="daily-rhythm-current-point" aria-label={`Current time ${timeLabel(now)}`}>
             <title>Now · {timeLabel(now)}</title>
+            {isPattern && <line className="daily-rhythm-pattern-current-pointer" x1={currentPoint.x} y1={currentPoint.y} x2={patternPointerOuter.x} y2={patternPointerOuter.y} aria-hidden="true"/>}
             <circle className="daily-rhythm-current-avatar-outer" cx={currentPoint.x} cy={currentPoint.y} r="23"/>
             <circle className="daily-rhythm-current-avatar-inner" cx={currentPoint.x} cy={currentPoint.y} r="20"/>
             <image href={currentPetAvatar} x={currentPoint.x - 18.5} y={currentPoint.y - 18.5} width="37" height="37" preserveAspectRatio="xMidYMid slice" clipPath="url(#rhythm-current-avatar-clip)"/>
