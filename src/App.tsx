@@ -760,11 +760,27 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
   const activityGlyph = (moment: StoryObservation) => moment.observationKind === 'meal' ? '🥣'
     : moment.observationKind === 'walk' ? '🐾'
       : moment.observationKind === 'rest' ? '💤'
-        : moment.observationKind === 'play' ? '💛'
+        : moment.observationKind === 'play' ? '🎾'
           : /food|dinner|breakfast|lunch/i.test(moment.title) ? '🥣'
             : /walk/i.test(moment.title) ? '🐾'
-              : /rest|sleep/i.test(moment.title) ? '💤' : '✨';
+              : /rest|sleep/i.test(moment.title) ? '💤' : /play|toy|fetch/i.test(moment.title) ? '🎾' : '✨';
   const currentPoint = pointOnDial(now.getHours() * 60 + now.getMinutes(), 220);
+  const revealedMarker = labeledMomentPoints.find(point => point.moment.id === revealedActivityId);
+  const popoverWidth = 220, popoverHeight = 68;
+  const popoverPosition = revealedMarker ? (() => {
+    const icon = revealedMarker.label;
+    const clampX = (x: number) => Math.max(8, Math.min(592 - popoverWidth, x));
+    const candidates = [
+      { x: clampX(icon.iconX - popoverWidth / 2), y: icon.iconY - 110 },
+      { x: clampX(icon.iconX + 40), y: icon.iconY - popoverHeight / 2 },
+      { x: clampX(icon.iconX - popoverWidth - 40), y: icon.iconY - popoverHeight / 2 },
+      ...[8, 36, 64].flatMap(y => [190, 8, 372].map(x => ({ x, y }))),
+    ];
+    const obstacles = [...activityMarkers.map(marker => ({ x: marker.iconX, y: marker.iconY, r: 35 })), ...(isToday ? [{ ...currentPoint, r: 30 }] : [])];
+    return candidates.find(box => box.y >= 6 && box.y + popoverHeight < 285 && obstacles.every(o =>
+      box.x + popoverWidth + 6 < o.x - o.r || box.x - 6 > o.x + o.r || box.y + popoverHeight + 6 < o.y - o.r || box.y - 6 > o.y + o.r
+    )) ?? { x: 190, y: 8 };
+  })() : null;
   const goToPreviousDay = () => { if (!isPattern) setDayOffset(offset => offset - 1); };
   const goToNewerDay = () => { if (!isPattern) setDayOffset(offset => Math.min(0, offset + 1)); };
   const handleNavKey = (event: React.KeyboardEvent<SVGGElement>, direction: 'previous' | 'newer') => {
@@ -843,6 +859,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
           <circle className="daily-rhythm-inner-arc" cx="300" cy="390" r="156"/>
           <circle className="daily-rhythm-inner-arc inner-arc-two" cx="300" cy="390" r="136"/>
           {isPattern && timedPatterns.map(p => { const start = pointOnDial(p.startMinute!, 220), end = pointOnDial(p.endMinute!, 220); return <path key={`${p.id}-window`} className="daily-pattern-window" d={`M${start.x} ${start.y} A220 220 0 0 1 ${end.x} ${end.y}`}>{revealedActivityId === p.id && <title>{p.activity} · {clockMinute(p.startMinute!)}–{clockMinute(p.endMinute!)}</title>}</path>; })}
+          {revealedMarker && popoverPosition && <line className="daily-rhythm-popover-leader" x1={popoverPosition.x + popoverWidth / 2} y1={popoverPosition.y + popoverHeight} x2={revealedMarker.label.iconX} y2={revealedMarker.label.iconY - 30} aria-hidden="true" />}
           {timeLabelLeaders.map(line => <line key={`${line.id}-leader`} className="daily-rhythm-leader-line" x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} aria-hidden="true"/>)}
           {momentPoints.map(({ moment, x, y, time }) => <g className="daily-rhythm-point" key={moment.id} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
             <circle className="daily-rhythm-point-hit" cx={x} cy={y} r="28"/>
@@ -859,11 +876,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
             <rect className="daily-rhythm-time-hit" x={label.iconX - 37} y={label.iconY - 37} width="74" height="88"/>
             <circle className="daily-rhythm-activity-badge" cx={label.iconX} cy={label.iconY} r="27"/>
             <text className="daily-rhythm-activity-glyph" x={label.iconX} y={label.iconY + 1} textAnchor="middle" dominantBaseline="middle">{activityGlyph(moment)}</text>
-            {revealedActivityId === moment.id && <g className="daily-rhythm-revealed-time">
-              <rect x={Math.max(76, Math.min(524, label.iconX)) - (isPattern ? 75 : 45)} y={Math.max(22, label.iconY - 51) - 16} width={isPattern ? 150 : 90} height="32" rx="16" />
-              <text className="daily-rhythm-time" x={Math.max(76, Math.min(524, label.iconX))} y={Math.max(22, label.iconY - 51)} textAnchor="middle" dominantBaseline="middle">{time}</text>
-            </g>}
-            {isPattern && <text className="daily-pattern-activity-name" x={label.iconX} y={label.iconY + 43} textAnchor="middle">{moment.title}</text>}
+
           </g>)}
         </g>
         </g>
@@ -880,6 +893,11 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
         </>}
         <text className="daily-rhythm-center-title" x="300" y="306" textAnchor="middle">{isPattern ? 'PATTERN' : dayTitle}</text>
         <text className="daily-rhythm-center-date" x="300" y="327" textAnchor="middle">{isPattern ? 'Usual routine' : selectedDateLabel}</text>
+        {revealedMarker && popoverPosition && <g className="daily-rhythm-activity-popover" data-moment-trigger={revealedMarker.moment.id} role="button" tabIndex={0} aria-label={`Open details for ${revealedMarker.moment.title} at ${revealedMarker.time}`} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(revealedMarker.moment); } }}>
+          <rect x={popoverPosition.x} y={popoverPosition.y} width={popoverWidth} height={popoverHeight} rx="17" />
+          <text className="daily-rhythm-popover-name" x={popoverPosition.x + popoverWidth / 2} y={popoverPosition.y + 26} textAnchor="middle">{revealedMarker.moment.title.length > 25 ? `${revealedMarker.moment.title.slice(0, 24)}…` : revealedMarker.moment.title}</text>
+          <text className="daily-rhythm-popover-time" x={popoverPosition.x + popoverWidth / 2} y={popoverPosition.y + 51} textAnchor="middle">{revealedMarker.time}</text>
+        </g>}
       </svg>
     </div>
     {isPattern ? <div className="daily-pattern-summary"><span>{timedPatterns.length ? `${timedPatterns.length} confirmed daily patterns · Usual time windows` : 'No confirmed activity times yet.'}</span><button type="button" className="profile-link" onClick={() => onPatterns()}>{timedPatterns.length ? 'View pattern evidence →' : 'Set up typical patterns →'}</button></div> : <div className="daily-rhythm-latest" aria-live="polite">

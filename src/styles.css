@@ -1405,3 +1405,10 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-latest-prefix { font-size: 11px; line-height: 15px; color: #78644a; letter-spacing: 0; }
 .daily-rhythm-latest-title-viewport { flex: none; width: 100%; }
 .daily-rhythm-latest-title-track { font-size: 14px; line-height: 20px; }
+
+/* Render the selected activity last, above every icon, with a clear two-line label. */
+.daily-rhythm-activity-popover { cursor: pointer; }
+.daily-rhythm-activity-popover rect { fill: #fffdf5; stroke: #dfbe58; stroke-width: 1.5; filter: drop-shadow(0 3px 4px #73591d22); }
+.daily-rhythm-popover-leader { stroke: #ae913c; stroke-width: 2; pointer-events: none; }
+.daily-rhythm-popover-name { fill: #28452e; font: 600 21px 'Roboto', sans-serif; pointer-events: none; }
+.daily-rhythm-popover-time { fill: #805900; font: 600 20px 'Roboto', sans-serif; pointer-events: none; }
