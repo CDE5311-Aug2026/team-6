@@ -8,7 +8,7 @@ import { searchCareAccounts, type CareAccountSearchResult, type CloudCareGroup, 
 import { visibleStoryObservations } from './storyVisibility';
 import { buildRollingStorySimulation, isSyntheticSunnyProfile } from './storySimulation';
 import { mergeSharedStoryObservations } from './sharedStoryObservations';
-import { useEffect, useRef, useState, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
 
 type View =
   | 'today'
@@ -607,6 +607,10 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
 function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, patterns, onMoment, onPatterns, scenarioDate }: { petName: string; petAvatar: string; moments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; patterns: TypicalPattern[]; onMoment: (id: string) => void; onPatterns: () => void; scenarioDate?: string }) {
   const [view, setView] = useState<'today' | 'pattern'>('today');
   const [dayOffset, setDayOffset] = useState(0);
+  const latestLabelViewportRef = useRef<HTMLSpanElement>(null);
+  const latestLabelTextRef = useRef<HTMLElement>(null);
+  const [latestLabelOverflow, setLatestLabelOverflow] = useState(false);
+  const [latestLabelDistance, setLatestLabelDistance] = useState(0);
   const dragStart = useRef<number | null>(null);
   const navStart = useRef<'previous' | 'newer' | null>(null);
   const pressedMomentId = useRef<string | null>(null);
@@ -616,6 +620,26 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
   const selectedDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset);
   const selectedMoments = moments.filter(moment => isSameLocalDay(moment.savedAt, selectedDate));
   const latestMoment = [...moments].sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime())[0];
+  useEffect(() => {
+    const viewport = latestLabelViewportRef.current;
+    const label = latestLabelTextRef.current;
+    if (!viewport || !label || !latestMoment) {
+      setLatestLabelOverflow(false);
+      return;
+    }
+    const measure = () => {
+      const distance = Math.ceil(label.scrollWidth + 28);
+      setLatestLabelDistance(current => current === distance ? current : distance);
+      const overflows = label.scrollWidth > viewport.clientWidth + 1;
+      setLatestLabelOverflow(current => current === overflows ? current : overflows);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport);
+    observer.observe(label);
+    measure();
+    document.fonts?.ready.then(measure);
+    return () => observer.disconnect();
+  }, [latestMoment?.id, latestMoment?.title, displayName]);
   const isToday = dayOffset === 0;
   const dayTitle = isToday ? 'TODAY' : dayOffset === -1 ? 'YESTERDAY' : new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(selectedDate).toUpperCase();
   const selectedDateLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(selectedDate);
@@ -840,7 +864,17 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
     </div>
     <div className="daily-rhythm-latest" aria-live="polite">
       <span className="daily-rhythm-latest-icon" aria-hidden="true">{latestMoment ? activityGlyph(latestMoment) : '✦'}</span>
-      <p title={latestMoment ? `${displayName}’s latest activity: ${latestMoment.title}` : `${displayName} has no recorded moments yet`}>{latestMoment ? <><span>{displayName}’s latest activity: </span><strong>{latestMoment.title}</strong></> : <span>{displayName} has no recorded moments yet</span>}</p>
+      <div className="daily-rhythm-latest-copy">
+        {latestMoment ? <>
+          <span className="daily-rhythm-latest-prefix">{displayName}’s latest activity:</span>
+          <span className={`daily-rhythm-latest-title-viewport ${latestLabelOverflow ? 'is-overflowing' : ''}`} ref={latestLabelViewportRef} tabIndex={latestLabelOverflow ? 0 : undefined} title={latestMoment.title}>
+            <span className="daily-rhythm-latest-title-track" style={{ '--marquee-distance': `-${latestLabelDistance}px`, '--marquee-duration': `${Math.max(8, latestLabelDistance / 24 + 2)}s` } as CSSProperties}>
+              <strong ref={latestLabelTextRef}>{latestMoment.title}</strong>
+              {latestLabelOverflow && <strong aria-hidden="true">{latestMoment.title}</strong>}
+            </span>
+          </span>
+        </> : <span>{displayName} has no recorded moments yet</span>}
+      </div>
     </div>
     </>}
   </section>;
