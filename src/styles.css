@@ -1384,3 +1384,12 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 @media (hover: none) { .moment-carousel-pause { opacity: 1; } }
 
 .ask-thinking-avatar, .ask-thinking-avatar img { display: block; width: 32px; height: 32px; flex: 0 0 32px; object-fit: contain; }
+
+/* Pattern shares Today's dial; the deeper yellow distinguishes usual routines. */
+.daily-rhythm-card.is-pattern { background: #fff8dc; }
+.is-pattern .daily-rhythm-daylight-bg { background: linear-gradient(180deg, #fff4d2 0%, #ffedb4 68%, #f5e3a5 100%); }
+.is-pattern .daily-rhythm-time { font-size: 20px; fill: #916400; }
+.daily-pattern-window { fill: none; stroke: #e4a817; stroke-width: 12px; stroke-linecap: round; }
+.daily-pattern-activity-name { fill: #6e551d; font: 600 18px 'Roboto', sans-serif; }
+.daily-pattern-summary { min-height: 64px; margin-top: 4px; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 10px 14px; border-radius: 22px; border: 1px solid #f1e3aa; background: #fff0bc; color: #73591d; font-size: 11px; line-height: 1.5; }
+.daily-pattern-summary .profile-link { align-self: flex-start; color: #73591d; }
