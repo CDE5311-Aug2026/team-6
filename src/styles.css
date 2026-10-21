@@ -84,7 +84,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .daily-rhythm-header > div:first-child { min-width: 0; }
 .daily-rhythm-header .eyebrow { margin: 0; font-size: 9px; line-height: 14px; }
-.daily-rhythm-header h2 { margin: 2px 0 0; color: var(--color-text-primary); font: 600 17px/23px 'Poppins', sans-serif; letter-spacing: -.25px; }
+.daily-rhythm-header h2 { margin: 2px 0 0; color: var(--color-text-primary); font: 600 20px/27px 'Poppins', sans-serif; letter-spacing: -.25px; }
 .daily-rhythm-toggle { flex: none; display: flex; align-items: center; padding: 3px; border: 1px solid #e8e5dd; border-radius: 999px; background: #f2f0ea; }
 .daily-rhythm-toggle button { min-width: 52px; height: 29px; padding: 0 9px; border: 0; border-radius: 999px; background: transparent; color: var(--color-text-secondary); font: 500 11px/16px 'Roboto', sans-serif; }
 .daily-rhythm-toggle button.active { background: #fff; color: var(--color-text-primary); box-shadow: 0 1px 4px #1a29211c; }
@@ -1347,7 +1347,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .shared-sync-pending { margin: 0; padding: 10px 16px; background: #fff2bb; color: #534719; font-size: 12px; line-height: 1.5; z-index: 20; }
 
 /* Allow the home greeting to wrap without covering the story card. */
-.home-screen .main-header { height: auto; min-height: 97px; padding-bottom: 16px; }
+.home-screen .main-header { height: auto; min-height: 89px; padding-bottom: 8px; }
+.home-screen .main-header + .daily-rhythm-card { margin-top: 10px; }
 
 /* Cover the scroll container's top padding behind every top-sticky surface. */
 .screen-scroll :is(
