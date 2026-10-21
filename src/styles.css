@@ -1483,8 +1483,10 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 @keyframes daily-rhythm-banner-in { from { opacity: 0; translate: 0 -6px; } to { opacity: 1; translate: 0 0; } }
 @media (prefers-reduced-motion: reduce) { .daily-rhythm-selected-banner { animation: none; } .daily-rhythm-activity-label { transition: none; } }
 
-.daily-rhythm-activity-label.is-revealed .daily-rhythm-activity-badge { fill: #ffcf29; stroke: #fff; stroke-width: 3.5; }
+
 
 /* Keep selected pattern names readable alongside their time window. */
 .daily-rhythm-card.is-pattern .daily-rhythm-selected-banner { width: min(440px, calc(100% - 20px)); max-width: none; gap: 5px; }
 .daily-rhythm-card.is-pattern .daily-rhythm-selected-banner-title { flex: 0 1 auto; min-width: 0; overflow: visible; text-overflow: clip; white-space: normal; text-align: center; }
+
+.daily-rhythm-activity-label.is-revealed .daily-rhythm-activity-badge { stroke: #ffcf29; stroke-width: 4; }
