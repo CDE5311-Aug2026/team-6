@@ -96,7 +96,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-selected-banner-arrow { flex: 0 0 auto; color: #b68a10; font-size: 16px; }
 .daily-rhythm-activity-label { transform-box: fill-box; transform-origin: center; transition: transform 220ms cubic-bezier(.2,.8,.2,1); }
 .daily-rhythm-activity-label.is-revealed { transform: scale(1.32); }
-.daily-rhythm-activity-label.is-revealed .daily-rhythm-activity-badge { fill: #ffcf29; stroke: #fff; stroke-width: 3.5; }
+.daily-rhythm-activity-label.is-revealed .daily-rhythm-activity-badge { stroke: #ffcf29; stroke-width: 4; }
 .daily-rhythm-latest { display: flex; align-items: center; gap: 11px; min-height: 64px; margin: 4px 0 0; padding: 9px 14px; border: 1px solid #eff0df; border-radius: 22px; background: linear-gradient(100deg, #f4f5e6, #f8f8ed); box-sizing: border-box; }
 .daily-rhythm-latest-icon { display: grid; flex: 0 0 44px; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: #ffedb2; font: 22px/1 'Roboto', sans-serif; }
 .daily-rhythm-latest-copy { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; overflow: hidden; color: #617b68; font: 500 14px/1.35 'Poppins', sans-serif; letter-spacing: -.25px; white-space: nowrap; }
