@@ -1,3 +1,4 @@
+import MomentCarousel from './MomentCarousel';
 import PatternSuggestions from './PatternSuggestions';
 import SettingsPanels, { readPreferences } from './SettingsPanels';
 import DailyPlan from './DailyPlan';
@@ -982,8 +983,8 @@ function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, on
       <DailyRhythmCard petName={petName} petAvatar={petAvatar} moments={visibleRecords} onOpenActivitySummary={onActivitySummary} patterns={patterns} onMoment={onMoment} onPatterns={onPatterns} scenarioDate={scenarioDate} />
       <section className="today-section">
         <h2>Moments you might love</h2>
-        <div className="moment-grid">
-          {!hasDemoMoments ? featured.slice(0, 2).map(record => <button className="moment-card" key={record.id} onClick={() => onMoment(record.id)}>
+        <MomentCarousel>
+          {!hasDemoMoments ? featured.map(record => <button className="moment-card" key={record.id} onClick={() => onMoment(record.id)}>
             {observationHasPrimaryMedia(record) ? <StoryMediaView src={record.image} type={record.mediaType} alt={record.title} /> : <span className="moment-text-preview" aria-hidden="true">✦</span>}
             <span className="moment-card-copy"><strong>{record.title}</strong><small>{observationHasPrimaryMedia(record) ? record.mediaType?.startsWith('video/') ? 'Video' : record.mediaType?.startsWith('audio/') ? 'Audio' : 'Photo' : 'Written observation'} · {clock(record.savedAt)}</small></span>
           </button>) : <>
@@ -997,7 +998,7 @@ function TodayPage({ onStory, onMoment, onEvidence, onPetsNavigate, onAddPet, on
             <span className="moment-card-copy"><strong>A sunny window nap</strong><small>Photo · 11:35 AM</small></span>
           </button>
         </>}
-        </div>
+        </MomentCarousel>
       </section>
 
       <section className="today-section closer-look">
