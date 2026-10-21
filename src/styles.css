@@ -1487,6 +1487,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 
 /* Keep selected pattern names readable alongside their time window. */
 .daily-rhythm-card.is-pattern .daily-rhythm-selected-banner { width: min(440px, calc(100% - 20px)); max-width: none; gap: 5px; }
+.daily-rhythm-card.is-pattern .daily-rhythm-chart { padding-top: 26px; }
 .daily-rhythm-card.is-pattern .daily-rhythm-selected-banner-title { flex: 0 1 auto; min-width: 0; overflow: visible; text-overflow: clip; white-space: normal; text-align: center; }
 
 .daily-rhythm-activity-label.is-revealed .daily-rhythm-activity-badge { stroke: #ffcf29; stroke-width: 4; }
