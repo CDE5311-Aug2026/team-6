@@ -276,6 +276,10 @@ type PrototypePet = {
 };
 
 
+type OwnerCareProfile = { relationship: string; routine: string; tasks: string[] };
+function normalizeOwnerCareProfile(value?: Partial<OwnerCareProfile>): OwnerCareProfile {
+  return { relationship: typeof value?.relationship === 'string' ? value.relationship.slice(0, 80) : '', routine: typeof value?.routine === 'string' ? value.routine.slice(0, 160) : '', tasks: Array.isArray(value?.tasks) ? value.tasks.filter((task): task is string => typeof task === 'string').slice(0, 6) : [] };
+}
 type PrototypeAccount = {
   id: string;
   name: string;
@@ -283,6 +287,7 @@ type PrototypeAccount = {
   role: string;
   avatar: string;
   preference: string;
+  careProfile?: OwnerCareProfile;
   pets: PrototypePet[];
   activePetId: string;
 };
@@ -1911,7 +1916,8 @@ function readPrototypeSession(): PrototypeSession {
         email: account.email,
         role: typeof account.role === 'string' ? account.role : 'Primary caregiver',
         avatar: typeof account.avatar === 'string' ? account.avatar : '',
-        preference: typeof account.preference === 'string' ? account.preference : 'Manage your profile details here.',
+        preference: typeof account.preference === 'string' ? account.preference : '',
+        careProfile: normalizeOwnerCareProfile(account.careProfile),
         pets: availablePets,
         activePetId: availablePets.some((pet) => pet.id === account.activePetId) ? account.activePetId as string : availablePets[0].id,
       }];
@@ -2371,7 +2377,7 @@ function AvatarCropDialog({ src, onCancel, onSave }: { src: string; onCancel: ()
   </section></div>;
 }
 
-function SettingsPage({ kind, initialName, initialSpecies = 'Dog', initialSex = 'Unknown', initialBreed = 'Golden Retriever', initialAge = '3', initialAvatar = '', initialPreference = 'Manage your profile details here.', onBack, onSaved, onPetSaved, onProfileSaved }: { kind: 'petDetails' | 'profile'; initialName: string; initialSpecies?: 'Dog' | 'Cat'; initialSex?: PetSex; initialBreed?: string; initialAge?: string; initialAvatar?: string; initialPreference?: string; onBack: () => void; onSaved: (name: string) => void; onPetSaved?: (profile: { name: string; breed: string; species: 'Dog' | 'Cat'; sex: PetSex; age: string; avatar: string }) => void; onProfileSaved?: (profile: { name: string; avatar: string; preference: string }) => void }) {
+function SettingsPage({ kind, initialName, initialSpecies = 'Dog', initialSex = 'Unknown', initialBreed = 'Golden Retriever', initialAge = '3', initialAvatar = '', initialPreference = '', initialCareProfile, onBack, onSaved, onPetSaved, onProfileSaved }: { kind: 'petDetails' | 'profile'; initialName: string; initialSpecies?: 'Dog' | 'Cat'; initialSex?: PetSex; initialBreed?: string; initialAge?: string; initialAvatar?: string; initialPreference?: string; initialCareProfile?: OwnerCareProfile; onBack: () => void; onSaved: (name: string) => void; onPetSaved?: (profile: { name: string; breed: string; species: 'Dog' | 'Cat'; sex: PetSex; age: string; avatar: string }) => void; onProfileSaved?: (profile: { name: string; avatar: string; preference: string; careProfile: OwnerCareProfile }) => void }) {
   const pet = kind === 'petDetails';
   const [name, setName] = useState(initialName);
   const [breed, setBreed] = useState(initialBreed);
@@ -2379,7 +2385,8 @@ function SettingsPage({ kind, initialName, initialSpecies = 'Dog', initialSex = 
   const [sex, setSex] = useState<PetSex>(initialSex);
   const [age, setAge] = useState(initialAge);
   const [avatar, setAvatar] = useState(initialAvatar);
-  const [preference, setPreference] = useState(initialPreference);
+  const [preference, setPreference] = useState(initialPreference === 'Manage your profile details here.' ? '' : initialPreference);
+  const [careProfile, setCareProfile] = useState(() => normalizeOwnerCareProfile(initialCareProfile));
   const nameIsEmpty = name.trim().length === 0;
   const breedIsEmpty = breed.trim().length === 0;
   const numericAge = Number(age);
@@ -2397,7 +2404,7 @@ function SettingsPage({ kind, initialName, initialSpecies = 'Dog', initialSex = 
       onPetSaved?.({ name: nextName, breed: nextBreed, species, sex, age: nextAge, avatar: avatar || breedAvatar(species, nextBreed) });
       onBack();
     } else {
-      onProfileSaved?.({ name: nextName, avatar, preference });
+      onProfileSaved?.({ name: nextName, avatar, preference: preference.trim(), careProfile });
       onBack();
     }
   }
@@ -2425,7 +2432,7 @@ function SettingsPage({ kind, initialName, initialSpecies = 'Dog', initialSex = 
   }
 
   return (
-    <section className={`settings-page ${pet ? 'pet-details-page' : ''}`}>
+    <section className={`settings-page ${pet ? 'pet-details-page' : 'owner-profile-page'}`}>
       <header className="settings-header">
         <button className="back-button" aria-label={pet ? 'Back to Pets' : 'Back to You'} onClick={onBack}>←</button>
         <h1>{pet ? `${name || 'Luna'}’s details` : 'My profile'}</h1>
@@ -2439,7 +2446,7 @@ function SettingsPage({ kind, initialName, initialSpecies = 'Dog', initialSex = 
         </label>
         <div className="profile-summary-copy">
         <strong>{pet ? name || 'Luna' : name || 'Emily'}</strong>
-        <p>{pet ? `${species} · ${breed || 'Choose a breed'}` : preference}</p>
+        <p>{pet ? `${species} · ${breed || 'Choose a breed'}` : 'A little about the person behind the care.'}</p>
         </div>
       </section>
       {cropSource && <AvatarCropDialog src={cropSource} onCancel={() => setCropSource('')} onSave={cropped => { setAvatar(cropped); setCropSource(''); setSaved(false); }} />}
@@ -2448,7 +2455,7 @@ function SettingsPage({ kind, initialName, initialSpecies = 'Dog', initialSex = 
           <strong>Name</strong><input value={name} onChange={(event) => { setName(event.target.value); setSaved(false); }} aria-label="Pet name" />
         </label> : <>
           <section className="settings-field profile-edit-field">
-            <strong>Name</strong><div className="profile-field-control"><input value={name} onChange={(event) => { setName(event.target.value); setSaved(false); }} aria-label="Your name" /></div>
+            <strong>Display name</strong><div className="profile-field-control"><input maxLength={50} value={name} onChange={(event) => { setName(event.target.value); setSaved(false); }} aria-label="Your name" /></div>
           </section>
         </>}
         {pet ? <>
@@ -2457,7 +2464,12 @@ function SettingsPage({ kind, initialName, initialSpecies = 'Dog', initialSex = 
           <div className="pet-details-pair"><label className={`settings-field${ageIsInvalid ? ' has-error' : ''}`}><strong>Age (years)</strong><input type="number" min="0" max="40" step="1" value={age} onChange={e => setAge(e.target.value)} aria-label="Pet age in years" aria-invalid={ageIsInvalid} />{ageIsInvalid && <small role="alert">Use 0–40 whole years.</small>}</label><label className="settings-field"><strong>Sex</strong><select value={sex} aria-label="Pet sex" onChange={e => setSex(normalizePetSex(e.target.value))}><option>Unknown</option><option>Female</option><option>Male</option></select></label></div>
           <button type="button" className="profile-link breed-avatar-action" onClick={() => setAvatar(breedAvatar(species, breed))}>Use breed illustration as photo</button>
         </> : <>
-          <label className="settings-field profile-preference-field"><strong>Preferences</strong><input value={preference} onChange={(event) => { setPreference(event.target.value); setSaved(false); }} aria-label="Preferences" /></label>
+          <section className="owner-care-section"><div className="owner-section-heading"><span>♡</span><div><h2>Your care routine</h2><p>Optional details for your own care planning.</p></div></div>
+          <label className="settings-field"><strong>Relationship to your pets</strong><select aria-label="Relationship to your pets" value={careProfile.relationship} onChange={e => setCareProfile({...careProfile, relationship: e.target.value})}><option value="">Choose a relationship</option>{['Pet parent', 'Family member', 'Friend', 'Pet sitter', 'Other'].map(value => <option key={value}>{value}</option>)}</select></label>
+          <label className="settings-field"><strong>Usual availability</strong><input maxLength={160} placeholder="e.g. Weekday evenings and weekends" aria-label="Usual availability" value={careProfile.routine} onChange={e => setCareProfile({...careProfile, routine: e.target.value})} /></label>
+          <fieldset className="owner-task-field"><legend>I usually help with</legend><div className="owner-task-options">{['Meals', 'Walks', 'Play', 'Grooming', 'Health care', 'Keeping company'].map(task => <button type="button" key={task} aria-pressed={careProfile.tasks.includes(task)} onClick={() => setCareProfile({...careProfile, tasks: careProfile.tasks.includes(task) ? careProfile.tasks.filter(item => item !== task) : [...careProfile.tasks, task]})}>{careProfile.tasks.includes(task) ? '✓ ' : '+ '}{task}</button>)}</div></fieldset>
+          <label className="settings-field owner-notes-field"><strong>Care notes & preferences</strong><textarea maxLength={500} rows={3} placeholder="e.g. I handle the evening walk; Mum usually gives breakfast." value={preference} onChange={e => setPreference(e.target.value)} aria-label="Care notes and preferences" /><small>{preference.length}/500</small></label>
+          </section><p className="owner-profile-hint">These details stay in your profile. They don’t change your permissions in a care space.</p>
         </>}
       </div>
       <div className="settings-action">
@@ -3289,7 +3301,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     });
   }
 
-  function updateActiveAccountRecord(profile: { name: string; avatar: string; preference: string }) {
+  function updateActiveAccountRecord(profile: { name: string; avatar: string; preference: string; careProfile: OwnerCareProfile }) {
     const renamedPatterns = profile.name !== ownerName ? typicalPatterns.map((pattern) => pattern.confirmedBy === ownerName ? { ...pattern, confirmedBy: profile.name } : pattern) : typicalPatterns;
     if (renamedPatterns !== typicalPatterns) setTypicalPatterns(renamedPatterns);
     setPrototypeSession((current) => {
@@ -4130,7 +4142,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
               </div>
             </section>}
             {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} initialAvatar={petAvatar} initialSpecies={petSpecies} initialSex={petSex} initialBreed={petBreed} initialAge={petAge} onSaved={setPetName} onPetSaved={({ name, breed, species, sex, age, avatar }) => { setPetName(name); setPetBreed(breed); setPetAge(age); setPetAvatar(avatar); updateActivePetRecord({ name, breed, species, sex, age, avatar }); setProfileSaveNotice('Pet details saved successfully'); }} onBack={() => goBack('pets')} />}
-            {view === 'profile' && <SettingsPage kind="profile" initialName={ownerName} initialAvatar={ownerAvatar} initialPreference={ownerPreference} onSaved={setOwnerName} onProfileSaved={({ name, avatar, preference }) => { setOwnerName(name); setOwnerAvatar(avatar); setOwnerPreference(preference); updateActiveAccountRecord({ name, avatar, preference }); setProfileSaveNotice('Profile saved successfully'); }} onBack={() => goBack('you')} />}
+            {view === 'profile' && <SettingsPage kind="profile" initialName={ownerName} initialAvatar={ownerAvatar} initialPreference={ownerPreference} initialCareProfile={activeAccount?.careProfile} onSaved={setOwnerName} onProfileSaved={({ name, avatar, preference, careProfile }) => { setOwnerName(name); setOwnerAvatar(avatar); setOwnerPreference(preference); updateActiveAccountRecord({ name, avatar, preference, careProfile }); setProfileSaveNotice('Profile saved successfully'); }} onBack={() => goBack('you')} />}
             {view === 'memberDetails' && selectedCareMember && <CareMemberDetailsPage member={selectedCareMember} ownerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} ownerRole={groupOwnerAccount?.role ?? 'Primary caregiver'} ownerAvatar={primaryCaregiverAvatar} ownerPreference={groupOwnerAccount?.preference ?? ownerPreference} memberAvatar={selectedMemberAccount?.avatar ?? selectedCareMember.avatar ?? ''} memberPreference={selectedMemberAccount?.preference ?? ''} primaryMemberId={primaryMemberId} isPrimaryCaregiver={isPrimaryCaregiver} petName={petName} onBack={() => goBack('careMembers')} />}
             {view === 'careMembers' && (
               <PetSecondaryPage
