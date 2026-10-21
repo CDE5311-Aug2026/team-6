@@ -4,7 +4,7 @@
 
 【链接已更新26.10.21 11：16】修改了admin ask ai白屏 + 滚动固定 + 点赞收藏弹窗 + 日期 & TP格式问题 + 完善了时间轴 & Today页面 [点这里](https://pawsona-team-6.vercel.app/)
 
-【链接已更新26.10.18 00：15】是我测试用的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
+【修改中】是我测试用的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
 
   1.目前settings里面加了关联邮箱的功能 但因为要进行设置的东西有点多我怕改坏了先搁置了 目前这块用不了
 
