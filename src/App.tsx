@@ -1589,7 +1589,6 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   onSave: () => void;
   onEdit: () => void;
 }) {
-  const [sourceTab, setSourceTab] = useState<'Activities' | 'Photos' | 'Clips' | 'Notes'>('Activities');
   const [uploadError, setUploadError] = useState('');
   const quickActivities = [
     { label: 'Meal', icon: '🥣', text: `${petName} had a meal.` },
@@ -1631,17 +1630,6 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   const cancel = <button className="add-cancel" onClick={onCancel}>Cancel</button>;
   const header = (title: string, eyebrow: string) => <header className="add-flow-header"><div className="add-flow-title"><button className="back-button" aria-label="Go back" onClick={onBack}>←</button><h1>{title}</h1>{cancel}</div><p className="eyebrow">{eyebrow}</p></header>;
 
-  function chooseSourceTab(tab: 'Activities' | 'Photos' | 'Clips' | 'Notes') {
-    setSourceTab(tab);
-    setUploadError('');
-  }
-
-  function toggleMomentSource(id: string, text: string) {
-    const alreadyChosen = selectedMoments.includes(id);
-    setSelectedMoments(alreadyChosen ? [] : [id]);
-    if (!alreadyChosen) setNote(text);
-  }
-
   function addRelatedPhotos(files: FileList | null) {
     if (!files?.length) return;
     const availableSlots = Math.max(0, 4 - relatedPhotos.length);
@@ -1676,8 +1664,8 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
       const url = await mediaDataUrl(file);
       setUploadedMedia({ name: file.name, type: file.type, url });
       setSelectedMoments(['uploaded']);
-      setNote(defaultObservationForSource('uploaded', petName));
-      setTitle(`A moment with ${petName}`);
+      if (!note.trim()) setNote(defaultObservationForSource('uploaded', petName));
+      if (!title.trim()) setTitle(`A moment with ${petName}`);
       setUploadError('');
     } catch {
       setUploadError('This file could not be read. Please try another one.');
@@ -1687,28 +1675,19 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   if (step === 'moments') return <div className="add-flow-page">
     {header('Add a moment', `A LITTLE MOMENT WITH ${petName.toUpperCase()}`)}
     <div className="quick-moment-intro"><strong>What has {petName} been up to?</strong><p>Pick an activity and save. No photo or typing needed.</p></div>
-    <div className="source-tabs quick-source-tabs" role="tablist" aria-label="Moment sources">{(['Activities', 'Photos', 'Clips', 'Notes'] as const).map((tab) => <button key={tab} className={sourceTab === tab ? 'active' : ''} role="tab" aria-selected={sourceTab === tab} onClick={() => chooseSourceTab(tab)}>{tab}</button>)}</div>
-    {sourceTab === 'Activities' ? <section className="quick-moment-content">
+    <section className="quick-moment-content">
       <div className="quick-activity-grid" aria-label="Common pet activities">{quickActivities.map((activity) => <button type="button" key={activity.label} aria-pressed={selectedActivity?.label === activity.label} className={`quick-activity ${selectedActivity?.label === activity.label ? 'selected' : ''}`} onClick={() => { setUploadedMedia(null); setSelectedMoments([]); setRelatedPhotos([]); setTitle(activity.label); setNote(activity.text); }}><span aria-hidden="true">{activity.icon}</span><strong>{activity.label}</strong>{selectedActivity?.label === activity.label && <span className="quick-activity-check" aria-hidden="true">✓</span>}</button>)}</div>
-      <button type="button" className="quick-custom-moment" onClick={startWrittenMoment}>＋ Something else / write a note <span aria-hidden="true">→</span></button>
-      {selectedActivity && <div className="quick-moment-summary"><strong>Ready to save</strong><p aria-live="polite">{note}</p><MomentDateTimePicker value={momentAt} onChange={setMomentAt} /><button type="button" className="text-link" onClick={onEdit}>Add details or a photo (optional)</button><label className="quick-private-choice"><input type="checkbox" checked={privateRecord} onChange={(event) => setPrivateRecord(event.target.checked)} />Keep as a private record</label><small>{privateRecord ? 'Only you can see this moment.' : `Visible in ${petName}’s Story to your care group.`}</small></div>}
-    </section> : <>
-    <div className={`moment-picker-grid ${sourceTab === 'Notes' ? 'notes-picker-grid' : ''}`}>
-      {sourceTab === 'Notes' ? noteChoices.map((entry) => { const chosen = selectedMoments.includes(entry.id); return <button className={`moment-choice note-moment-choice ${chosen ? 'selected' : ''}`} key={entry.id} onClick={() => { toggleMomentSource(entry.id, entry.text); if (!chosen) setTitle(titleFromObservation(entry.text)); }}><span>{entry.text}</span>{chosen && <span className="moment-check">✓</span>}<small>{entry.label}</small></button>; }) : availableMomentChoices.map((moment, index) => { const chosen = selectedMoments.includes(moment.id); const label = sourceTab === 'Clips' ? ['Clip · 0:12', 'Clip · 0:18', 'Clip · 0:08'][index] : `${moment.time} · ${moment.title}`; return <button className={`moment-choice ${chosen ? 'selected' : ''}`} key={moment.id} onClick={() => { toggleMomentSource(moment.id, defaultObservationForSource(moment.id, petName)); if (!chosen) setTitle(moment.title); }}><img src={asset(moment.image)} alt="" />{chosen && <span className="moment-check">✓</span>}<small>{label}</small></button>; })}
-      {sourceTab === 'Notes' && <button className="moment-choice written-observation-choice" onClick={() => { setUploadedMedia(null); setSelectedMoments([]); setTitle(''); setRelatedPhotos([]); setNote(''); onEdit(); }}><span className="written-observation-plus" aria-hidden="true">＋</span><small>Written observation</small></button>}
-      {!hasDemoMoments && <p className="empty-source-message">No saved {sourceTab.toLowerCase()} yet. Add one from this device or start with a written observation.</p>}
-      {sourceTab !== 'Notes' && uploadedMedia && <div role="button" tabIndex={0} aria-pressed={uploadedSelected} className={`moment-choice uploaded-device-choice ${uploadedSelected ? 'selected' : ''}`} onClick={() => { setSelectedMoments(uploadedSelected ? [] : ['uploaded']); if (!uploadedSelected && !title.trim()) setTitle(`A moment with ${petName}`); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedMoments(uploadedSelected ? [] : ['uploaded']); } }}><StoryMediaView src={uploadedMedia.url} type={uploadedMedia.type} alt={uploadedMedia.name} />{uploadedSelected && <span className="moment-check">✓</span>}<button type="button" className="remove-uploaded-media" aria-label={`Remove ${uploadedMedia.name}`} onClick={(event) => { event.stopPropagation(); setUploadedMedia(null); setSelectedMoments(selectedMoments.filter((id) => id !== 'uploaded')); }}>×</button><small>{uploadedMedia.name}</small></div>}
-      {sourceTab !== 'Notes' && <label className="moment-choice add-device-choice"><input type="file" accept="image/*,video/*" onChange={(event) => { uploadMedia(event.target.files?.[0]); event.currentTarget.value = ''; }} /><span className="add-device-plus">＋</span><span>{uploadedSelected ? 'Replace photo or video' : 'Add photo or video'}</span></label>}
-      {uploadError && <p className="upload-error" role="alert">{uploadError}</p>}
-    </div>
-    </>}
+      <button type="button" className="quick-custom-moment" onClick={startWrittenMoment}>＋ Something else</button>
+      {selectedActivity && <div className="quick-moment-summary"><strong>Ready to save</strong><p aria-live="polite">{note}</p><MomentDateTimePicker value={momentAt} onChange={setMomentAt} /><button type="button" className="quick-details-button" onClick={onEdit}>＋ Add details or photo/video</button><label className="quick-private-choice"><input type="checkbox" checked={privateRecord} onChange={(event) => setPrivateRecord(event.target.checked)} />Keep as a private record</label><small>{privateRecord ? 'Only you can see this moment.' : `Visible in ${petName}’s Story to your care group.`}</small></div>}
+    </section>
     {saveError && <p className="inline-save-error" role="alert">{saveError}</p>}
-    <div className="sticky-action add-moment-sticky-action"><button className="primary-button full" onClick={sourceTab === 'Activities' ? onSave : onEdit} disabled={sourceTab === 'Activities' ? !selectedActivity : !selectedMoments.length}>{sourceTab === 'Activities' ? (privateRecord ? 'Save private moment' : 'Save moment') : 'Add details'}</button></div>
+    <div className="sticky-action add-moment-sticky-action"><button className="primary-button full" onClick={onSave} disabled={!selectedActivity || !note.trim()}>{privateRecord ? 'Save private moment' : 'Save moment'}</button></div>
   </div>;
 
   if (step === 'compose') return <div className="add-flow-page">
     {header('Moment details', 'ADD ONLY WHAT MATTERS')}
     {hasVisual || selectedNotes.length > 0 ? <><div className="compose-section-label"><strong>Selected moment</strong></div>{hasVisual ? <div className="selected-moments-strip">{selected.map((moment) => <img key={moment.id} src={asset(moment.image)} alt={moment.title} />)}{uploadedSelected && uploadedMedia && <StoryMediaView src={uploadedMedia.url} type={uploadedMedia.type} alt={uploadedMedia.name} />}</div> : <div className="selected-note-strip">{selectedNotes.map((entry) => <div key={entry.id}><span>{entry.text}</span><small>{entry.label}</small></div>)}</div>}</> : <><div className="written-observation-mode"><strong>Written observation</strong></div><div className="written-observation-note"><strong>A note is enough</strong><span>You can describe a moment without a photo or camera clip.</span></div></>}
+    <label className="moment-media-button">＋ {uploadedSelected ? 'Replace photo/video' : 'Add photo/video'}<input type="file" accept="image/*,video/*" onChange={(event) => { uploadMedia(event.target.files?.[0]); event.currentTarget.value = ''; }} /></label>
     {isOwnerCreatedMoment && <MomentDateTimePicker value={momentAt} onChange={setMomentAt} />}
     <label className="observation-title-field"><strong>Title</strong><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Add a title for this moment" maxLength={70} /></label>
     <section className="observation-writing-card"><strong>What happened with {petName}?</strong><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Describe what you noticed…" />{relatedPhotos.length > 0 && <div className="related-photos-strip">{relatedPhotos.map((media, index) => <div className={media.type.startsWith('audio/') ? 'audio-attachment-thumb' : ''} key={`${media.name}-${index}`}><StoryMediaView src={media.url} type={media.type} alt={media.name} controls={media.type.startsWith('audio/')} /><button type="button" aria-label={`Remove attachment ${index + 1}`} onClick={() => setRelatedPhotos(relatedPhotos.filter((_, mediaIndex) => mediaIndex !== index))}>×</button></div>)}</div>}{uploadError && <p className="upload-error" role="alert">{uploadError}</p>}<div className="observation-writing-tools">{<label aria-label="Add photos"><input type="file" accept="image/*" multiple onChange={(event) => { addRelatedPhotos(event.target.files); event.currentTarget.value = ''; }} /><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" /><circle cx="9" cy="9" r="1.5" /><path d="m5 17 5-5 3 3 2-2 5 5" /></svg></label>}<label aria-label="Add a voice note"><input type="file" accept="audio/*" capture onChange={(event) => { addRelatedPhotos(event.target.files); event.currentTarget.value = ''; }} /><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8" /></svg></label><span className="observation-attachment-hint">Photos and voice notes are optional.</span></div></section>
