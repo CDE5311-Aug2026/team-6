@@ -1632,3 +1632,18 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .moment-media-button input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .quick-custom-moment:hover, .quick-details-button:hover, .moment-media-button:hover { background: var(--color-accent-soft); }
 .quick-custom-moment:focus-visible, .quick-details-button:focus-visible, .moment-media-button:focus-within { outline: 2px solid #8c701d; outline-offset: 3px; }
+
+/* Keep settings content within the dialog and let the form grow naturally. */
+.settings-panel-backdrop { padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); }
+.settings-panel { display: flex; flex-direction: column; max-height: min(720px, calc(100dvh - 40px), 100%); overflow: hidden; padding: 0; }
+.settings-panel-header { display: flex; align-items: flex-start; gap: 12px; flex: none; padding: 22px 20px 16px; border-bottom: 1px solid var(--color-border); }
+.settings-panel-header h2 { flex: 1; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.settings-panel-header .profile-dialog-close { position: static; flex: 0 0 36px; width: 36px; height: 36px; }
+.settings-panel-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 20px; }
+.settings-panel .settings-feedback-field { height: auto; min-height: 0; gap: 10px; padding: 14px; }
+.settings-feedback-field > span { font: 500 14px/21px 'Poppins', sans-serif; }
+.settings-panel .settings-feedback-field textarea { display: block; flex: none; min-height: 140px; max-height: 280px; resize: vertical; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); color: var(--color-text-primary); font: 400 16px/24px 'Roboto', sans-serif; }
+.settings-panel #feedback-privacy-note { margin-top: 12px; }
+.settings-panel-actions > button { flex: 1 1 120px; min-height: 44px; height: auto; white-space: normal; padding: 10px 12px; }
+.settings-panel-footer { flex: none; padding: 12px 20px 16px; border-top: 1px solid var(--color-border); background: var(--color-surface); }
+.settings-panel-footer .primary-button { width: 100%; }
