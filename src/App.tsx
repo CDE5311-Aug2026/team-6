@@ -246,6 +246,7 @@ type StoryDraft = { id: string; selectedMoments: string[]; note: string; title?:
 type AskAttachment = { url: string; name: string; kind: 'image' | 'audio'; type: string };
 type AskMessage = { role: 'user' | 'assistant'; text: string; attachment?: AskAttachment };
 type PetWorkspace = {
+  sunnyVaccinationSeeded?: boolean;
   groupName: string;
   contexts: OwnerContext[];
   observations: StoryObservation[];
@@ -2374,7 +2375,6 @@ function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, own
         <div className="profile-section-heading"><h2>Health &amp; care records</h2>{canAddLifeCare && <button className="profile-link" onClick={() => onLifeCare()}>Add record +</button>}</div>
         <div className="profile-card context-card">
           <button className="knowledge-row" onClick={() => onLifeCare('health')}><span className="knowledge-icon">＋</span><span><strong>Medical history &amp; care</strong><small>Vet visits, neutering, medication &amp; vaccines</small><small>{lifeEvents.filter(event => event.category === 'health').length} saved records</small></span><i>›</i></button>
-          {lifeEvents.some(event => event.category === 'life') && <button className="knowledge-row" onClick={() => onLifeCare('life')}><span className="knowledge-icon">≡</span><span><strong>Previous life &amp; routine notes</strong><small>{lifeEvents.filter(event => event.category === 'life').length} existing records</small></span><i>›</i></button>}
         </div>
       </section>
       </>}
@@ -2542,7 +2542,7 @@ function LifeCarePage({ petName, ownerName, primaryOwnerName, currentAccountId, 
     <header className="settings-header"><button className="back-button" aria-label="Back to pet profile" onClick={onBack}>←</button><h1>Health &amp; care records</h1></header>
     <div className="settings-eyebrow-row"><p className="settings-eyebrow">PET HEALTH & CARE</p>{canAdd && <button className="profile-link" onClick={() => { resetForm('health'); setFilter('health'); setRecordFilter('All'); setShowForm(true); }}>Add record +</button>}</div>
     <section className="settings-summary"><strong>A health history for {petName}</strong><p>Keep medical history, neutering status, medication and vaccinations together. Record daily activities in Moments.</p></section>
-    <div className="context-filter-tabs health-record-filters" aria-label="Filter health records">{['All', ...recordTypes].map(item => <button key={item} aria-pressed={filter === 'health' && recordFilter === item} className={filter === 'health' && recordFilter === item ? 'active' : ''} onClick={() => { setFilter('health'); setRecordFilter(item); setShowForm(false); }}>{item === 'Medical history / vet visit' ? 'Medical history' : item}</button>)}{events.some(event => event.category === 'life') && <button className={filter === 'life' ? 'active' : ''} onClick={() => { setFilter('life'); setRecordFilter('All'); setShowForm(false); }}>Previous life notes</button>}</div>
+    <div className="context-filter-tabs health-record-filters" aria-label="Filter health records">{['All', ...recordTypes].map(item => <button key={item} aria-pressed={filter === 'health' && recordFilter === item} className={filter === 'health' && recordFilter === item ? 'active' : ''} onClick={() => { setFilter('health'); setRecordFilter(item); setShowForm(false); }}>{item === 'Medical history / vet visit' ? 'Medical history' : item}</button>)}</div>
     {showForm && canAdd && <form className="life-event-form" onSubmit={saveEvent}><label><span>Record type</span><select value={type} onChange={event => { setType(event.target.value); setCategory('health'); setRecordDetails({}); }}>{!recordTypes.includes(type) && <option>{type}</option>}{recordTypes.map(item => <option key={item}>{item}</option>)}</select></label>
       {type === 'Neutering status' && <label><span>Neutering status</span><select value={recordDetails.status ?? ''} onChange={event => setRecordDetails({ ...recordDetails, status: event.target.value })}><option value="">Select status</option><option>Spayed</option><option>Neutered</option><option>Not spayed / neutered</option><option>Unknown</option></select></label>}
       {type === 'Medication' && <>{detailField('medication', 'Medication name', 'Name on the prescription') }<div className="life-event-form-grid">{detailField('dose', 'Prescribed dose (optional)', 'As prescribed')}{detailField('frequency', 'Frequency (optional)', 'As prescribed')}</div></>}
@@ -3239,7 +3239,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     return true;
   }
 
-  function persistSharedWorkspacePatch(patch: Partial<Pick<PetWorkspace, 'mediaSources' | 'patterns' | 'lifeEvents' | 'momentEngagement'>>): boolean {
+  function persistSharedWorkspacePatch(patch: Partial<Pick<PetWorkspace, 'mediaSources' | 'patterns' | 'lifeEvents' | 'momentEngagement' | 'sunnyVaccinationSeeded'>>): boolean {
     if (!activeAccount || !activePetRecord) return false;
     const captured = captureCurrentSpace(prototypeSession);
     const groupId = activePetRecord.sharedGroupId;
@@ -3362,6 +3362,15 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       if (saveObservationsToCurrentGroup(allObservations, undefined, nextVisibility) && nextVisibility) setIncludedStoryMoments(nextVisibility);
     }
   }, [activeAccount?.id, activePetRecord?.id, activePetRecord?.sharedGroupId, groupOwnerAccountId, includedStoryMoments, ownerName, storyObservations]);
+
+  useEffect(() => {
+    if (!activeAccount || !activePetRecord || !isSyntheticSunnyProfile(activePetRecord) || activePetRecord.workspace.sunnyVaccinationSeeded) return;
+    if (activePetRecord.sharedGroupId && groupOwnerAccountId !== activeAccount.id) return;
+    const seed: LifeCareEvent = {"id": "sunny-demo-vaccination-20261008-v1", "category": "health", "type": "Vaccination", "title": "Core combination vaccine booster (demo)", "startDate": "2026-10-08", "ongoing": false, "note": "Synthetic demonstration record for Sunny, not proof of vaccination. Example adult booster for canine distemper, adenovirus and parvovirus (DAP). Actual product, vaccination history and next due date must be confirmed from the veterinary record.", "useForAsk": true, "savedAt": "2026-10-08T03:00:00.000Z", "recordDetails": {"vaccine": "DAP — distemper, adenovirus, parvovirus (demo)", "nextDue": "Confirm from veterinary record", "clinic": "Demo veterinary clinic — fictional"}};
+    const exists = lifeCareEvents.some(record => record.id === seed.id);
+    if (!persistSharedWorkspacePatch({ lifeEvents: exists ? lifeCareEvents : [seed, ...lifeCareEvents], sunnyVaccinationSeeded: true })) return;
+    if (!exists) setLifeCareEvents([seed, ...lifeCareEvents]);
+  }, [activeAccount?.id, activePetRecord?.id, activePetRecord?.workspace.sunnyVaccinationSeeded, groupOwnerAccountId, lifeCareEvents]);
 
   function applyAccountSpace(session: PrototypeSession, accountId: string, petId: string, allowSessionOnly = false): string {
     const account = session.accounts.find((entry) => entry.id === accountId);

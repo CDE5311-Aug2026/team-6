@@ -888,6 +888,22 @@
     "patterns": [],
     "lifeEvents": [
       {
+        "id": "sunny-demo-vaccination-20261008-v1",
+        "category": "health",
+        "type": "Vaccination",
+        "title": "Core combination vaccine booster (demo)",
+        "startDate": "2026-10-08",
+        "ongoing": false,
+        "note": "Synthetic demonstration record for Sunny, not proof of vaccination. Example adult booster for canine distemper, adenovirus and parvovirus (DAP). Actual product, vaccination history and next due date must be confirmed from the veterinary record.",
+        "useForAsk": true,
+        "savedAt": "2026-10-08T03:00:00.000Z",
+        "recordDetails": {
+          "vaccine": "DAP — distemper, adenovirus, parvovirus (demo)",
+          "nextDue": "Confirm from veterinary record",
+          "clinic": "Demo veterinary clinic — fictional"
+        }
+      },
+      {
         "id": "sunny-rain-20261014",
         "category": "life",
         "type": "Routine change",
