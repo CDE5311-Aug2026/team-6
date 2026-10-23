@@ -132,6 +132,17 @@ export function takeOverDeclinedCareTask(task: CareTask, currentUserId: string):
   };
 }
 
+/** Let the assigned caregiver step back while retaining when they originally accepted. */
+export function releaseAcceptedCareTask(task: CareTask, currentUserId: string, declinedAt: string): CareTask {
+  if (task.status !== 'accepted' || task.assignedTo !== currentUserId) return task;
+  return {
+    ...task,
+    status: 'declined',
+    declinedBy: currentUserId,
+    declinedAt,
+  };
+}
+
 export function isObservationSkippedForToday(observation: Pick<SimulatedActivity, 'id'>, tasks: CareTask[]) {
   return tasks.some((task) => task.sourceObservationId === observation.id && task.status === 'skipped');
 }
