@@ -91,10 +91,16 @@ export function markCareTaskEventsRead(tasks: CareTask[], userId: string): CareT
   return changed ? next : tasks;
 }
 
+export function careTaskAttentionCount(tasks: CareTask[], userId: string, isPrimary: boolean): number {
+  return tasks.filter((task) => (task.status === 'requested' && task.assignedTo === userId) || (isPrimary && task.status === 'declined')).length;
+}
+
+export function careTaskUnreadCount(tasks: CareTask[], userId: string): number {
+  return tasks.flatMap((task) => task.events ?? []).filter((event) => event.targetId === userId && event.actorId !== userId && !(event.readBy ?? []).includes(userId)).length;
+}
+
 export function careTaskInboxCount(tasks: CareTask[], userId: string, isPrimary: boolean): number {
-  const needsAttention = tasks.filter((task) => (task.status === 'requested' && task.assignedTo === userId) || (isPrimary && task.status === 'declined')).length;
-  const unread = tasks.flatMap((task) => task.events ?? []).filter((event) => event.targetId === userId && event.actorId !== userId && !(event.readBy ?? []).includes(userId)).length;
-  return Math.max(needsAttention, unread);
+  return Math.max(careTaskAttentionCount(tasks, userId, isPrimary), careTaskUnreadCount(tasks, userId));
 }
 
 function completeWhenRecorded(task: CareTask, now: Date, recordedBy = 'simulation', recordedByName?: string): CareTask {

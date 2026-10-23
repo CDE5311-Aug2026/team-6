@@ -12,7 +12,7 @@ import { searchCareAccounts, type CareAccountSearchResult, type CloudCareGroup, 
 import { visibleStoryObservations } from './storyVisibility';
 import { buildRollingStorySimulation, isSyntheticSunnyProfile } from './storySimulation';
 import { mergeSharedStoryObservations } from './sharedStoryObservations';
-import { appendCareTaskEvent, careTaskInboxCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask, type CareTask, type CareTaskEvent, type CareTaskEventType } from './careTasks';
+import { appendCareTaskEvent, careTaskAttentionCount, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask, type CareTask, type CareTaskEvent, type CareTaskEventType } from './careTasks';
 import { useEffect, useRef, useState, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
 
 type View =
@@ -648,7 +648,8 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
   const datedTasks = careTasks.filter(task => !task.sourcePatternId && !task.sourceObservationId && isSameLocalDay(task.dueAt, selectedDate) && task.status !== 'declined');
   const dayCareTasks = [...routineTasks, ...datedTasks].sort((left, right) => left.dueAt.localeCompare(right.dueAt));
   const memberName = (id: string, fallback?: string) => id === 'simulation' ? 'Pawsona' : careMembers.find(member => member.id === id)?.name ?? fallback ?? 'Caregiver';
-  const pendingRequests = careTaskInboxCount(careTasks, currentUserId, isPrimary);
+  const requestAttentionCount = careTaskAttentionCount(careTasks, currentUserId, isPrimary);
+  const unreadRequestCount = careTaskUnreadCount(careTasks, currentUserId);
   const isToday = !isPattern && dayOffset === 0;
   const dayTitle = isToday ? 'TODAY' : dayOffset === -1 ? 'YESTERDAY' : new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(selectedDate).toUpperCase();
   const selectedDateLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(selectedDate);
@@ -891,7 +892,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
     </svg>
     </div>
     {isPattern ? <div className="daily-pattern-summary"><span>{timedPatterns.length ? `${timedPatterns.length} confirmed daily patterns · Usual time windows` : 'No confirmed activity times yet.'}</span><button type="button" className="profile-link" onClick={() => onPatterns()}>{timedPatterns.length ? 'View pattern evidence →' : 'Set up typical patterns →'}</button></div> : <section className="daily-rhythm-care" aria-label="Care tasks for selected day">
-      <div className="daily-rhythm-care-heading"><div><strong>{isToday ? 'Today’s care' : `Care · ${selectedDateLabel}`}</strong><small>{dayCareTasks.length ? `${dayCareTasks.filter(task => task.status === 'done').length} of ${dayCareTasks.length} done${dayCareTasks.some(task => task.status === 'skipped') ? ` · ${dayCareTasks.filter(task => task.status === 'skipped').length} not today` : ''}` : 'Based on today’s planned activities'}</small></div><button type="button" onClick={onOpenCareTasks}>{pendingRequests ? `Requests · ${pendingRequests}` : 'View all →'}</button></div>
+      <div className="daily-rhythm-care-heading"><div><strong>{isToday ? 'Today’s care' : `Care · ${selectedDateLabel}`}</strong><small>{dayCareTasks.length ? `${dayCareTasks.filter(task => task.status === 'done').length} of ${dayCareTasks.length} done${dayCareTasks.some(task => task.status === 'skipped') ? ` · ${dayCareTasks.filter(task => task.status === 'skipped').length} not today` : ''}` : 'Based on today’s planned activities'}</small></div><button type="button" onClick={onOpenCareTasks}>{unreadRequestCount > 0 && <span className="care-request-unread-dot" aria-label={`${unreadRequestCount} unread care ${unreadRequestCount === 1 ? 'notification' : 'notifications'}`} />}{requestAttentionCount ? `Requests · ${requestAttentionCount}` : unreadRequestCount ? 'Requests' : 'View all →'}</button></div>
       {dayCareTasks.length ? <div className="daily-rhythm-care-list">{dayCareTasks.slice(0, 2).map(task => {
         const canComplete = canAct && !task.autoCompleted && task.status !== 'requested' && task.status !== 'skipped' && (task.status === 'done' ? isPrimary || task.completedBy === currentUserId : !task.assignedTo || task.assignedTo === currentUserId);
         const time = task.sourcePatternId ? task.note.replace(/^Usual window /, '') : new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(task.dueAt));
@@ -1248,8 +1249,9 @@ function CareTasksPage({ tasks, patterns, observations, members, currentUserId, 
   const selectedDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset);
   const selectedDateLabel = dayOffset === 0 ? 'Today’s' : dayOffset === -1 ? 'Yesterday’s' : `${formatTimelineDate(selectedDate)}`;
   const incoming = tasks.filter(task => task.assignedTo === currentUserId && task.status === 'requested');
-  const inboxCount = careTaskInboxCount(tasks, currentUserId, isPrimary);
-  const [tab, setTab] = useState<'tasks' | 'requests'>(inboxCount ? 'requests' : 'tasks');
+  const attentionCount = careTaskAttentionCount(tasks, currentUserId, isPrimary);
+  const unreadCount = careTaskUnreadCount(tasks, currentUserId);
+  const [tab, setTab] = useState<'tasks' | 'requests'>(attentionCount || unreadCount ? 'requests' : 'tasks');
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
@@ -1336,7 +1338,7 @@ function CareTasksPage({ tasks, patterns, observations, members, currentUserId, 
   return <section className="care-tasks-page">
     <header className="detail-header"><div className="detail-title-row"><button className="back-button" aria-label="Back to Today" onClick={onBack}>←</button><h1>Care tasks</h1></div><p className="eyebrow">SHARED CARE · {petName.toUpperCase()}</p></header>
     <p className="care-tasks-intro">A clear plan for who’s doing what—and when.</p>
-    <div className="care-task-tabs" role="tablist" aria-label="Care tasks and requests"><button role="tab" aria-selected={tab === 'tasks'} onClick={() => setTab('tasks')}>{isPrimary ? 'Care plan' : 'My tasks'}</button><button role="tab" aria-selected={tab === 'requests'} onClick={() => setTab('requests')}>Requests{inboxCount > 0 && <span>{inboxCount}</span>}</button></div>
+    <div className="care-task-tabs" role="tablist" aria-label="Care tasks and requests"><button role="tab" aria-selected={tab === 'tasks'} onClick={() => setTab('tasks')}>{isPrimary ? 'Care plan' : 'My tasks'}</button><button role="tab" aria-selected={tab === 'requests'} onClick={() => setTab('requests')}>Requests{(unreadCount > 0 || attentionCount > 0) && <span className={unreadCount > 0 ? 'is-unread' : ''} aria-label={unreadCount > 0 ? `${unreadCount} unread` : `${attentionCount} needs attention`}>{unreadCount > 0 ? unreadCount : attentionCount}</span>}</button></div>
     {isPrimary && dayOffset === 0 && tab === 'tasks' && <button type="button" className="care-task-add" onClick={() => { setShowForm(value => !value); setTab('tasks'); }}>＋ Add one-off task or ask for help</button>}
     {showForm && isPrimary && dayOffset === 0 && <form className="care-task-form" onSubmit={submit}><h2>One-off task for {petName}</h2><label>What needs to be done?<input autoFocus maxLength={80} value={title} onChange={event => setTitle(event.target.value)} placeholder={`e.g. ${petName}’s lunch`} required /></label><label>When?<input type="datetime-local" value={dueAt} onChange={event => setDueAt(event.target.value)} required /></label><label>Assign to<select value={assignedTo} onChange={event => setAssignedTo(event.target.value)} required><option value="">Choose a caregiver</option>{members.filter(member => member.access !== 'viewer' && member.role !== 'Viewer').map(member => <option key={member.id} value={member.id}>{member.id === currentUserId ? `${member.name} (me)` : member.name}{member.role === 'Temporary caregiver' ? ' · Temporary caregiver' : ''}</option>)}</select></label><label>Instructions (optional)<textarea value={note} onChange={event => setNote(event.target.value)} maxLength={240} placeholder="Add any helpful details" /></label>{assignedTo !== currentUserId && <label className="care-request-toggle"><input type="checkbox" checked={needsAcceptance} onChange={event => setNeedsAcceptance(event.target.checked)} /><span><strong>Ask them to accept first</strong><small>They’ll receive a request and can accept or decline.</small></span></label>}<div className="care-task-form-actions"><button type="button" className="cancel-button" onClick={() => setShowForm(false)}>Cancel</button><button type="submit" className="primary-button" disabled={!title.trim() || !assignedTo}>{needsAcceptance && assignedTo !== currentUserId ? 'Send request' : 'Create task'}</button></div></form>}
     {tab === 'requests' ? <div className="care-request-inbox">

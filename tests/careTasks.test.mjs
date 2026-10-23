@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../src/careTasks.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
-const { appendCareTaskEvent, careTaskInboxCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
+const { appendCareTaskEvent, careTaskAttentionCount, careTaskInboxCount, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
 
 const activity = (id, hour, title) => ({
   id,
@@ -169,10 +169,33 @@ test('keeps an append-only request history and counts unread inbox events', () =
 
   assert.deepEqual(accepted.events.map((event) => event.type), ['requested', 'accepted']);
   assert.equal(careTaskInboxCount([accepted], 'owner', true), 1);
+  assert.equal(careTaskUnreadCount([accepted], 'owner'), 1);
+  assert.equal(careTaskAttentionCount([accepted], 'owner', true), 0);
 
   const read = markCareTaskEventsRead([accepted], 'owner');
   assert.equal(read[0].events[1].readBy.includes('owner'), true);
+  assert.equal(careTaskUnreadCount(read, 'owner'), 0);
   assert.equal(careTaskInboxCount(read, 'owner', true), 0);
+});
+
+test('keeps unresolved attention visible after its notification is read', () => {
+  const declined = appendCareTaskEvent({
+    id: 'simulation-care-dinner-alert',
+    title: 'Dinner record',
+    note: 'Dinner simulation',
+    dueAt: new Date(2026, 9, 23, 18, 50).toISOString(),
+    assignedTo: 'caregiver-cutee',
+    assignedBy: 'owner',
+    status: 'declined',
+    createdAt: new Date(2026, 9, 23, 12).toISOString(),
+    declinedBy: 'caregiver-cutee',
+  }, { type: 'released', actorId: 'caregiver-cutee', targetId: 'owner', createdAt: new Date(2026, 9, 23, 13).toISOString() });
+
+  const read = markCareTaskEventsRead([declined], 'owner');
+
+  assert.equal(careTaskUnreadCount(read, 'owner'), 0);
+  assert.equal(careTaskAttentionCount(read, 'owner', true), 1);
+  assert.equal(careTaskInboxCount(read, 'owner', true), 1);
 });
 
 test('falls back to confirmed Pattern tasks when a day has no simulation', () => {
