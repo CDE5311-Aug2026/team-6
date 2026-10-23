@@ -556,7 +556,7 @@ function DetailHeader({ title, eyebrow, onBack }: { title: string; eyebrow: stri
   );
 }
 
-function BottomNav({ active, onNavigate }: { active: View; onNavigate: (view: View) => void }) {
+function BottomNav({ active, onNavigate, unreadCareCount = 0 }: { active: View; onNavigate: (view: View) => void; unreadCareCount?: number }) {
   const items: { id: View; label: string; icon?: string }[] = [
     { id: 'today', label: 'Today', icon: 'nav-today.svg' },
     { id: 'story', label: 'Story', icon: 'nav-story.svg' },
@@ -572,9 +572,11 @@ function BottomNav({ active, onNavigate }: { active: View; onNavigate: (view: Vi
           className={`nav-item ${active === item.id ? 'active' : ''}`}
           onClick={() => onNavigate(item.id)}
           aria-current={active === item.id ? 'page' : undefined}
+          aria-label={item.id === 'today' && unreadCareCount > 0 ? `Today, ${unreadCareCount} unread care ${unreadCareCount === 1 ? 'notification' : 'notifications'}` : item.label}
         >
           <span className="nav-icon">
             {item.icon === 'paw' ? <svg className="paw-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="5.2" cy="9" rx="2.1" ry="2.8" /><ellipse cx="10" cy="5.7" rx="2" ry="2.7" /><ellipse cx="15.2" cy="5.8" rx="2" ry="2.7" /><ellipse cx="19" cy="9.8" rx="2" ry="2.7" /><path d="M12 10.2c-2.1 0-3.1 1.9-4.5 3.4-1.2 1.3-2.2 2.6-1.7 4.1.6 1.7 2.2 1.7 3.8 1.2.9-.3 1.6-.5 2.5-.5s1.7.2 2.6.5c1.5.5 3.1.5 3.7-1.2.5-1.5-.5-2.8-1.7-4.1-1.4-1.5-2.5-3.4-4.7-3.4Z" /></svg> : item.icon ? <img src={asset(item.icon)} alt="" /> : <span className="you-icon" />}
+            {item.id === 'today' && unreadCareCount > 0 && <span className="nav-unread-dot" aria-hidden="true" />}
           </span>
           <span>{item.label}</span>
         </button>
@@ -4621,7 +4623,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         {contextSavedNotice && <div className="context-saved-toast" role="status"><span aria-hidden="true">✓</span> Context saved</div>}
         {storyDraftSavedNotice && <div className="context-saved-toast" role="status"><span aria-hidden="true">✓</span> Saved to drafts</div>}
         {profileSaveNotice && <div className="profile-save-toast" role="status">{profileSaveNotice}</div>}
-        {mainView && <BottomNav active={activeNav} onNavigate={navigate} />}
+        {mainView && <BottomNav active={activeNav} onNavigate={navigate} unreadCareCount={careTaskUnreadCount(careTasks, activeAccount.id)} />}
       </div>
     </div>
   );
