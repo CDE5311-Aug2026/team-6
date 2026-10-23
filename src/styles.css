@@ -1503,14 +1503,14 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-pattern-summary .profile-link { align-self: flex-start; color: #73591d; }
 
 /* Today's care replaces the passive latest-activity banner in the rhythm card. */
-.daily-rhythm-care { margin-top: 4px; padding: 12px 14px 10px; border: 1px solid #f0df91; border-radius: 22px; background: #fffcf5; color: #73591d; }
+.daily-rhythm-care { margin-top: 4px; padding: 12px 14px 10px; border: 1px solid #f0df91; border-radius: 22px; background: linear-gradient(180deg, #fffaf2 0%, #fff7e6 68%, #f8f0d9 100%); color: #73591d; }
 .daily-rhythm-care-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .daily-rhythm-care-heading > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
 .daily-rhythm-care-heading strong { color: #28452e; font: 600 14px/20px 'Poppins', sans-serif; }
 .daily-rhythm-care-heading small { color: #78644a; font: 400 10px/14px 'Roboto', sans-serif; }
 .daily-rhythm-care-heading > button, .daily-rhythm-care-footer button { flex: none; padding: 4px 0; border: 0; background: transparent; color: #916400; font: 600 10px/16px 'Poppins', sans-serif; }
 .daily-rhythm-care-heading > button { display: inline-flex; align-items: center; gap: 5px; }
-.care-request-unread-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: #c8463d; box-shadow: 0 0 0 2px #fffcf5; }
+.care-request-unread-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: #c8463d; box-shadow: 0 0 0 2px #fffaf2; }
 .daily-rhythm-care-list { display: flex; flex-direction: column; margin-top: 7px; }
 .daily-rhythm-care-row { min-height: 42px; display: flex; align-items: center; gap: 9px; padding: 5px 0; border-top: 1px solid #e9d991; }
 .daily-rhythm-care-check { width: 20px; height: 20px; display: grid; flex: 0 0 20px; place-items: center; padding: 0; border: 1.5px solid #b99b45; border-radius: 50%; background: #fff9df; color: #fff; font: 700 12px/1 'Roboto', sans-serif; }

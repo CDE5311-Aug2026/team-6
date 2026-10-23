@@ -1267,7 +1267,6 @@ function CareTasksPage({ tasks, patterns, observations, members, currentUserId, 
   const [helpNote, setHelpNote] = useState('');
   const [releaseTaskId, setReleaseTaskId] = useState<string | null>(null);
   const selectedRoutine = careTasksForDate(patterns, observations, tasks, selectedDate, now, petName);
-  const usesSimulation = selectedRoutine.some(task => !!task.sourceObservationId);
   const visibleTasks = tasks.filter(task => !task.sourcePatternId && !task.sourceObservationId && isSameLocalDay(task.dueAt, selectedDate) && (isPrimary || task.assignedTo === currentUserId)).sort((a, b) => a.dueAt.localeCompare(b.dueAt));
   const activeRoutineTasks = selectedRoutine.filter(task => task.status !== 'done' && task.status !== 'skipped');
   const completedRoutineTasks = selectedRoutine.filter(task => task.status === 'done');
@@ -1360,7 +1359,7 @@ function CareTasksPage({ tasks, patterns, observations, members, currentUserId, 
       })}</div> : <div className="care-tasks-empty compact"><span>✓</span><strong>Nothing needs your attention</strong><p>New requests and tasks that need reassignment will appear here.</p></div>}</section>
       <section className="care-request-section" aria-labelledby="care-request-history"><div className="care-request-section-heading"><h2 id="care-request-history">History</h2><span>{eventHistory.length}</span></div>{eventHistory.length ? <div className="care-request-history">{eventHistory.map(({ task, event }) => <article className={`care-request-event ${event.targetId === currentUserId && !(event.readBy ?? []).includes(currentUserId) ? 'is-unread' : ''}`} key={event.id}><span className={`care-request-event-dot ${event.type}`} aria-hidden="true"/><span><strong>{eventLabel(event.type)} · {task.title}</strong><small>{eventDetail(event)}</small></span><time>{new Date(event.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time></article>)}</div> : <div className="care-tasks-empty compact"><span>✉</span><strong>No request history yet</strong><p>Requests and responsibility changes will be recorded here.</p></div>}</section>
     </div> : <div className="care-task-list">
-      {selectedRoutine.length > 0 && <section className="care-routine-section"><div className="care-routine-heading"><div><h2>{selectedDateLabel} activities</h2><p>{usesSimulation ? `Based on ${dayOffset === 0 ? 'today’s' : dayOffset === -1 ? 'yesterday’s' : 'this day’s'} activity schedule` : 'Pre-filled from confirmed Pattern time windows'}</p></div></div>{activeRoutineTasks.map(task => {
+      {selectedRoutine.length > 0 && <section className="care-routine-section"><div className="care-routine-heading"><div><h2>{selectedDateLabel} activities</h2></div></div>{activeRoutineTasks.map(task => {
         const canComplete = canEditSelectedDay && !task.autoCompleted && (task.status === 'done' ? isPrimary || task.completedBy === currentUserId : !task.assignedTo || task.assignedTo === currentUserId);
         const canAskForHelp = isPrimary && canEditSelectedDay && !!task.sourceObservationId && helperCandidates.length > 0 && ['open', 'declined'].includes(task.status);
         const composingRequest = helpTaskId === task.id;
