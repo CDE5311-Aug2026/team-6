@@ -17,7 +17,8 @@ const activity = (id, hour, title) => ({
 });
 
 test('builds the daily care checklist from every simulated activity', () => {
-  const observations = [activity('breakfast', 8, 'Breakfast record'), activity('rest', 13, 'Afternoon rest'), activity('walk', 18, 'Evening walk')];
+  const tomorrow = { ...activity('tomorrow-breakfast', 8, 'Tomorrow breakfast'), savedAt: new Date(2026, 9, 24, 8, 0).toISOString(), simulationKey: 'sunny:2026-10-24:breakfast' };
+  const observations = [activity('breakfast', 8, 'Breakfast record'), activity('rest', 13, 'Afternoon rest'), activity('walk', 18, 'Evening walk'), tomorrow];
   const tasks = careTasksForDate([], observations, [], new Date(2026, 9, 23, 12), new Date(2026, 9, 23, 12), 'Sunny');
 
   assert.deepEqual(tasks.map((task) => task.title), ['Breakfast record', 'Afternoon rest', 'Evening walk']);
