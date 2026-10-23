@@ -103,6 +103,21 @@ export function careTaskInboxCount(tasks: CareTask[], userId: string, isPrimary:
   return Math.max(careTaskAttentionCount(tasks, userId, isPrimary), careTaskUnreadCount(tasks, userId));
 }
 
+/** Select the compact Today summary: urgent work first, otherwise recent context plus what is next. */
+export function careTaskSummaryTasks(tasks: CareTask[], now: Date): CareTask[] {
+  const visible = tasks.filter((task) => task.status !== 'skipped');
+  const completed = visible.filter((task) => task.status === 'done').sort((left, right) => (right.completedAt ?? right.dueAt).localeCompare(left.completedAt ?? left.dueAt));
+  const unfinished = visible.filter((task) => task.status !== 'done').sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+  const urgent = unfinished.filter((task) => task.status === 'declined' || new Date(task.dueAt).getTime() < now.getTime());
+  if (urgent.length) {
+    const second = urgent[1] ?? unfinished.find((task) => task.id !== urgent[0].id) ?? completed[0];
+    return second ? [urgent[0], second] : [urgent[0]];
+  }
+  if (completed.length && unfinished.length) return [completed[0], unfinished[0]];
+  if (unfinished.length) return unfinished.slice(0, 2);
+  return completed.slice(0, 1);
+}
+
 function completeWhenRecorded(task: CareTask, now: Date, recordedBy = 'simulation', recordedByName?: string): CareTask {
   if (task.status === 'skipped' || task.status === 'done' || new Date(task.dueAt).getTime() > now.getTime()) return task;
   const responsibleId = task.assignedTo && (task.status === 'accepted' || task.status === 'open') ? task.assignedTo : recordedBy;

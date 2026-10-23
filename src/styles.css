@@ -1587,6 +1587,14 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .care-request-event small { color: var(--color-text-muted); font: 400 9px/14px 'Roboto', sans-serif; }
 .care-request-event time { color: var(--color-text-muted); font: 400 9px/14px 'Roboto', sans-serif; white-space: nowrap; }
 .care-tasks-empty.compact { padding: 22px 14px; }
+.care-task-archive { overflow: hidden; border: 1px solid var(--color-border); border-radius: 14px; background: #fbfaf6; }
+.care-task-archive > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 42px; padding: 0 13px; color: var(--color-text-secondary); font: 600 11px/16px 'Poppins', sans-serif; cursor: pointer; list-style: none; }
+.care-task-archive > summary::-webkit-details-marker { display: none; }
+.care-task-archive > summary::after { content: '⌄'; margin-left: auto; color: var(--color-text-muted); font-size: 16px; transition: transform 160ms ease; }
+.care-task-archive[open] > summary::after { transform: rotate(180deg); }
+.care-task-archive > summary em { display: grid; min-width: 20px; height: 20px; place-items: center; border-radius: 10px; background: #ece9df; color: var(--color-text-secondary); font-style: normal; font-size: 9px; }
+.care-task-archive-list { display: flex; flex-direction: column; gap: 8px; padding: 0 8px 8px; }
+.care-task-archive-list .care-task-card { padding: 11px; }
 .care-task-complete { min-height: 34px; margin-top: 10px; padding: 0 12px; border: 1px solid #c8e0d2; border-radius: 999px; background: #eef8f0; color: #367357; font: 600 10px/15px 'Poppins', sans-serif; }
 .care-task-card-actions .care-task-complete { margin-top: 0; }
 .care-task-ask { min-height: 34px; padding: 0 12px; border: 1px solid #e4c85d; border-radius: 999px; background: #fff8d8; color: #775a00; font: 600 10px/15px 'Poppins', sans-serif; }

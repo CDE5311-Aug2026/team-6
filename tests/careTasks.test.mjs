@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../src/careTasks.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
-const { appendCareTaskEvent, careTaskAttentionCount, careTaskInboxCount, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
+const { appendCareTaskEvent, careTaskAttentionCount, careTaskInboxCount, careTaskSummaryTasks, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
 
 const activity = (id, hour, title) => ({
   id,
@@ -196,6 +196,33 @@ test('keeps unresolved attention visible after its notification is read', () => 
   assert.equal(careTaskUnreadCount(read, 'owner'), 0);
   assert.equal(careTaskAttentionCount(read, 'owner', true), 1);
   assert.equal(careTaskInboxCount(read, 'owner', true), 1);
+});
+
+test('summarizes Today with the latest completed and next unfinished activity', () => {
+  const tasks = [
+    { ...activity('breakfast-summary', 8, 'Breakfast'), status: 'done' },
+    { ...activity('rest-summary', 13, 'Afternoon rest'), status: 'done' },
+    { ...activity('walk-summary', 18, 'Evening walk'), status: 'open' },
+    { ...activity('dinner-summary', 19, 'Dinner'), status: 'open' },
+  ].map((entry) => ({ ...entry, dueAt: entry.savedAt, assignedTo: '', assignedBy: '', createdAt: entry.savedAt }));
+
+  const summary = careTaskSummaryTasks(tasks, new Date(2026, 9, 23, 14));
+
+  assert.deepEqual(summary.map((task) => task.title), ['Afternoon rest', 'Evening walk']);
+});
+
+test('prioritizes overdue or declined work and excludes not-today activities from Today summary', () => {
+  const tasks = [
+    { ...activity('skipped-summary', 12, 'Skipped lunch'), status: 'skipped' },
+    { ...activity('overdue-summary', 13, 'Overdue rest'), status: 'open' },
+    { ...activity('declined-summary', 18, 'Declined walk'), status: 'declined' },
+    { ...activity('upcoming-summary', 19, 'Dinner'), status: 'open' },
+  ].map((entry) => ({ ...entry, dueAt: entry.savedAt, assignedTo: '', assignedBy: '', createdAt: entry.savedAt }));
+
+  const summary = careTaskSummaryTasks(tasks, new Date(2026, 9, 23, 14));
+
+  assert.deepEqual(summary.map((task) => task.title), ['Overdue rest', 'Declined walk']);
+  assert.equal(summary.some((task) => task.status === 'skipped'), false);
 });
 
 test('falls back to confirmed Pattern tasks when a day has no simulation', () => {
