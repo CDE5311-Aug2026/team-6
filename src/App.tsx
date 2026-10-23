@@ -12,7 +12,8 @@ import { searchCareAccounts, type CareAccountSearchResult, type CloudCareGroup, 
 import { visibleStoryObservations } from './storyVisibility';
 import { buildRollingStorySimulation, isSyntheticSunnyProfile } from './storySimulation';
 import { mergeSharedStoryObservations } from './sharedStoryObservations';
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
+import { careTasksForDate, isObservationSkippedForToday, type CareTask } from './careTasks';
+import { useEffect, useRef, useState, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
 
 type View =
   | 'today'
@@ -25,6 +26,7 @@ type View =
   | 'profile'
   | 'memberDetails'
   | 'careMembers'
+  | 'careTasks'
   | 'patternHistory'
   | 'careEvent'
   | 'connectedMedia'
@@ -256,6 +258,7 @@ type PetWorkspace = {
   askMessages: AskMessage[];
   askOwnerAccountId?: string;
   careMembers: CareMember[];
+  careTasks: CareTask[];
   careEvent: CareEvent | null;
   mediaSources: MediaSource[];
   patterns: TypicalPattern[];
@@ -618,14 +621,10 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
 }
 
 
-function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, patterns, onPatterns, dayOffset, onDayOffsetChange }: { petName: string; petAvatar: string; moments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
+function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpenActivitySummary, patterns, careTasks, careMembers, currentUserId, canAct, isPrimary, onToggleCareTask, onSkipCareTask, onOpenCareTasks, onPatterns, dayOffset, onDayOffsetChange }: { petName: string; petAvatar: string; moments: StoryObservation[]; scheduledMoments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; patterns: TypicalPattern[]; careTasks: CareTask[]; careMembers: CareMember[]; currentUserId: string; canAct: boolean; isPrimary: boolean; onToggleCareTask: (task: CareTask) => void; onSkipCareTask: (task: CareTask) => void; onOpenCareTasks: () => void; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
   const [view, setView] = useState<'today' | 'pattern'>('today');
   const [revealedActivityId, setRevealedActivityId] = useState<string | null>(null);
   useEffect(() => setRevealedActivityId(null), [view, dayOffset]);
-  const latestLabelViewportRef = useRef<HTMLSpanElement>(null);
-  const latestLabelTextRef = useRef<HTMLElement>(null);
-  const [latestLabelOverflow, setLatestLabelOverflow] = useState(false);
-  const [latestLabelDistance, setLatestLabelDistance] = useState(0);
   const dragStart = useRef<number | null>(null);
   const navStart = useRef<'previous' | 'newer' | null>(null);
   const pressedMomentId = useRef<string | null>(null);
@@ -645,27 +644,11 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
     if (isPattern) onPatterns(moment.id); else onOpenActivitySummary(moment);
   };
   const displayTime = (moment: StoryObservation, date: Date) => isPattern ? `${clockMinute(patternById.get(moment.id)!.startMinute!)}–${clockMinute(patternById.get(moment.id)!.endMinute!)}` : timeLabel(date);
-  const latestMoment = [...moments].sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime())[0];
-  useEffect(() => {
-    const viewport = latestLabelViewportRef.current;
-    const label = latestLabelTextRef.current;
-    if (!viewport || !label || !latestMoment) {
-      setLatestLabelOverflow(false);
-      return;
-    }
-    const measure = () => {
-      const distance = Math.ceil(label.scrollWidth + 28);
-      setLatestLabelDistance(current => current === distance ? current : distance);
-      const overflows = label.scrollWidth > viewport.clientWidth + 1;
-      setLatestLabelOverflow(current => current === overflows ? current : overflows);
-    };
-    const observer = new ResizeObserver(measure);
-    observer.observe(viewport);
-    observer.observe(label);
-    measure();
-    document.fonts?.ready.then(measure);
-    return () => observer.disconnect();
-  }, [latestMoment?.id, latestMoment?.title, displayName, view]);
+  const routineTasks = careTasksForDate(patterns, scheduledMoments, careTasks, selectedDate, now, displayName);
+  const datedTasks = careTasks.filter(task => !task.sourcePatternId && !task.sourceObservationId && isSameLocalDay(task.dueAt, selectedDate) && task.status !== 'declined');
+  const dayCareTasks = [...routineTasks, ...datedTasks].sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+  const memberName = (id: string) => id === 'simulation' ? 'Pawsona' : careMembers.find(member => member.id === id)?.name ?? 'Caregiver';
+  const pendingRequests = careTasks.filter(task => task.assignedTo === currentUserId && task.status === 'requested').length;
   const isToday = !isPattern && dayOffset === 0;
   const dayTitle = isToday ? 'TODAY' : dayOffset === -1 ? 'YESTERDAY' : new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(selectedDate).toUpperCase();
   const selectedDateLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(selectedDate);
@@ -907,20 +890,16 @@ function DailyRhythmCard({ petName, petAvatar, moments, onOpenActivitySummary, p
         </g>
     </svg>
     </div>
-    {isPattern ? <div className="daily-pattern-summary"><span>{timedPatterns.length ? `${timedPatterns.length} confirmed daily patterns · Usual time windows` : 'No confirmed activity times yet.'}</span><button type="button" className="profile-link" onClick={() => onPatterns()}>{timedPatterns.length ? 'View pattern evidence →' : 'Set up typical patterns →'}</button></div> : <button type="button" className="daily-rhythm-latest" aria-live="polite" aria-label={latestMoment ? `Open summary for latest activity: ${latestMoment.title}` : 'No recorded activities'} disabled={!latestMoment} onClick={() => { if (latestMoment) onOpenActivitySummary(latestMoment); }}>
-      <span className="daily-rhythm-latest-icon" aria-hidden="true">{latestMoment ? activityGlyph(latestMoment) : '✦'}</span>
-      <div className="daily-rhythm-latest-copy">
-        {latestMoment ? <>
-          <span className="daily-rhythm-latest-prefix">Latest activity</span>
-          <span className={`daily-rhythm-latest-title-viewport ${latestLabelOverflow ? 'is-overflowing' : ''}`} ref={latestLabelViewportRef} title={latestMoment.title}>
-            <span className="daily-rhythm-latest-title-track" style={{ '--marquee-distance': `-${latestLabelDistance}px`, '--marquee-duration': `${Math.max(8, latestLabelDistance / 24 + 2)}s` } as CSSProperties}>
-              <strong ref={latestLabelTextRef}>{latestMoment.title}</strong>
-              {latestLabelOverflow && <strong aria-hidden="true">{latestMoment.title}</strong>}
-            </span>
-          </span>
-        </> : <span>No recorded moments yet</span>}
-      </div>
-    </button>}
+    {isPattern ? <div className="daily-pattern-summary"><span>{timedPatterns.length ? `${timedPatterns.length} confirmed daily patterns · Usual time windows` : 'No confirmed activity times yet.'}</span><button type="button" className="profile-link" onClick={() => onPatterns()}>{timedPatterns.length ? 'View pattern evidence →' : 'Set up typical patterns →'}</button></div> : <section className="daily-rhythm-care" aria-label="Care tasks for selected day">
+      <div className="daily-rhythm-care-heading"><div><strong>{isToday ? 'Today’s care' : `Care · ${selectedDateLabel}`}</strong><small>{dayCareTasks.length ? `${dayCareTasks.filter(task => task.status === 'done').length} of ${dayCareTasks.length} done${dayCareTasks.some(task => task.status === 'skipped') ? ` · ${dayCareTasks.filter(task => task.status === 'skipped').length} not today` : ''}` : 'Based on today’s planned activities'}</small></div><button type="button" onClick={onOpenCareTasks}>{pendingRequests ? `Requests · ${pendingRequests}` : 'View all →'}</button></div>
+      {dayCareTasks.length ? <div className="daily-rhythm-care-list">{dayCareTasks.slice(0, 2).map(task => {
+        const canComplete = canAct && !task.autoCompleted && task.status !== 'requested' && task.status !== 'skipped' && (task.status === 'done' ? isPrimary || task.completedBy === currentUserId : !task.assignedTo || task.assignedTo === currentUserId);
+        const time = task.sourcePatternId ? task.note.replace(/^Usual window /, '') : new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(task.dueAt));
+        const detail = task.status === 'skipped' ? 'Not today · hidden from Story' : task.autoCompleted ? 'Activity recorded · completed automatically' : task.status === 'done' ? `Completed by ${memberName(task.completedBy ?? '')}` : task.status === 'requested' ? `Waiting for ${memberName(task.assignedTo)}` : task.assignedTo ? `Assigned to ${memberName(task.assignedTo)}` : task.sourceObservationId ? 'Planned simulated activity' : 'Shared routine';
+        return <div className={`daily-rhythm-care-row ${task.status === 'done' ? 'is-done' : ''} ${task.status === 'skipped' ? 'is-skipped' : ''}`} key={task.id}><button type="button" className={`daily-rhythm-care-check ${task.status === 'done' ? 'is-done' : ''} ${task.status === 'skipped' ? 'is-skipped' : ''}`} aria-label={task.status === 'done' ? `${task.title} completed` : task.status === 'skipped' ? `${task.title} is not planned today` : `Mark ${task.title} complete`} disabled={!canComplete} onClick={() => onToggleCareTask(task)}>{task.status === 'done' ? '✓' : task.status === 'skipped' ? '—' : ''}</button><span className="daily-rhythm-care-copy"><strong>{task.title}</strong><small>{time} · {detail}</small></span>{canAct && task.sourceObservationId && (task.status === 'open' || task.status === 'skipped') && <button type="button" className="daily-rhythm-care-skip" onClick={() => onSkipCareTask(task)}>{task.status === 'skipped' ? 'Add back' : 'Not today'}</button>}</div>;
+      })}</div> : <p className="daily-rhythm-care-empty">No planned activities for this day.</p>}
+      <div className="daily-rhythm-care-footer">{!dayCareTasks.length && <button type="button" onClick={() => setView('pattern')}>Review Pattern →</button>}{dayCareTasks.length > 2 && <span>+{dayCareTasks.length - 2} more</span>}<button type="button" onClick={onOpenCareTasks}>{pendingRequests ? 'Review requests →' : 'Care plan →'}</button></div>
+    </section>}
     </>
   </section>;
 }
@@ -1214,10 +1193,10 @@ function ActivityInsightsPage({ records, petName, onBack, onActivitySummary }: {
   </section>;
 }
 
-function TodayPage({ onStory, onMoment, onPetsNavigate, onAddPet, onActivitySummary, onOpenInsights, petName, petAvatar, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, dayOffset, onDayOffsetChange }: { onStory: () => void; onMoment: (momentId: string) => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; petName: string; petAvatar: string; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
+function TodayPage({ onStory, onMoment, onPetsNavigate, onAddPet, onActivitySummary, onOpenInsights, onCareTasks, onToggleCareTask, onSkipCareTask, careTasks, careMembers, currentUserId, canAct, isPrimary, petName, petAvatar, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, dayOffset, onDayOffsetChange }: { onStory: () => void; onMoment: (momentId: string) => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; onCareTasks: () => void; onToggleCareTask: (task: CareTask) => void; onSkipCareTask: (task: CareTask) => void; careTasks: CareTask[]; careMembers: CareMember[]; currentUserId: string; canAct: boolean; isPrimary: boolean; petName: string; petAvatar: string; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
   const now = useCurrentTime();
   const displayName = petName.replace(/\s*[（(]test[^）)]*[）)]$/i, '');
-  const visibleRecords = visibleStoryObservations(observations, includedMoments)
+  const visibleRecords = visibleStoryObservations(observations.filter(record => !isObservationSkippedForToday(record, careTasks)), includedMoments)
     .filter(record => new Date(record.savedAt).getTime() <= now.getTime())
     .sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime());
   const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
@@ -1229,7 +1208,7 @@ function TodayPage({ onStory, onMoment, onPetsNavigate, onAddPet, onActivitySumm
     <>
       <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       {!hasDemoMoments && !visibleRecords.length ? noPetYet ? <section className="today-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section> : <>
-      <DailyRhythmCard petName={petName} petAvatar={petAvatar} moments={visibleRecords} onOpenActivitySummary={onActivitySummary} patterns={patterns} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
+      <DailyRhythmCard petName={petName} petAvatar={petAvatar} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} patterns={patterns} careTasks={careTasks} careMembers={careMembers} currentUserId={currentUserId} canAct={canAct} isPrimary={isPrimary} onToggleCareTask={onToggleCareTask} onSkipCareTask={onSkipCareTask} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
       <section className="today-section">
         <h2>Moments you might love</h2>
         <MomentCarousel>
@@ -1263,6 +1242,71 @@ function TodayPage({ onStory, onMoment, onPetsNavigate, onAddPet, onActivitySumm
 }
 
 type StoryTimelineItem = { id: string; time: string; title: string; note: string; image: string; dateKey: string; timestamp: number; mediaType?: string; contexts?: { author: string; text: string }[] };
+
+function CareTasksPage({ tasks, patterns, observations, members, currentUserId, currentUserName, petName, isPrimary, canAct, onBack, onPatterns, onToggleTask, onSkipTask, onSave }: { tasks: CareTask[]; patterns: TypicalPattern[]; observations: StoryObservation[]; members: CareMember[]; currentUserId: string; currentUserName: string; petName: string; isPrimary: boolean; canAct: boolean; onBack: () => void; onPatterns: () => void; onToggleTask: (task: CareTask) => void; onSkipTask: (task: CareTask) => void; onSave: (tasks: CareTask[]) => boolean }) {
+  const now = useCurrentTime();
+  const incoming = tasks.filter(task => task.assignedTo === currentUserId && task.status === 'requested');
+  const [tab, setTab] = useState<'tasks' | 'requests'>(incoming.length ? 'requests' : 'tasks');
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState('');
+  const [note, setNote] = useState('');
+  const [dueAt, setDueAt] = useState(() => { const date = new Date(Date.now() + 60 * 60 * 1000); date.setMinutes(Math.ceil(date.getMinutes() / 5) * 5, 0, 0); return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16); });
+  const [assignedTo, setAssignedTo] = useState('');
+  const [needsAcceptance, setNeedsAcceptance] = useState(false);
+  const [helpTaskId, setHelpTaskId] = useState<string | null>(null);
+  const [helpAssignee, setHelpAssignee] = useState('');
+  const [helpNote, setHelpNote] = useState('');
+  const todayRoutine = careTasksForDate(patterns, observations, tasks, now, now, petName);
+  const usesSimulation = todayRoutine.some(task => !!task.sourceObservationId);
+  const visibleTasks = tasks.filter(task => !task.sourcePatternId && !task.sourceObservationId && (isPrimary || task.assignedTo === currentUserId)).sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+  const helperCandidates = members.filter(member => member.id !== currentUserId && member.access !== 'viewer' && member.role !== 'Viewer');
+  const people = (id: string) => id === 'simulation' ? 'Pawsona' : members.find(member => member.id === id)?.name ?? (id === currentUserId ? currentUserName : 'Caregiver');
+  const updateTask = (id: string, patch: Partial<CareTask>) => onSave(tasks.map(task => task.id === id ? { ...task, ...patch } : task));
+  const saveGeneratedTask = (task: CareTask, patch: Partial<CareTask>) => {
+    const nextTask = { ...task, ...patch };
+    return onSave(tasks.some(entry => entry.id === task.id) ? tasks.map(entry => entry.id === task.id ? nextTask : entry) : [nextTask, ...tasks]);
+  };
+  function startHelpRequest(task: CareTask) {
+    setHelpTaskId(task.id);
+    setHelpAssignee(task.status === 'declined' ? '' : task.assignedTo);
+    setHelpNote(task.requestNote ?? '');
+  }
+  function sendHelpRequest(event: React.FormEvent, task: CareTask) {
+    event.preventDefault();
+    if (!helpAssignee) return;
+    if (saveGeneratedTask(task, { assignedTo: helpAssignee, assignedBy: currentUserId, status: 'requested', requestNote: helpNote.trim().slice(0, 240), acceptedAt: undefined })) {
+      setHelpTaskId(null);
+      setHelpAssignee('');
+      setHelpNote('');
+    }
+  }
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!title.trim() || !dueAt || !assignedTo) return;
+    const task: CareTask = { id: `care-task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, title: title.trim().slice(0, 80), note: note.trim().slice(0, 240), dueAt: new Date(dueAt).toISOString(), assignedTo, assignedBy: currentUserId, status: needsAcceptance && assignedTo !== currentUserId ? 'requested' : 'open', createdAt: new Date().toISOString() };
+    if (onSave([task, ...tasks])) { setTitle(''); setNote(''); setShowForm(false); setNeedsAcceptance(false); }
+  }
+  return <section className="care-tasks-page">
+    <header className="detail-header"><div className="detail-title-row"><button className="back-button" aria-label="Back to Today" onClick={onBack}>←</button><h1>Care tasks</h1></div><p className="eyebrow">SHARED CARE · {petName.toUpperCase()}</p></header>
+    <p className="care-tasks-intro">A clear plan for who’s doing what—and when.</p>
+    <div className="care-task-tabs" role="tablist" aria-label="Care tasks and requests"><button role="tab" aria-selected={tab === 'tasks'} onClick={() => setTab('tasks')}>{isPrimary ? 'Care plan' : 'My tasks'}</button><button role="tab" aria-selected={tab === 'requests'} onClick={() => setTab('requests')}>Requests{incoming.length > 0 && <span>{incoming.length}</span>}</button></div>
+    {isPrimary && tab === 'tasks' && <button type="button" className="care-task-add" onClick={() => { setShowForm(value => !value); setTab('tasks'); }}>＋ Add one-off task or ask for help</button>}
+    {showForm && isPrimary && <form className="care-task-form" onSubmit={submit}><h2>One-off task for {petName}</h2><label>What needs to be done?<input autoFocus maxLength={80} value={title} onChange={event => setTitle(event.target.value)} placeholder={`e.g. ${petName}’s lunch`} required /></label><label>When?<input type="datetime-local" value={dueAt} onChange={event => setDueAt(event.target.value)} required /></label><label>Assign to<select value={assignedTo} onChange={event => setAssignedTo(event.target.value)} required><option value="">Choose a caregiver</option>{members.filter(member => member.access !== 'viewer' && member.role !== 'Viewer').map(member => <option key={member.id} value={member.id}>{member.id === currentUserId ? `${member.name} (me)` : member.name}{member.role === 'Temporary caregiver' ? ' · Temporary caregiver' : ''}</option>)}</select></label><label>Instructions (optional)<textarea value={note} onChange={event => setNote(event.target.value)} maxLength={240} placeholder="Add any helpful details" /></label>{assignedTo !== currentUserId && <label className="care-request-toggle"><input type="checkbox" checked={needsAcceptance} onChange={event => setNeedsAcceptance(event.target.checked)} /><span><strong>Ask them to accept first</strong><small>They’ll receive a request and can accept or decline.</small></span></label>}<div className="care-task-form-actions"><button type="button" className="cancel-button" onClick={() => setShowForm(false)}>Cancel</button><button type="submit" className="primary-button" disabled={!title.trim() || !assignedTo}>{needsAcceptance && assignedTo !== currentUserId ? 'Send request' : 'Create task'}</button></div></form>}
+    {tab === 'requests' ? <div className="care-task-list">{incoming.length ? incoming.map(task => <article className="care-task-card" key={task.id}><div className="care-task-card-top"><span className="care-task-status request">Needs your response</span><time>{new Date(task.dueAt).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</time></div><h2>{task.title}</h2>{(task.requestNote || task.note) && <p>{task.requestNote || task.note}</p>}<small>Asked by {people(task.assignedBy)}</small>{canAct && <div className="care-task-card-actions"><button className="cancel-button" onClick={() => updateTask(task.id, { status: 'declined' })}>Can’t do it</button><button className="primary-button" onClick={() => updateTask(task.id, { status: 'accepted', acceptedAt: new Date().toISOString() })}>Accept</button></div>}</article>) : <div className="care-tasks-empty"><span>✉</span><strong>No new care requests</strong><p>Requests from your care group will appear here.</p></div>}</div> : <div className="care-task-list">
+      {todayRoutine.length > 0 && <section className="care-routine-section"><div className="care-routine-heading"><div><h2>Today’s activities</h2><p>{usesSimulation ? 'Generated from today’s simulated activity schedule' : 'Pre-filled from confirmed Pattern time windows'}</p></div></div>{todayRoutine.map(task => {
+        const canComplete = canAct && !task.autoCompleted && task.status !== 'skipped' && (task.status === 'done' ? isPrimary || task.completedBy === currentUserId : !task.assignedTo || task.assignedTo === currentUserId);
+        const canAskForHelp = isPrimary && canAct && !!task.sourceObservationId && helperCandidates.length > 0 && ['open', 'declined'].includes(task.status);
+        const composingRequest = helpTaskId === task.id;
+        const time = task.sourcePatternId ? task.note.replace(/^Usual window /, '') : new Date(task.dueAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        const statusLabel = task.status === 'done' ? 'Completed' : task.status === 'skipped' ? 'Not today' : task.status === 'requested' ? 'Awaiting response' : task.status === 'accepted' ? 'Assigned' : task.status === 'declined' ? 'Help declined' : task.sourceObservationId ? 'Scheduled' : 'Routine';
+        const detail = task.status === 'skipped' ? 'Not today · hidden from Story' : task.autoCompleted ? 'Completed automatically when the activity was recorded' : task.status === 'done' ? `Completed by ${people(task.completedBy ?? '')} · ${task.completedAt ? new Date(task.completedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}` : task.status === 'requested' ? `Waiting for ${people(task.assignedTo)} to respond` : task.status === 'accepted' ? `${people(task.assignedTo)} is handling this activity` : task.status === 'declined' ? `${people(task.assignedTo)} couldn’t help · ask someone else` : task.sourceObservationId ? 'Scheduled simulated activity' : 'Shared routine · check off when done';
+        return <article className={`care-task-card ${task.status === 'done' ? 'is-complete' : ''} ${task.status === 'skipped' ? 'is-skipped' : ''}`} key={task.id}><div className="care-task-card-top"><span className={`care-task-status ${task.status}`}>{statusLabel}</span><time>{time}</time></div><h2>{task.title}</h2><small>{detail}</small>{composingRequest && <form className="care-help-form" onSubmit={event => sendHelpRequest(event, task)}><label>Who can help?<select autoFocus value={helpAssignee} onChange={event => setHelpAssignee(event.target.value)} required><option value="">Choose a caregiver</option>{helperCandidates.map(member => <option key={member.id} value={member.id}>{member.name}{member.role === 'Temporary caregiver' ? ' · Temporary caregiver' : ''}</option>)}</select></label><label>Message (optional)<textarea value={helpNote} onChange={event => setHelpNote(event.target.value)} maxLength={240} placeholder={`Could you take care of ${task.title.toLowerCase()} today?`} /></label><div className="care-task-form-actions"><button type="button" className="cancel-button" onClick={() => setHelpTaskId(null)}>Cancel</button><button type="submit" className="primary-button" disabled={!helpAssignee}>Send request</button></div></form>}{!composingRequest && task.status === 'skipped' && canAct && <button className="care-task-restore" onClick={() => onSkipTask(task)}>Add back to today</button>}{!composingRequest && task.status !== 'skipped' && <div className="care-task-action-stack">{canAct && task.sourceObservationId && task.status === 'open' && <button className="care-task-not-today" onClick={() => onSkipTask(task)}>Not today</button>}<div className="care-task-card-actions">{canAskForHelp && <button className="care-task-ask" onClick={() => startHelpRequest(task)}>Ask a caregiver</button>}{canComplete && ['open', 'accepted'].includes(task.status) && <button className="care-task-complete" onClick={() => onToggleTask(task)}>Mark as done ✓</button>}{canComplete && task.status === 'done' && <button className="care-task-restore" onClick={() => onToggleTask(task)}>Undo completion</button>}</div></div>}</article>;
+      })}</section>}
+      {visibleTasks.map(task => <article className={`care-task-card ${task.status === 'done' ? 'is-complete' : ''}`} key={task.id}><div className="care-task-card-top"><span className={`care-task-status ${task.status}`}>{task.status === 'done' ? 'Completed' : task.status === 'requested' ? 'Awaiting response' : task.status === 'declined' ? 'Declined' : task.status === 'accepted' ? 'Accepted' : 'To do'}</span><time>{new Date(task.dueAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time></div><h2>{task.title}</h2>{task.note && <p>{task.note}</p>}<small>{task.status === 'done' ? `Completed by ${people(task.completedBy ?? '')} · ${task.completedAt ? new Date(task.completedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}` : `Assigned to ${people(task.assignedTo)} · from ${people(task.assignedBy)}`}</small>{canAct && task.assignedTo === currentUserId && ['open', 'accepted'].includes(task.status) && <button className="care-task-complete" onClick={() => updateTask(task.id, { status: 'done', completedBy: currentUserId, completedAt: new Date().toISOString() })}>Mark as done ✓</button>}</article>)}
+      {!todayRoutine.length && !visibleTasks.length && <div className="care-tasks-empty"><span>✓</span><strong>No care schedule yet</strong><p>{isPrimary ? 'Today’s simulated activities—or confirmed Patterns when there is no simulation—will appear here automatically. You can still add a one-off task.' : 'Care tasks assigned to you will appear here.'}</p>{isPrimary && <button className="profile-link" onClick={onPatterns}>Review Patterns →</button>}</div>}
+    </div>}
+  </section>;
+}
 
 function TimelineContextTicker({ contexts }: { contexts: { author: string; text: string }[] }) {
   const latest = contexts[0];
@@ -1326,7 +1370,7 @@ function preferredScrollBehavior(): ScrollBehavior {
   return document.querySelector('.phone.reduce-motion') || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 }
 
-function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPetsNavigate, onAddPet, petName, petAvatar, ownerName, accounts, contexts, observations, includedMoments, hasDemoMoments, noPetYet, canEdit }: { onMoment: (momentId: string) => void; onEditStory: () => void; onEditMoment: (item: StoryTimelineItem) => void; onDeleteMoment: (momentId: string) => string; onPetsNavigate: () => void; onAddPet: () => void; petName: string; petAvatar: string; ownerName: string; accounts: PrototypeAccount[]; contexts: OwnerContext[]; observations: StoryObservation[]; includedMoments: string[] | null; hasDemoMoments: boolean; noPetYet: boolean; canEdit: boolean }) {
+function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPetsNavigate, onAddPet, petName, petAvatar, ownerName, accounts, contexts, observations, careTasks, includedMoments, hasDemoMoments, noPetYet, canEdit }: { onMoment: (momentId: string) => void; onEditStory: () => void; onEditMoment: (item: StoryTimelineItem) => void; onDeleteMoment: (momentId: string) => string; onPetsNavigate: () => void; onAddPet: () => void; petName: string; petAvatar: string; ownerName: string; accounts: PrototypeAccount[]; contexts: OwnerContext[]; observations: StoryObservation[]; careTasks: CareTask[]; includedMoments: string[] | null; hasDemoMoments: boolean; noPetYet: boolean; canEdit: boolean }) {
   const now = useCurrentTime();
   const [selectedDate, setSelectedDate] = useState<Date | null>(() => new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -1339,7 +1383,7 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
   const [summaryDateKey, setSummaryDateKey] = useState(todayKey);
   const [summaryCompact, setSummaryCompact] = useState(false);
   const getTimelineContexts = (momentId: string) => contexts.filter((entry) => entry.momentId === momentId).map((entry) => ({ author: (entry.authorId && accounts.find((account) => account.id === entry.authorId)?.name) || entry.authorName || ownerName, text: entry.note }));
-  const visibleObservations = visibleStoryObservations(observations, includedMoments)
+  const visibleObservations = visibleStoryObservations(observations.filter(observation => !isObservationSkippedForToday(observation, careTasks)), includedMoments)
     .filter((observation) => new Date(observation.savedAt).getTime() <= now.getTime());
   const hasGeneratedSimulation = observations.some((observation) => observation.synthetic === true);
   const moments = (hasDemoMoments && !hasGeneratedSimulation ? baseMomentDefinitions : []).map((moment) => {
@@ -2047,6 +2091,7 @@ function emptyPetWorkspace(ownerName: string): PetWorkspace {
     visibility: null,
     askMessages: [],
     careMembers: defaultCareMembers(ownerName),
+    careTasks: [],
     careEvent: null,
     mediaSources: defaultMediaSources(false),
     patterns: [],
@@ -2064,6 +2109,7 @@ function currentLegacyWorkspace(ownerName: string): PetWorkspace {
     visibility: readStoryVisibility(),
     askMessages: readAskMessages(),
     careMembers: withoutExampleCareMembers(readCareMembers() ?? defaultCareMembers(ownerName)),
+    careTasks: [],
     careEvent: readCareEvent(),
     mediaSources: readMediaSources(true),
     patterns: readTypicalPatterns(ownerName, true),
@@ -2085,6 +2131,7 @@ function normalizeWorkspace(value: unknown, ownerName: string, hasDemoData: bool
     askMessages: Array.isArray(workspace.askMessages) ? workspace.askMessages : [],
     askOwnerAccountId: typeof workspace.askOwnerAccountId === 'string' ? workspace.askOwnerAccountId : undefined,
     careMembers: Array.isArray(workspace.careMembers) ? withoutExampleCareMembers(workspace.careMembers) : fallback.careMembers,
+    careTasks: Array.isArray(workspace.careTasks) ? workspace.careTasks.filter((task): task is CareTask => Boolean(task && typeof task === 'object' && typeof task.id === 'string' && typeof task.title === 'string' && typeof task.dueAt === 'string' && typeof task.assignedTo === 'string' && typeof task.assignedBy === 'string' && ['open', 'requested', 'accepted', 'declined', 'done', 'skipped'].includes(task.status))) : [],
     careEvent: typeof workspace.careEvent === 'object' ? workspace.careEvent ?? null : null,
     mediaSources: Array.isArray(workspace.mediaSources) ? workspace.mediaSources : defaultMediaSources(hasDemoData),
     patterns: Array.isArray(workspace.patterns) ? workspace.patterns : defaultTypicalPatterns(ownerName, hasDemoData),
@@ -3097,6 +3144,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     { id: 'mom', name: 'Mom', role: 'Caregiver', detail: 'can add observations' },
     { id: 'dad', name: 'Dad', role: 'Caregiver', detail: 'can add observations' },
   ]);
+  const [careTasks, setCareTasks] = useState<CareTask[]>(() => initialSharedWorkspace?.careTasks ?? initialWorkspace?.careTasks ?? []);
   const [careInvitations, setCareInvitations] = useState<CareInvitation[]>(() => cloud ? [] : readCareInvitations());
   async function refreshCareInvitations() {
     if (!cloud) return careInvitations;
@@ -3185,6 +3233,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       askMessages,
       askOwnerAccountId: activeAccount?.id,
       careMembers,
+      careTasks,
       careEvent: activePetRecord?.workspace.careEvent ?? (cloud ? null : readCareEvent()),
       mediaSources,
       patterns: typicalPatterns,
@@ -3239,7 +3288,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     return true;
   }
 
-  function persistSharedWorkspacePatch(patch: Partial<Pick<PetWorkspace, 'mediaSources' | 'patterns' | 'lifeEvents' | 'momentEngagement' | 'sunnyVaccinationSeeded'>>): boolean {
+  function persistSharedWorkspacePatch(patch: Partial<Pick<PetWorkspace, 'mediaSources' | 'patterns' | 'lifeEvents' | 'momentEngagement' | 'sunnyVaccinationSeeded' | 'careTasks'>>): boolean {
     if (!activeAccount || !activePetRecord) return false;
     const captured = captureCurrentSpace(prototypeSession);
     const groupId = activePetRecord.sharedGroupId;
@@ -3411,6 +3460,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setIncludedStoryMoments(pet.workspace.visibility);
     setAskMessages(privateAskMessagesFor(pet, account.id));
     setCareMembers(sharedWorkspace.careMembers);
+    setCareTasks(sharedWorkspace.careTasks ?? []);
     setMediaSources(sharedWorkspace.mediaSources);
     setTypicalPatterns(sharedWorkspace.patterns);
     setLifeCareEvents(sharedWorkspace.lifeEvents);
@@ -4099,7 +4149,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       sync.updatedAt = group.updatedAt;
       sync.baseline = stableShared({ workspace: { ...nextWorkspace, lifeEvents: nextWorkspace.lifeEvents.filter(e => e.useForAsk), observations: nextWorkspace.observations.filter(o => !o.privateRecord), contexts: nextWorkspace.contexts, askMessages: [], drafts: [], careMembers: [], askOwnerAccountId: undefined, sharedUpdatedAt: undefined }, petName: group.petName, petBreed: group.petBreed, petAge: group.petAge, petAvatar: group.petAvatar, petSpecies: group.petSpecies });
       setPetName(group.petName); setPetBreed(group.petBreed); setPetAge(group.petAge); setPetAvatar(group.petAvatar);
-      setStoryObservations(nextWorkspace.observations); setSavedContexts(remote.contexts); setTypicalPatterns(remote.patterns); setLifeCareEvents(nextWorkspace.lifeEvents); setMediaSources(remote.mediaSources); setMomentEngagement(remote.momentEngagement); setIncludedStoryMoments(remote.visibility);
+      setStoryObservations(nextWorkspace.observations); setSavedContexts(remote.contexts); setTypicalPatterns(remote.patterns); setLifeCareEvents(nextWorkspace.lifeEvents); setMediaSources(remote.mediaSources); setMomentEngagement(remote.momentEngagement); setIncludedStoryMoments(remote.visibility); setCareTasks(remote.careTasks ?? []);
       setPrototypeSession(session => ({ ...session, accounts: session.accounts.map(a => a.id !== activeAccount!.id ? a : { ...a, pets: a.pets.map(p => p.id !== activePetRecord!.id ? p : { ...p, name: group.petName, breed: group.petBreed, species: group.petSpecies, sex: group.petSex, age: group.petAge, avatar: group.petAvatar, workspace: nextWorkspace }) }) }));
     } catch (cause) { setAccountActionError(cause instanceof Error ? cause.message : 'Shared updates are temporarily unavailable.'); }
   };
@@ -4319,6 +4369,29 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setLifeCareStartAdding(category === undefined && canContributeToSharedPet);
     navigateTo('careEvent');
   }
+  function saveCareTasks(next: CareTask[]) {
+    if (!canContributeToSharedPet || !persistSharedWorkspacePatch({ careTasks: next })) return false;
+    setCareTasks(next);
+    return true;
+  }
+  function toggleCareTask(task: CareTask) {
+    const currentAccountId = activeAccount?.id;
+    if (!canContributeToSharedPet || !currentAccountId || (!isPrimaryCaregiver && task.assignedTo && task.assignedTo !== currentAccountId)) return;
+    const nextTask: CareTask = task.status === 'done'
+      ? { ...task, status: 'open', completedBy: undefined, completedAt: undefined }
+      : { ...task, status: 'done', completedBy: currentAccountId, completedAt: new Date().toISOString() };
+    const exists = careTasks.some(entry => entry.id === task.id);
+    saveCareTasks(exists ? careTasks.map(entry => entry.id === task.id ? nextTask : entry) : [nextTask, ...careTasks]);
+  }
+  function skipCareTask(task: CareTask) {
+    const currentAccountId = activeAccount?.id;
+    if (!canContributeToSharedPet || !currentAccountId || !task.sourceObservationId) return;
+    const nextTask: CareTask = task.status === 'skipped'
+      ? { ...task, status: 'open', skippedAt: undefined, skippedBy: undefined }
+      : { ...task, status: 'skipped', skippedAt: new Date().toISOString(), skippedBy: currentAccountId, completedAt: undefined, completedBy: undefined, autoCompleted: undefined };
+    const exists = careTasks.some(entry => entry.id === task.id);
+    saveCareTasks(exists ? careTasks.map(entry => entry.id === task.id ? nextTask : entry) : [nextTask, ...careTasks]);
+  }
   function navigate(view: View) {
     navigateTo(view);
   }
@@ -4357,11 +4430,12 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         {sharedId && sharedSync.current.failed && sharedWritePending() && <p className="shared-sync-pending" role="status">Shared sync paused. Your local edits are kept; resolve the sync error before leaving.</p>}
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
-            {view === 'today' && <TodayPage hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenInsights={() => navigateTo('activityInsights')} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
-            {view === 'activityInsights' && <ActivityInsightsPage records={visibleStoryObservations(storyObservations, includedStoryMoments)} petName={petName} onBack={() => goBack('today')} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} />}
+            {view === 'today' && <TodayPage hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenInsights={() => navigateTo('activityInsights')} onCareTasks={() => navigateTo('careTasks')} onToggleCareTask={toggleCareTask} onSkipCareTask={skipCareTask} careTasks={careTasks} careMembers={displayedCareMembers} currentUserId={activeAccount.id} canAct={canContributeToSharedPet} isPrimary={isPrimaryCaregiver} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
+            {view === 'careTasks' && <CareTasksPage tasks={careTasks} patterns={typicalPatterns} observations={storyObservations} members={displayedCareMembers} currentUserId={activeAccount.id} currentUserName={activeAccount.name} petName={petName} isPrimary={isPrimaryCaregiver} canAct={canContributeToSharedPet} onBack={() => goBack('today')} onPatterns={() => openPatternKnowledge()} onToggleTask={toggleCareTask} onSkipTask={skipCareTask} onSave={saveCareTasks} />}
+            {view === 'activityInsights' && <ActivityInsightsPage records={visibleStoryObservations(storyObservations.filter(observation => !isObservationSkippedForToday(observation, careTasks)), includedStoryMoments)} petName={petName} onBack={() => goBack('today')} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} />}
 
             {view === 'activitySummary' && selectedActivityMoment && <PetActivitySummaryPage moment={selectedActivityMoment} moments={visibleStoryObservations(storyObservations, includedStoryMoments)} petId={activePetRecord.id} petName={petName} petAvatar={petAvatar} onBack={() => goBack('today')} />}
-            {view === 'story' && <StoryPage onMoment={openMomentDetail} onEditStory={() => navigateTo('storyEdit')} onEditMoment={(item) => editStoryRow({ id: item.id, image: item.image, mediaType: item.mediaType, title: item.title, meta: `${item.time} · story moment`, note: item.note })} onDeleteMoment={deleteStoryMoment} onPetsNavigate={() => navigateTo('pets')} onAddPet={openAddPetForm} petName={petName} petAvatar={petAvatar} ownerName={ownerName} accounts={prototypeSession.accounts} contexts={savedContexts} observations={storyObservations} includedMoments={includedStoryMoments} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} canEdit={canContributeToSharedPet} />}
+            {view === 'story' && <StoryPage onMoment={openMomentDetail} onEditStory={() => navigateTo('storyEdit')} onEditMoment={(item) => editStoryRow({ id: item.id, image: item.image, mediaType: item.mediaType, title: item.title, meta: `${item.time} · story moment`, note: item.note })} onDeleteMoment={deleteStoryMoment} onPetsNavigate={() => navigateTo('pets')} onAddPet={openAddPetForm} petName={petName} petAvatar={petAvatar} ownerName={ownerName} accounts={prototypeSession.accounts} contexts={savedContexts} observations={storyObservations} careTasks={careTasks} includedMoments={includedStoryMoments} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} canEdit={canContributeToSharedPet} />}
             {view === 'storyEdit' && <StoryEditPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} hasDemoMoments={activePetRecord.hasDemoMoments} onBack={() => goBack('story')} onEdit={editStoryRow} onDelete={deleteStoryRow} onSave={(ids) => { if (!persistWorkspacePatch({ visibility: ids })) return; setIncludedStoryMoments(ids); if (!cloud) try {
               localStorage.setItem(
                 storyVisibilityKey,
