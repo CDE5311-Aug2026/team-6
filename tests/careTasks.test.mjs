@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../src/careTasks.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
-const { careTasksForDate, isObservationSkippedForToday } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
+const { careTasksForDate, isObservationSkippedForToday, takeOverDeclinedCareTask } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
 
 const activity = (id, hour, title) => ({
   id,
@@ -71,6 +71,31 @@ test('preserves a caregiver request until the simulated activity is recorded', (
   assert.equal(before.requestNote, requested.requestNote);
   assert.equal(after.status, 'done');
   assert.equal(after.autoCompleted, true);
+});
+
+test('lets the requester take over a declined activity without losing its request history', () => {
+  const declined = {
+    id: 'simulation-care-dinner',
+    title: 'Dinner record',
+    note: 'Dinner simulation',
+    dueAt: new Date(2026, 9, 23, 18, 50).toISOString(),
+    assignedTo: 'caregiver-cutee',
+    assignedBy: 'owner',
+    status: 'declined',
+    createdAt: new Date(2026, 9, 23, 12).toISOString(),
+    requestNote: 'Could you handle dinner?',
+    declinedBy: 'caregiver-cutee',
+    declinedAt: new Date(2026, 9, 23, 13).toISOString(),
+  };
+
+  const takenOver = takeOverDeclinedCareTask(declined, 'owner');
+
+  assert.equal(takenOver.status, 'open');
+  assert.equal(takenOver.assignedTo, 'owner');
+  assert.equal(takenOver.assignedBy, 'owner');
+  assert.equal(takenOver.requestNote, declined.requestNote);
+  assert.equal(takenOver.declinedBy, declined.declinedBy);
+  assert.equal(takenOver.declinedAt, declined.declinedAt);
 });
 
 test('falls back to confirmed Pattern tasks when a day has no simulation', () => {

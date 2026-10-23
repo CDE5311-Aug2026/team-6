@@ -10,6 +10,8 @@ export type CareTask = {
   status: CareTaskStatus;
   createdAt: string;
   acceptedAt?: string;
+  declinedAt?: string;
+  declinedBy?: string;
   completedAt?: string;
   completedBy?: string;
   sourcePatternId?: string;
@@ -116,6 +118,18 @@ function patternCareTasksForDate(patterns: CarePattern[], savedTasks: CareTask[]
 export function careTasksForDate(patterns: CarePattern[], observations: SimulatedActivity[], savedTasks: CareTask[], date: Date, now: Date, petName: string): CareTask[] {
   const simulated = simulatedCareTasksForDate(observations, savedTasks, date, now);
   return simulated.length ? simulated : patternCareTasksForDate(patterns, savedTasks, date, petName);
+}
+
+/** Return a declined task to the requesting caregiver without discarding the request history. */
+export function takeOverDeclinedCareTask(task: CareTask, currentUserId: string): CareTask {
+  if (task.status !== 'declined') return task;
+  return {
+    ...task,
+    assignedTo: currentUserId,
+    assignedBy: currentUserId,
+    status: 'open',
+    acceptedAt: undefined,
+  };
 }
 
 export function isObservationSkippedForToday(observation: Pick<SimulatedActivity, 'id'>, tasks: CareTask[]) {
