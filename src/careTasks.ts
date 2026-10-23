@@ -25,6 +25,7 @@ export type CareTask = {
   declinedBy?: string;
   completedAt?: string;
   completedBy?: string;
+  completedByName?: string;
   sourcePatternId?: string;
   sourceObservationId?: string;
   occurrenceDate?: string;
@@ -50,6 +51,8 @@ type SimulatedActivity = {
   savedAt: string;
   synthetic?: boolean;
   simulationKey?: string;
+  authorId?: string;
+  authorName?: string;
 };
 
 function localDayKey(date: Date) {
@@ -94,17 +97,18 @@ export function careTaskInboxCount(tasks: CareTask[], userId: string, isPrimary:
   return Math.max(needsAttention, unread);
 }
 
-function completeWhenRecorded(task: CareTask, now: Date): CareTask {
+function completeWhenRecorded(task: CareTask, now: Date, recordedBy = 'simulation', recordedByName?: string): CareTask {
   if (task.status === 'skipped' || task.status === 'done' || new Date(task.dueAt).getTime() > now.getTime()) return task;
   const completed: CareTask = {
     ...task,
     status: 'done',
     completedAt: task.dueAt,
-    completedBy: 'simulation',
+    completedBy: recordedBy,
+    completedByName: recordedByName,
     autoCompleted: true,
   };
   if (task.events?.some((event) => event.type === 'auto_completed')) return completed;
-  return appendCareTaskEvent(completed, { type: 'auto_completed', actorId: 'simulation', createdAt: task.dueAt });
+  return appendCareTaskEvent(completed, { type: 'auto_completed', actorId: recordedBy, createdAt: task.dueAt });
 }
 
 function simulatedCareTasksForDate(observations: SimulatedActivity[], savedTasks: CareTask[], date: Date, now: Date): CareTask[] {
@@ -125,7 +129,7 @@ function simulatedCareTasksForDate(observations: SimulatedActivity[], savedTasks
         sourceObservationId: observation.id,
         occurrenceDate: localDayKey(date),
       };
-      return completeWhenRecorded(saved ?? generated, now);
+      return completeWhenRecorded(saved ?? generated, now, observation.authorId || 'simulation', observation.authorName);
     })
     .sort((left, right) => left.dueAt.localeCompare(right.dueAt));
 }

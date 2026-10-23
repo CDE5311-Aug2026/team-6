@@ -14,6 +14,8 @@ const activity = (id, hour, title) => ({
   savedAt: new Date(2026, 9, 23, hour, 0).toISOString(),
   synthetic: true,
   simulationKey: `sunny:2026-10-23:${id}`,
+  authorId: 'owner',
+  authorName: 'Emily',
 });
 
 test('builds the daily care checklist from every simulated activity', () => {
@@ -24,7 +26,10 @@ test('builds the daily care checklist from every simulated activity', () => {
   assert.deepEqual(tasks.map((task) => task.title), ['Breakfast record', 'Afternoon rest', 'Evening walk']);
   assert.equal(tasks[0].status, 'done');
   assert.equal(tasks[0].autoCompleted, true);
+  assert.equal(tasks[0].completedBy, 'owner');
+  assert.equal(tasks[0].completedByName, 'Emily');
   assert.equal(tasks[0].events.at(-1).type, 'auto_completed');
+  assert.equal(tasks[0].events.at(-1).actorId, 'owner');
   assert.equal(tasks[1].status, 'open');
 });
 
