@@ -1288,7 +1288,7 @@ function CareTasksPage({ tasks, patterns, observations, members, currentUserId, 
     reopened: `${people(event.actorId)} reopened the task`,
     skipped: `${people(event.actorId)} marked the activity not today`,
     restored: `${people(event.actorId)} added the activity back`,
-    auto_completed: `${people(event.actorId)} recorded the activity`,
+    auto_completed: `The activity record completed ${people(event.actorId)}’s task`,
   }[event.type]);
   useEffect(() => {
     if (tab !== 'requests') return;

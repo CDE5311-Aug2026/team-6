@@ -77,6 +77,31 @@ test('preserves a caregiver request until the simulated activity is recorded', (
   assert.equal(before.requestNote, requested.requestNote);
   assert.equal(after.status, 'done');
   assert.equal(after.autoCompleted, true);
+  assert.equal(after.completedBy, 'owner');
+});
+
+test('credits an accepted caregiver when the assigned activity completes automatically', () => {
+  const observation = activity('rest', 13, 'Afternoon rest');
+  const accepted = {
+    id: `simulation-care-${observation.id}`,
+    title: observation.title,
+    note: observation.note,
+    dueAt: observation.savedAt,
+    assignedTo: 'caregiver-cutee',
+    assignedBy: 'owner',
+    status: 'accepted',
+    createdAt: observation.savedAt,
+    sourceObservationId: observation.id,
+    occurrenceDate: '2026-10-23',
+    acceptedAt: new Date(2026, 9, 23, 12).toISOString(),
+  };
+
+  const completed = careTasksForDate([], [observation], [accepted], new Date(2026, 9, 23, 12), new Date(2026, 9, 23, 14), 'Sunny')[0];
+
+  assert.equal(completed.status, 'done');
+  assert.equal(completed.completedBy, 'caregiver-cutee');
+  assert.equal(completed.completedByName, undefined);
+  assert.equal(completed.events.at(-1).actorId, 'caregiver-cutee');
 });
 
 test('lets the requester take over a declined activity without losing its request history', () => {

@@ -99,16 +99,17 @@ export function careTaskInboxCount(tasks: CareTask[], userId: string, isPrimary:
 
 function completeWhenRecorded(task: CareTask, now: Date, recordedBy = 'simulation', recordedByName?: string): CareTask {
   if (task.status === 'skipped' || task.status === 'done' || new Date(task.dueAt).getTime() > now.getTime()) return task;
+  const responsibleId = task.assignedTo && (task.status === 'accepted' || task.status === 'open') ? task.assignedTo : recordedBy;
   const completed: CareTask = {
     ...task,
     status: 'done',
     completedAt: task.dueAt,
-    completedBy: recordedBy,
-    completedByName: recordedByName,
+    completedBy: responsibleId,
+    completedByName: responsibleId === recordedBy ? recordedByName : undefined,
     autoCompleted: true,
   };
   if (task.events?.some((event) => event.type === 'auto_completed')) return completed;
-  return appendCareTaskEvent(completed, { type: 'auto_completed', actorId: recordedBy, createdAt: task.dueAt });
+  return appendCareTaskEvent(completed, { type: 'auto_completed', actorId: responsibleId, createdAt: task.dueAt });
 }
 
 function simulatedCareTasksForDate(observations: SimulatedActivity[], savedTasks: CareTask[], date: Date, now: Date): CareTask[] {
