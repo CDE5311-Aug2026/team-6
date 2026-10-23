@@ -1,5 +1,16 @@
 export type CareTaskStatus = 'open' | 'requested' | 'accepted' | 'declined' | 'done' | 'skipped';
 
+export type CareTaskEventType = 'assigned' | 'requested' | 'reassigned' | 'accepted' | 'declined' | 'released' | 'taken_over' | 'completed' | 'reopened' | 'skipped' | 'restored' | 'auto_completed';
+
+export type CareTaskEvent = {
+  id: string;
+  type: CareTaskEventType;
+  actorId: string;
+  targetId?: string;
+  createdAt: string;
+  readBy?: string[];
+};
+
 export type CareTask = {
   id: string;
   title: string;
@@ -21,6 +32,7 @@ export type CareTask = {
   skippedAt?: string;
   skippedBy?: string;
   requestNote?: string;
+  events?: CareTaskEvent[];
 };
 
 type CarePattern = {
@@ -53,15 +65,46 @@ function isSameLocalDay(value: string, comparison: Date) {
   return !Number.isNaN(date.getTime()) && localDayKey(date) === localDayKey(comparison);
 }
 
+export function appendCareTaskEvent(task: CareTask, event: Omit<CareTaskEvent, 'id'>): CareTask {
+  const events = task.events ?? [];
+  return {
+    ...task,
+    events: [...events, { ...event, id: `${task.id}-${event.type}-${event.createdAt}-${events.length}` }],
+  };
+}
+
+export function markCareTaskEventsRead(tasks: CareTask[], userId: string): CareTask[] {
+  let changed = false;
+  const next = tasks.map((task) => {
+    if (!task.events?.some((event) => event.targetId === userId && !(event.readBy ?? []).includes(userId))) return task;
+    changed = true;
+    return {
+      ...task,
+      events: task.events.map((event) => event.targetId === userId && !(event.readBy ?? []).includes(userId)
+        ? { ...event, readBy: [...(event.readBy ?? []), userId] }
+        : event),
+    };
+  });
+  return changed ? next : tasks;
+}
+
+export function careTaskInboxCount(tasks: CareTask[], userId: string, isPrimary: boolean): number {
+  const needsAttention = tasks.filter((task) => (task.status === 'requested' && task.assignedTo === userId) || (isPrimary && task.status === 'declined')).length;
+  const unread = tasks.flatMap((task) => task.events ?? []).filter((event) => event.targetId === userId && event.actorId !== userId && !(event.readBy ?? []).includes(userId)).length;
+  return Math.max(needsAttention, unread);
+}
+
 function completeWhenRecorded(task: CareTask, now: Date): CareTask {
   if (task.status === 'skipped' || task.status === 'done' || new Date(task.dueAt).getTime() > now.getTime()) return task;
-  return {
+  const completed: CareTask = {
     ...task,
     status: 'done',
     completedAt: task.dueAt,
     completedBy: 'simulation',
     autoCompleted: true,
   };
+  if (task.events?.some((event) => event.type === 'auto_completed')) return completed;
+  return appendCareTaskEvent(completed, { type: 'auto_completed', actorId: 'simulation', createdAt: task.dueAt });
 }
 
 function simulatedCareTasksForDate(observations: SimulatedActivity[], savedTasks: CareTask[], date: Date, now: Date): CareTask[] {

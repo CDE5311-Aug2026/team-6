@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../src/careTasks.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
-const { careTasksForDate, isObservationSkippedForToday, releaseAcceptedCareTask, takeOverDeclinedCareTask } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
+const { appendCareTaskEvent, careTaskInboxCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
 
 const activity = (id, hour, title) => ({
   id,
@@ -24,6 +24,7 @@ test('builds the daily care checklist from every simulated activity', () => {
   assert.deepEqual(tasks.map((task) => task.title), ['Breakfast record', 'Afternoon rest', 'Evening walk']);
   assert.equal(tasks[0].status, 'done');
   assert.equal(tasks[0].autoCompleted, true);
+  assert.equal(tasks[0].events.at(-1).type, 'auto_completed');
   assert.equal(tasks[1].status, 'open');
 });
 
@@ -120,6 +121,28 @@ test('lets an assigned caregiver step back after accepting while preserving acce
   assert.equal(released.acceptedAt, acceptedAt);
   assert.equal(released.declinedBy, 'caregiver-cutee');
   assert.equal(released.declinedAt, declinedAt);
+});
+
+test('keeps an append-only request history and counts unread inbox events', () => {
+  const base = {
+    id: 'simulation-care-walk',
+    title: 'Evening walk',
+    note: 'Walk simulation',
+    dueAt: new Date(2026, 9, 23, 18, 20).toISOString(),
+    assignedTo: 'caregiver-cutee',
+    assignedBy: 'owner',
+    status: 'requested',
+    createdAt: new Date(2026, 9, 23, 12).toISOString(),
+  };
+  const requested = appendCareTaskEvent(base, { type: 'requested', actorId: 'owner', targetId: 'caregiver-cutee', createdAt: new Date(2026, 9, 23, 12, 1).toISOString() });
+  const accepted = appendCareTaskEvent({ ...requested, status: 'accepted', acceptedAt: new Date(2026, 9, 23, 12, 5).toISOString() }, { type: 'accepted', actorId: 'caregiver-cutee', targetId: 'owner', createdAt: new Date(2026, 9, 23, 12, 5).toISOString() });
+
+  assert.deepEqual(accepted.events.map((event) => event.type), ['requested', 'accepted']);
+  assert.equal(careTaskInboxCount([accepted], 'owner', true), 1);
+
+  const read = markCareTaskEventsRead([accepted], 'owner');
+  assert.equal(read[0].events[1].readBy.includes('owner'), true);
+  assert.equal(careTaskInboxCount(read, 'owner', true), 0);
 });
 
 test('falls back to confirmed Pattern tasks when a day has no simulation', () => {

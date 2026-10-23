@@ -12,7 +12,7 @@ import { searchCareAccounts, type CareAccountSearchResult, type CloudCareGroup, 
 import { visibleStoryObservations } from './storyVisibility';
 import { buildRollingStorySimulation, isSyntheticSunnyProfile } from './storySimulation';
 import { mergeSharedStoryObservations } from './sharedStoryObservations';
-import { careTasksForDate, isObservationSkippedForToday, releaseAcceptedCareTask, takeOverDeclinedCareTask, type CareTask } from './careTasks';
+import { appendCareTaskEvent, careTaskInboxCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask, type CareTask, type CareTaskEvent, type CareTaskEventType } from './careTasks';
 import { useEffect, useRef, useState, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
 
 type View =
@@ -648,7 +648,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
   const datedTasks = careTasks.filter(task => !task.sourcePatternId && !task.sourceObservationId && isSameLocalDay(task.dueAt, selectedDate) && task.status !== 'declined');
   const dayCareTasks = [...routineTasks, ...datedTasks].sort((left, right) => left.dueAt.localeCompare(right.dueAt));
   const memberName = (id: string) => id === 'simulation' ? 'Pawsona' : careMembers.find(member => member.id === id)?.name ?? 'Caregiver';
-  const pendingRequests = careTasks.filter(task => task.assignedTo === currentUserId && task.status === 'requested').length;
+  const pendingRequests = careTaskInboxCount(careTasks, currentUserId, isPrimary);
   const isToday = !isPattern && dayOffset === 0;
   const dayTitle = isToday ? 'TODAY' : dayOffset === -1 ? 'YESTERDAY' : new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(selectedDate).toUpperCase();
   const selectedDateLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(selectedDate);
@@ -1248,7 +1248,8 @@ function CareTasksPage({ tasks, patterns, observations, members, currentUserId, 
   const selectedDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset);
   const selectedDateLabel = dayOffset === 0 ? 'Today’s' : dayOffset === -1 ? 'Yesterday’s' : `${formatTimelineDate(selectedDate)}`;
   const incoming = tasks.filter(task => task.assignedTo === currentUserId && task.status === 'requested');
-  const [tab, setTab] = useState<'tasks' | 'requests'>(incoming.length ? 'requests' : 'tasks');
+  const inboxCount = careTaskInboxCount(tasks, currentUserId, isPrimary);
+  const [tab, setTab] = useState<'tasks' | 'requests'>(inboxCount ? 'requests' : 'tasks');
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
@@ -1265,11 +1266,35 @@ function CareTasksPage({ tasks, patterns, observations, members, currentUserId, 
   const releaseTask = [...selectedRoutine, ...visibleTasks].find(task => task.id === releaseTaskId);
   const helperCandidates = members.filter(member => member.id !== currentUserId && member.access !== 'viewer' && member.role !== 'Viewer');
   const people = (id: string) => id === 'simulation' ? 'Pawsona' : members.find(member => member.id === id)?.name ?? (id === currentUserId ? currentUserName : 'Caregiver');
-  const updateTask = (id: string, patch: Partial<CareTask>) => onSave(tasks.map(task => task.id === id ? { ...task, ...patch } : task));
+  const declinedAttention = isPrimary ? tasks.filter(task => task.status === 'declined') : [];
+  const needsAttention = [...incoming, ...declinedAttention].filter((task, index, list) => list.findIndex(entry => entry.id === task.id) === index);
+  const historyTasks = [...selectedRoutine, ...visibleTasks, ...tasks].filter((task, index, list) => list.findIndex(entry => entry.id === task.id) === index);
+  const eventHistory = historyTasks.flatMap(task => (task.events ?? []).map(event => ({ task, event }))).filter(({ event }) => isPrimary || event.actorId === currentUserId || event.targetId === currentUserId).sort((left, right) => right.event.createdAt.localeCompare(left.event.createdAt));
   const saveGeneratedTask = (task: CareTask, patch: Partial<CareTask>) => {
     const nextTask = { ...task, ...patch };
     return onSave(tasks.some(entry => entry.id === task.id) ? tasks.map(entry => entry.id === task.id ? nextTask : entry) : [nextTask, ...tasks]);
   };
+  const saveTransition = (task: CareTask, patch: Partial<CareTask>, event: Omit<CareTaskEvent, 'id'>) => saveGeneratedTask(task, appendCareTaskEvent({ ...task, ...patch }, event));
+  const eventLabel = (type: CareTaskEventType) => ({ assigned: 'Task assigned', requested: 'Help requested', reassigned: 'Request reassigned', accepted: 'Request accepted', declined: 'Help declined', released: 'Task released', taken_over: 'Task taken over', completed: 'Completed', reopened: 'Reopened', skipped: 'Not today', restored: 'Added back', auto_completed: 'Completed automatically' }[type]);
+  const eventDetail = (event: CareTaskEvent) => ({
+    assigned: `${people(event.actorId)} assigned this to ${people(event.targetId ?? '')}`,
+    requested: `${people(event.actorId)} asked ${people(event.targetId ?? '')} for help`,
+    reassigned: `${people(event.actorId)} asked ${people(event.targetId ?? '')} instead`,
+    accepted: `${people(event.actorId)} accepted the task`,
+    declined: `${people(event.actorId)} couldn’t help`,
+    released: `${people(event.actorId)} stepped back after accepting`,
+    taken_over: `${people(event.actorId)} took over the task`,
+    completed: `${people(event.actorId)} marked the task complete`,
+    reopened: `${people(event.actorId)} reopened the task`,
+    skipped: `${people(event.actorId)} marked the activity not today`,
+    restored: `${people(event.actorId)} added the activity back`,
+    auto_completed: 'Pawsona completed this when the activity was recorded',
+  }[event.type]);
+  useEffect(() => {
+    if (tab !== 'requests') return;
+    const next = markCareTaskEventsRead(tasks, currentUserId);
+    if (next !== tasks) onSave(next);
+  }, [tab, tasks, currentUserId]);
   function startHelpRequest(task: CareTask) {
     setHelpTaskId(task.id);
     setHelpAssignee(task.status === 'declined' ? '' : task.assignedTo);
@@ -1278,32 +1303,50 @@ function CareTasksPage({ tasks, patterns, observations, members, currentUserId, 
   function sendHelpRequest(event: React.FormEvent, task: CareTask) {
     event.preventDefault();
     if (!helpAssignee) return;
-    if (saveGeneratedTask(task, { assignedTo: helpAssignee, assignedBy: currentUserId, status: 'requested', requestNote: helpNote.trim().slice(0, 240), acceptedAt: undefined })) {
+    const requestedAt = new Date().toISOString();
+    const eventType: CareTaskEventType = task.status === 'declined' ? 'reassigned' : 'requested';
+    if (saveTransition(task, { assignedTo: helpAssignee, assignedBy: currentUserId, status: 'requested', requestNote: helpNote.trim().slice(0, 240), acceptedAt: undefined }, { type: eventType, actorId: currentUserId, targetId: helpAssignee, createdAt: requestedAt })) {
       setHelpTaskId(null);
       setHelpAssignee('');
       setHelpNote('');
     }
   }
   function takeOverTask(task: CareTask) {
-    saveGeneratedTask(task, takeOverDeclinedCareTask(task, currentUserId));
+    const next = takeOverDeclinedCareTask(task, currentUserId);
+    saveGeneratedTask(task, appendCareTaskEvent(next, { type: 'taken_over', actorId: currentUserId, targetId: task.declinedBy ?? task.assignedTo, createdAt: new Date().toISOString() }));
   }
   function confirmReleaseTask() {
     if (!releaseTask) return;
-    if (saveGeneratedTask(releaseTask, releaseAcceptedCareTask(releaseTask, currentUserId, new Date().toISOString()))) setReleaseTaskId(null);
+    const releasedAt = new Date().toISOString();
+    const next = releaseAcceptedCareTask(releaseTask, currentUserId, releasedAt);
+    if (saveGeneratedTask(releaseTask, appendCareTaskEvent(next, { type: 'released', actorId: currentUserId, targetId: releaseTask.assignedBy, createdAt: releasedAt }))) setReleaseTaskId(null);
   }
   function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!title.trim() || !dueAt || !assignedTo) return;
-    const task: CareTask = { id: `care-task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, title: title.trim().slice(0, 80), note: note.trim().slice(0, 240), dueAt: new Date(dueAt).toISOString(), assignedTo, assignedBy: currentUserId, status: needsAcceptance && assignedTo !== currentUserId ? 'requested' : 'open', createdAt: new Date().toISOString() };
-    if (onSave([task, ...tasks])) { setTitle(''); setNote(''); setShowForm(false); setNeedsAcceptance(false); }
+    const createdAt = new Date().toISOString();
+    const task: CareTask = { id: `care-task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, title: title.trim().slice(0, 80), note: note.trim().slice(0, 240), dueAt: new Date(dueAt).toISOString(), assignedTo, assignedBy: currentUserId, status: needsAcceptance && assignedTo !== currentUserId ? 'requested' : 'open', createdAt };
+    const nextTask = task.status === 'requested'
+      ? appendCareTaskEvent(task, { type: 'requested', actorId: currentUserId, targetId: assignedTo, createdAt })
+      : assignedTo !== currentUserId
+        ? appendCareTaskEvent(task, { type: 'assigned', actorId: currentUserId, targetId: assignedTo, createdAt })
+        : task;
+    if (onSave([nextTask, ...tasks])) { setTitle(''); setNote(''); setShowForm(false); setNeedsAcceptance(false); }
   }
   return <section className="care-tasks-page">
     <header className="detail-header"><div className="detail-title-row"><button className="back-button" aria-label="Back to Today" onClick={onBack}>←</button><h1>Care tasks</h1></div><p className="eyebrow">SHARED CARE · {petName.toUpperCase()}</p></header>
     <p className="care-tasks-intro">A clear plan for who’s doing what—and when.</p>
-    <div className="care-task-tabs" role="tablist" aria-label="Care tasks and requests"><button role="tab" aria-selected={tab === 'tasks'} onClick={() => setTab('tasks')}>{isPrimary ? 'Care plan' : 'My tasks'}</button><button role="tab" aria-selected={tab === 'requests'} onClick={() => setTab('requests')}>Requests{incoming.length > 0 && <span>{incoming.length}</span>}</button></div>
+    <div className="care-task-tabs" role="tablist" aria-label="Care tasks and requests"><button role="tab" aria-selected={tab === 'tasks'} onClick={() => setTab('tasks')}>{isPrimary ? 'Care plan' : 'My tasks'}</button><button role="tab" aria-selected={tab === 'requests'} onClick={() => setTab('requests')}>Requests{inboxCount > 0 && <span>{inboxCount}</span>}</button></div>
     {isPrimary && dayOffset === 0 && tab === 'tasks' && <button type="button" className="care-task-add" onClick={() => { setShowForm(value => !value); setTab('tasks'); }}>＋ Add one-off task or ask for help</button>}
     {showForm && isPrimary && dayOffset === 0 && <form className="care-task-form" onSubmit={submit}><h2>One-off task for {petName}</h2><label>What needs to be done?<input autoFocus maxLength={80} value={title} onChange={event => setTitle(event.target.value)} placeholder={`e.g. ${petName}’s lunch`} required /></label><label>When?<input type="datetime-local" value={dueAt} onChange={event => setDueAt(event.target.value)} required /></label><label>Assign to<select value={assignedTo} onChange={event => setAssignedTo(event.target.value)} required><option value="">Choose a caregiver</option>{members.filter(member => member.access !== 'viewer' && member.role !== 'Viewer').map(member => <option key={member.id} value={member.id}>{member.id === currentUserId ? `${member.name} (me)` : member.name}{member.role === 'Temporary caregiver' ? ' · Temporary caregiver' : ''}</option>)}</select></label><label>Instructions (optional)<textarea value={note} onChange={event => setNote(event.target.value)} maxLength={240} placeholder="Add any helpful details" /></label>{assignedTo !== currentUserId && <label className="care-request-toggle"><input type="checkbox" checked={needsAcceptance} onChange={event => setNeedsAcceptance(event.target.checked)} /><span><strong>Ask them to accept first</strong><small>They’ll receive a request and can accept or decline.</small></span></label>}<div className="care-task-form-actions"><button type="button" className="cancel-button" onClick={() => setShowForm(false)}>Cancel</button><button type="submit" className="primary-button" disabled={!title.trim() || !assignedTo}>{needsAcceptance && assignedTo !== currentUserId ? 'Send request' : 'Create task'}</button></div></form>}
-    {tab === 'requests' ? <div className="care-task-list">{incoming.length ? incoming.map(task => <article className="care-task-card" key={task.id}><div className="care-task-card-top"><span className="care-task-status request">Needs your response</span><time>{new Date(task.dueAt).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</time></div><h2>{task.title}</h2>{(task.requestNote || task.note) && <p>{task.requestNote || task.note}</p>}<small>Asked by {people(task.assignedBy)}</small>{canAct && <div className="care-task-card-actions"><button className="cancel-button" onClick={() => updateTask(task.id, { status: 'declined', declinedBy: currentUserId, declinedAt: new Date().toISOString() })}>Can’t do it</button><button className="primary-button" onClick={() => updateTask(task.id, { status: 'accepted', acceptedAt: new Date().toISOString() })}>Accept</button></div>}</article>) : <div className="care-tasks-empty"><span>✉</span><strong>No new care requests</strong><p>Requests from your care group will appear here.</p></div>}</div> : <div className="care-task-list">
+    {tab === 'requests' ? <div className="care-request-inbox">
+      <section className="care-request-section" aria-labelledby="care-needs-attention"><div className="care-request-section-heading"><h2 id="care-needs-attention">Needs attention</h2><span>{needsAttention.length}</span></div>{needsAttention.length ? <div className="care-task-list">{needsAttention.map(task => {
+        const awaitingCurrentUser = task.status === 'requested' && task.assignedTo === currentUserId;
+        const composingRequest = helpTaskId === task.id;
+        return <article className="care-task-card care-request-attention" key={task.id}><div className="care-task-card-top"><span className={`care-task-status ${awaitingCurrentUser ? 'request' : 'declined'}`}>{awaitingCurrentUser ? 'Needs your response' : 'Caregiver stepped back'}</span><time>{new Date(task.dueAt).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</time></div><h2>{task.title}</h2>{(task.requestNote || task.note) && <p>{task.requestNote || task.note}</p>}<small>{awaitingCurrentUser ? `Asked by ${people(task.assignedBy)}` : `${people(task.declinedBy ?? task.assignedTo)} can’t complete this task`}</small>{composingRequest && <form className="care-help-form" onSubmit={event => sendHelpRequest(event, task)}><label>Who can help?<select autoFocus value={helpAssignee} onChange={event => setHelpAssignee(event.target.value)} required><option value="">Choose a caregiver</option>{helperCandidates.map(member => <option key={member.id} value={member.id}>{member.name}{member.role === 'Temporary caregiver' ? ' · Temporary caregiver' : ''}</option>)}</select></label><label>Message (optional)<textarea value={helpNote} onChange={event => setHelpNote(event.target.value)} maxLength={240} placeholder={`Could you take care of ${task.title.toLowerCase()} today?`} /></label><div className="care-task-form-actions"><button type="button" className="cancel-button" onClick={() => setHelpTaskId(null)}>Cancel</button><button type="submit" className="primary-button" disabled={!helpAssignee}>Send request</button></div></form>}{!composingRequest && canAct && <div className="care-task-card-actions">{awaitingCurrentUser ? <><button className="cancel-button" onClick={() => { const declinedAt = new Date().toISOString(); saveTransition(task, { status: 'declined', declinedBy: currentUserId, declinedAt }, { type: 'declined', actorId: currentUserId, targetId: task.assignedBy, createdAt: declinedAt }); }}>Can’t do it</button><button className="primary-button" onClick={() => { const acceptedAt = new Date().toISOString(); saveTransition(task, { status: 'accepted', acceptedAt }, { type: 'accepted', actorId: currentUserId, targetId: task.assignedBy, createdAt: acceptedAt }); }}>Accept</button></> : <><button className="care-task-ask" onClick={() => startHelpRequest(task)}>Ask someone else</button><button className="care-task-complete" onClick={() => takeOverTask(task)}>I’ll do it</button></>}</div>}</article>;
+      })}</div> : <div className="care-tasks-empty compact"><span>✓</span><strong>Nothing needs your attention</strong><p>New requests and tasks that need reassignment will appear here.</p></div>}</section>
+      <section className="care-request-section" aria-labelledby="care-request-history"><div className="care-request-section-heading"><h2 id="care-request-history">History</h2><span>{eventHistory.length}</span></div>{eventHistory.length ? <div className="care-request-history">{eventHistory.map(({ task, event }) => <article className={`care-request-event ${event.targetId === currentUserId && !(event.readBy ?? []).includes(currentUserId) ? 'is-unread' : ''}`} key={event.id}><span className={`care-request-event-dot ${event.type}`} aria-hidden="true"/><span><strong>{eventLabel(event.type)} · {task.title}</strong><small>{eventDetail(event)}</small></span><time>{new Date(event.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time></article>)}</div> : <div className="care-tasks-empty compact"><span>✉</span><strong>No request history yet</strong><p>Requests and responsibility changes will be recorded here.</p></div>}</section>
+    </div> : <div className="care-task-list">
       {selectedRoutine.length > 0 && <section className="care-routine-section"><div className="care-routine-heading"><div><h2>{selectedDateLabel} activities</h2><p>{usesSimulation ? `Generated from ${dayOffset === 0 ? 'today’s' : dayOffset === -1 ? 'yesterday’s' : 'this day’s'} simulated activity schedule` : 'Pre-filled from confirmed Pattern time windows'}</p></div></div>{selectedRoutine.map(task => {
         const canComplete = canAct && !task.autoCompleted && task.status !== 'skipped' && (task.status === 'done' ? isPrimary || task.completedBy === currentUserId : !task.assignedTo || task.assignedTo === currentUserId);
         const canAskForHelp = isPrimary && canAct && !!task.sourceObservationId && helperCandidates.length > 0 && ['open', 'declined'].includes(task.status);
@@ -1313,7 +1356,7 @@ function CareTasksPage({ tasks, patterns, observations, members, currentUserId, 
         const detail = task.status === 'skipped' ? 'Not today · hidden from Story' : task.autoCompleted ? 'Completed automatically when the activity was recorded' : task.status === 'done' ? `Completed by ${people(task.completedBy ?? '')} · ${task.completedAt ? new Date(task.completedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}` : task.status === 'requested' ? `Waiting for ${people(task.assignedTo)} to respond` : task.status === 'accepted' ? `${people(task.assignedTo)} is handling this activity` : task.status === 'declined' ? `${people(task.assignedTo)} couldn’t help · ask someone else` : task.sourceObservationId ? 'Scheduled simulated activity' : 'Shared routine · check off when done';
         return <article className={`care-task-card ${task.status === 'done' ? 'is-complete' : ''} ${task.status === 'skipped' ? 'is-skipped' : ''}`} key={task.id}><div className="care-task-card-top"><span className={`care-task-status ${task.status}`}>{statusLabel}</span><time>{time}</time></div><h2>{task.title}</h2><small>{detail}</small>{composingRequest && <form className="care-help-form" onSubmit={event => sendHelpRequest(event, task)}><label>Who can help?<select autoFocus value={helpAssignee} onChange={event => setHelpAssignee(event.target.value)} required><option value="">Choose a caregiver</option>{helperCandidates.map(member => <option key={member.id} value={member.id}>{member.name}{member.role === 'Temporary caregiver' ? ' · Temporary caregiver' : ''}</option>)}</select></label><label>Message (optional)<textarea value={helpNote} onChange={event => setHelpNote(event.target.value)} maxLength={240} placeholder={`Could you take care of ${task.title.toLowerCase()} today?`} /></label><div className="care-task-form-actions"><button type="button" className="cancel-button" onClick={() => setHelpTaskId(null)}>Cancel</button><button type="submit" className="primary-button" disabled={!helpAssignee}>Send request</button></div></form>}{!composingRequest && task.status === 'skipped' && canAct && <button className="care-task-restore" onClick={() => onSkipTask(task)}>Add back to today</button>}{!composingRequest && task.status !== 'skipped' && <div className="care-task-action-stack">{canAct && task.sourceObservationId && task.status === 'open' && <button className="care-task-not-today" onClick={() => onSkipTask(task)}>Not today</button>}<div className="care-task-card-actions">{canAskForHelp && <button className="care-task-ask" onClick={() => startHelpRequest(task)}>Ask a caregiver</button>}{isPrimary && canAct && task.status === 'declined' && <button className="care-task-complete" onClick={() => takeOverTask(task)}>I’ll do it</button>}{canAct && task.status === 'accepted' && task.assignedTo === currentUserId && <button className="cancel-button" onClick={() => setReleaseTaskId(task.id)}>Can’t do it</button>}{canComplete && ['open', 'accepted'].includes(task.status) && <button className="care-task-complete" onClick={() => onToggleTask(task)}>Mark as done ✓</button>}{canComplete && task.status === 'done' && <button className="care-task-restore" onClick={() => onToggleTask(task)}>Undo completion</button>}</div></div>}</article>;
       })}</section>}
-      {visibleTasks.map(task => <article className={`care-task-card ${task.status === 'done' ? 'is-complete' : ''}`} key={task.id}><div className="care-task-card-top"><span className={`care-task-status ${task.status}`}>{task.status === 'done' ? 'Completed' : task.status === 'requested' ? 'Awaiting response' : task.status === 'declined' ? 'Declined' : task.status === 'accepted' ? 'Accepted' : 'To do'}</span><time>{new Date(task.dueAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time></div><h2>{task.title}</h2>{task.note && <p>{task.note}</p>}<small>{task.status === 'done' ? `Completed by ${people(task.completedBy ?? '')} · ${task.completedAt ? new Date(task.completedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}` : `Assigned to ${people(task.assignedTo)} · from ${people(task.assignedBy)}`}</small>{canAct && task.assignedTo === currentUserId && ['open', 'accepted'].includes(task.status) && <div className="care-task-card-actions">{task.status === 'accepted' && <button className="cancel-button" onClick={() => setReleaseTaskId(task.id)}>Can’t do it</button>}<button className="care-task-complete" onClick={() => updateTask(task.id, { status: 'done', completedBy: currentUserId, completedAt: new Date().toISOString() })}>Mark as done ✓</button></div>}</article>)}
+      {visibleTasks.map(task => <article className={`care-task-card ${task.status === 'done' ? 'is-complete' : ''}`} key={task.id}><div className="care-task-card-top"><span className={`care-task-status ${task.status}`}>{task.status === 'done' ? 'Completed' : task.status === 'requested' ? 'Awaiting response' : task.status === 'declined' ? 'Declined' : task.status === 'accepted' ? 'Accepted' : 'To do'}</span><time>{new Date(task.dueAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time></div><h2>{task.title}</h2>{task.note && <p>{task.note}</p>}<small>{task.status === 'done' ? `Completed by ${people(task.completedBy ?? '')} · ${task.completedAt ? new Date(task.completedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}` : `Assigned to ${people(task.assignedTo)} · from ${people(task.assignedBy)}`}</small>{canAct && task.assignedTo === currentUserId && ['open', 'accepted'].includes(task.status) && <div className="care-task-card-actions">{task.status === 'accepted' && <button className="cancel-button" onClick={() => setReleaseTaskId(task.id)}>Can’t do it</button>}<button className="care-task-complete" onClick={() => { const completedAt = new Date().toISOString(); saveTransition(task, { status: 'done', completedBy: currentUserId, completedAt }, { type: 'completed', actorId: currentUserId, targetId: task.assignedBy === currentUserId ? undefined : task.assignedBy, createdAt: completedAt }); }}>Mark as done ✓</button></div>}</article>)}
       {!selectedRoutine.length && !visibleTasks.length && <div className="care-tasks-empty"><span>✓</span><strong>No activities scheduled for this day</strong><p>{isPrimary ? 'Simulated activities—or confirmed Patterns when there is no simulation—appear here for the selected day.' : 'Care tasks assigned to you for this day will appear here.'}</p>{isPrimary && <button className="profile-link" onClick={onPatterns}>Review Patterns →</button>}</div>}
     </div>}
     {releaseTask && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setReleaseTaskId(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="release-care-task-title" onClick={event => event.stopPropagation()}><h2 id="release-care-task-title">Can’t complete this task?</h2><p>The Primary caregiver will see that you can’t complete “{releaseTask.title}” and can take over or ask someone else.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setReleaseTaskId(null)}>Keep task</button><button className="danger-button" onClick={confirmReleaseTask}>Can’t do it</button></div></section></div>}
@@ -4389,18 +4432,24 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   function toggleCareTask(task: CareTask) {
     const currentAccountId = activeAccount?.id;
     if (!canContributeToSharedPet || !currentAccountId || (!isPrimaryCaregiver && task.assignedTo && task.assignedTo !== currentAccountId)) return;
-    const nextTask: CareTask = task.status === 'done'
+    const changedAt = new Date().toISOString();
+    const changed: CareTask = task.status === 'done'
       ? { ...task, status: 'open', completedBy: undefined, completedAt: undefined }
-      : { ...task, status: 'done', completedBy: currentAccountId, completedAt: new Date().toISOString() };
+      : { ...task, status: 'done', completedBy: currentAccountId, completedAt: changedAt };
+    const targetId = task.assignedTo && task.assignedTo !== currentAccountId ? task.assignedTo : task.assignedBy && task.assignedBy !== currentAccountId ? task.assignedBy : undefined;
+    const nextTask = appendCareTaskEvent(changed, { type: task.status === 'done' ? 'reopened' : 'completed', actorId: currentAccountId, targetId, createdAt: changedAt });
     const exists = careTasks.some(entry => entry.id === task.id);
     saveCareTasks(exists ? careTasks.map(entry => entry.id === task.id ? nextTask : entry) : [nextTask, ...careTasks]);
   }
   function skipCareTask(task: CareTask) {
     const currentAccountId = activeAccount?.id;
     if (!canContributeToSharedPet || !currentAccountId || !task.sourceObservationId) return;
-    const nextTask: CareTask = task.status === 'skipped'
+    const changedAt = new Date().toISOString();
+    const changed: CareTask = task.status === 'skipped'
       ? { ...task, status: 'open', skippedAt: undefined, skippedBy: undefined }
-      : { ...task, status: 'skipped', skippedAt: new Date().toISOString(), skippedBy: currentAccountId, completedAt: undefined, completedBy: undefined, autoCompleted: undefined };
+      : { ...task, status: 'skipped', skippedAt: changedAt, skippedBy: currentAccountId, completedAt: undefined, completedBy: undefined, autoCompleted: undefined };
+    const targetId = task.assignedTo && task.assignedTo !== currentAccountId ? task.assignedTo : task.assignedBy && task.assignedBy !== currentAccountId ? task.assignedBy : undefined;
+    const nextTask = appendCareTaskEvent(changed, { type: task.status === 'skipped' ? 'restored' : 'skipped', actorId: currentAccountId, targetId, createdAt: changedAt });
     const exists = careTasks.some(entry => entry.id === task.id);
     saveCareTasks(exists ? careTasks.map(entry => entry.id === task.id ? nextTask : entry) : [nextTask, ...careTasks]);
   }
