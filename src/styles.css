@@ -85,10 +85,12 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-header > div:first-child { min-width: 0; }
 .daily-rhythm-header .eyebrow { margin: 0; font-size: 9px; line-height: 14px; }
 .daily-rhythm-header h2 { margin: 2px 0 0; color: var(--color-text-primary); font: 600 20px/27px 'Poppins', sans-serif; letter-spacing: -.25px; }
-.daily-rhythm-toggle { flex: none; display: flex; align-items: center; padding: 3px; border: 1px solid #e8e5dd; border-radius: 999px; background: #f2f0ea; }
-.daily-rhythm-toggle button { min-width: 52px; height: 29px; padding: 0 9px; border: 0; border-radius: 999px; background: transparent; color: var(--color-text-secondary); font: 500 11px/16px 'Roboto', sans-serif; }
-.daily-rhythm-toggle button.active { background: #fff; color: var(--color-text-primary); box-shadow: 0 1px 4px #1a29211c; }
-.daily-rhythm-go-today { position: absolute; z-index: 2; top: 9px; right: 10px; min-height: 27px; padding: 0 11px; border: 1px solid #eadca9; border-radius: 999px; background: #fffdf5eF; color: #805900; font: 600 11px/1 'Roboto', sans-serif; cursor: pointer; }
+.daily-rhythm-toggle { position: relative; flex: none; display: flex; align-items: center; padding: 3px; border: 1px solid #e8e5dd; border-radius: 999px; background: #f2f0ea; }
+.daily-rhythm-toggle::before { position: absolute; inset: 3px auto 3px 3px; width: calc((100% - 6px) / 2); border-radius: 999px; background: #fff; box-shadow: 0 1px 4px #1a29211c; content: ''; transition: transform 220ms cubic-bezier(.2,.75,.25,1); }
+.daily-rhythm-toggle.is-pattern::before { transform: translateX(100%); }
+.daily-rhythm-toggle button { position: relative; z-index: 1; flex: 1 1 0; min-width: 52px; height: 29px; padding: 0 9px; border: 0; border-radius: 999px; background: transparent; color: var(--color-text-secondary); font: 500 11px/16px 'Roboto', sans-serif; transition: color 160ms ease; }
+.daily-rhythm-toggle button.active { background: transparent; color: var(--color-text-primary); box-shadow: none; }
+.daily-rhythm-go-today { position: absolute; z-index: 2; top: 9px; right: 10px; min-height: 27px; padding: 0 11px; border: 1px solid #eadca9; border-radius: 999px; background: #fffdf5eF; color: #805900; font: 600 11px/1 'Roboto', sans-serif; cursor: pointer; touch-action: pan-y; }
 .daily-rhythm-go-today:focus-visible { outline: 2px solid #e8b51e; outline-offset: 2px; }
 .daily-rhythm-chart { position: relative; width: 100%; margin-top: 5px; overflow: hidden; border-radius: 12px; }
 .daily-rhythm-selected-banner { position: absolute; z-index: 3; top: 9px; left: 50%; display: flex; align-items: center; justify-content: center; gap: 6px; max-width: calc(100% - 40px); min-height: 36px; padding: 5px 10px 5px 12px; transform: translateX(-50%); border: 1px solid #e5c76b; border-radius: 14px; background: #fffdf5; box-shadow: 0 3px 10px #73591d1a; color: #28452e; cursor: pointer; animation: daily-rhythm-banner-in 220ms ease-out both; }
@@ -142,8 +144,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-nav-arrow .daily-rhythm-arrow-hit { fill: none; stroke: transparent; stroke-width: 24; pointer-events: stroke; }
 .daily-rhythm-nav-arrow:focus-visible .daily-rhythm-arrow { stroke-width: 4.5; }
 .daily-rhythm-nav-arrow.disabled { cursor: default; pointer-events: none; }
-.daily-rhythm-wheel { transform-box: view-box; transform-origin: 300px 390px; animation: daily-rhythm-day-turn .55s cubic-bezier(.2,.75,.25,1); }
-@keyframes daily-rhythm-day-turn { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.daily-rhythm-wheel { transform-box: view-box; transform-origin: 300px 390px; }
 .daily-rhythm-inner-arc { fill: none; stroke: #f1d98a; stroke-width: 4; }
 .daily-rhythm-inner-arc:not(.inner-arc-two) { stroke: none; }
 .daily-rhythm-inner-arc.inner-arc-two { stroke: #ffeeb8; stroke-width: 2; }
@@ -229,7 +230,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .activity-summary-ai-action:hover:not(:disabled) { background: #ffedaa; }
 .activity-summary-ai-action:disabled { opacity: .65; cursor: wait; }
 .activity-summary-ai p.is-generated { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-weight: 500; }
-.activity-summary-ai p.activity-summary-ai-conclusion { margin-top: 3px; color: #405a4d; font-weight: 500; }
+.activity-summary-ai p.activity-summary-ai-conclusion { display: block; overflow: visible; margin: 5px 0 0 38px; color: #765500; font: 600 13px/19px 'Roboto', sans-serif; -webkit-line-clamp: unset; }
 .activity-summary-ai p.activity-summary-ai-highlight { color: #31453a; font-weight: 500; }
 .activity-summary-ai-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 10px 0 0 38px; }
 .activity-summary-ai-metric { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 7px 8px; border: 1px solid #f0e7c8; border-radius: 10px; background: rgba(255,255,255,.58); }
@@ -415,7 +416,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .add-flow-title .back-button { flex: none; }
 .add-flow-title h1 { margin: 10px 0 0; font: 600 20px/28px 'Poppins', sans-serif; letter-spacing: -.3px; white-space: nowrap; }
 .add-cancel { margin: 12px 0 0 auto; padding: 0; border: 0; background: transparent; color: var(--color-text-muted); font: 400 12px/20px 'Roboto', sans-serif; }
-.add-flow-header .eyebrow { margin: 10px 20px 0; font: 700 9px/17px 'Poppins', sans-serif; letter-spacing: .65px; }
+.add-flow-header .eyebrow { margin: 10px 0 0; font: 700 9px/17px 'Poppins', sans-serif; letter-spacing: .65px; }
 .source-tabs { height: 42px; flex: none; display: grid; grid-template-columns: repeat(3,1fr); align-items: center; margin: 22px 20px 0; padding: 0 8px; border: 1px solid var(--color-border); border-radius: 999px; background: #fff; }
 .source-tabs button { height: 32px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--color-text-primary); font: 600 12px/18px 'Poppins', sans-serif; }
 .source-tabs button.active { color: #ffbd00; }
@@ -688,6 +689,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .question-heading { margin: 36px 20px 22px; font: 600 20px/28px 'Poppins', sans-serif; letter-spacing: -.3px; }
 .writing-field { min-height: 192px; margin: 0 20px 37px; padding: 17px 15px 0; border: 1px solid var(--color-border); border-radius: 18px; background: white; display: flex; flex-direction: column; }
 .writing-field textarea { min-height: 110px; resize: vertical; border: 0; outline: 0; color: var(--color-text-primary); font: 400 16px/24px 'Roboto', sans-serif; }
+.writing-field textarea::placeholder { font-size: 15px; }
 .context-attachment-tools { min-height: 58px; display: flex; align-items: center; gap: 18px; border-top: 1px solid var(--color-border); }
 .context-attachment-tools label { position: relative; width: 24px; height: 32px; display: grid; place-items: center; color: var(--color-text-primary); cursor: pointer; }
 .context-attachment-tools svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
@@ -993,6 +995,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .you-row .avatar, .you-row .cat-avatar { width: 39px; height: 39px; flex: none; margin: 0; border-radius: 13px; object-fit: cover; }
 .cat-avatar { display: grid; place-items: center; background: #eeeae4; font-size: 24px; }
 .you-row em, .media-row em { margin-left: auto; border-radius: 99px; background: #ffcf29; padding: 4px 12px; color: #1a2921; font: 600 11px/15px 'Poppins', sans-serif; font-style: normal; white-space: nowrap; }
+.you-row em { display: inline-flex; align-items: center; justify-content: center; }
+.you-row em.inactive { background: #fff0a7; color: #765500; }
 .media-section { margin-top: 29px; }
 .media-list { height: auto; min-height: 202px; padding: 0 17px; }
 .media-empty { min-height: 202px; align-items: center; justify-content: center; padding: 18px 8px; text-align: center; }
@@ -1280,6 +1284,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .media-empty.knowledge-empty small { color: #a0a9a3; font: 400 10px/16px 'Roboto', sans-serif; }
 .knowledge-management-page { padding-bottom: 34px; }
 .source-management-list, .pattern-management-list, .life-event-list { margin: 16px 20px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 20px; background: #fff; }
+.source-management-list > .management-empty { padding-right: 24px; padding-left: 24px; }
 .source-management-row, .pattern-management-row { width: 100%; min-height: 72px; display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; color: var(--color-text-primary); text-align: left; }
 .source-management-row:last-child, .pattern-management-row:last-child { border-bottom: 0; }
 .source-management-row.selected, .pattern-management-row.selected { background: #fff8d8; }
@@ -1503,10 +1508,11 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-pattern-summary .profile-link { align-self: flex-start; color: #73591d; }
 
 /* Today's care replaces the passive latest-activity banner in the rhythm card. */
-.daily-rhythm-care { margin-top: 4px; padding: 12px 14px 10px; border: 1px solid #f0df91; border-radius: 22px; background: #fff7e6; color: #73591d; }
+.daily-rhythm-care { position: relative; margin-top: 4px; padding: 12px 14px 10px; border: 1px solid #ead88e; border-radius: 5px 18px 7px 18px; background: linear-gradient(135deg, #fff9e9 0%, #fff5dc 100%); box-shadow: 2px 3px 0 #e9ddaF, 0 7px 14px #73591d12; color: #73591d; }
 .daily-rhythm-care-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .daily-rhythm-care-heading > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.daily-rhythm-care-heading strong { color: #28452e; font: 600 14px/20px 'Poppins', sans-serif; }
+.daily-rhythm-care-heading strong { display: flex; align-items: center; gap: 7px; color: #28452e; font: 600 14px/20px 'Poppins', sans-serif; }
+.daily-rhythm-care-title-icon { width: 18px; height: 18px; flex: none; fill: none; stroke: #916400; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .daily-rhythm-care-heading small { color: #78644a; font: 400 10px/14px 'Roboto', sans-serif; }
 .daily-rhythm-care-heading > button, .daily-rhythm-care-footer button { flex: none; padding: 4px 0; border: 0; background: transparent; color: #916400; font: 600 10px/16px 'Poppins', sans-serif; }
 .daily-rhythm-care-heading > button { display: inline-flex; align-items: center; gap: 5px; }
