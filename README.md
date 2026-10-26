@@ -4,7 +4,7 @@
 
 【链接已更新26.10.23 14：30】添加了today care + 站内request [点这里](https://pawsona-team-6.vercel.app/)
 
-【修改中】是我测试用的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
+【正在修改中。。。】是我测试用的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
 
   1.目前settings里面加了关联邮箱的功能 但因为要进行设置的东西有点多我怕改坏了先搁置了 目前这块用不了
 
