@@ -181,7 +181,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .activity-insights-page { gap: 12px; }
 .activity-insights-intro { margin: 0; color: var(--color-text-secondary); font: 400 12px/18px 'Roboto', sans-serif; }
 .activity-insights-list { display: flex; flex-direction: column; gap: 10px; }
-.activity-insight-card { display: flex; align-items: flex-start; gap: 10px; padding: 13px 12px; border: 1px solid var(--color-border); border-radius: 16px; background: #fff; }
+.activity-insight-card { display: flex; flex-direction: column; gap: 10px; padding: 13px 12px; border: 1px solid var(--color-border); border-radius: 16px; background: #fff; }
+.activity-insight-main { display: flex; align-items: flex-start; gap: 10px; }
 .activity-insight-rank { width: 25px; height: 25px; flex: none; display: grid; place-items: center; border-radius: 9px; background: #ffed9e; color: #896300; font: 700 12px/1 'Poppins', sans-serif; }
 .activity-insight-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .activity-insight-copy h2 { margin: 0; display: flex; align-items: center; gap: 6px; color: var(--color-text-primary); font: 600 13px/18px 'Poppins', sans-serif; }
@@ -189,18 +190,18 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .activity-insight-copy p { margin: 0; color: #4d6356; font: 500 11px/16px 'Roboto', sans-serif; }
 .activity-insight-copy strong { color: var(--color-text-primary); font: 600 11px/16px 'Roboto', sans-serif; }
 .activity-insight-copy small { color: var(--color-text-muted); font: 400 9px/13px 'Roboto', sans-serif; }
-.activity-insight-review { display: flex; flex-direction: column; gap: 6px; margin-top: 7px; padding-top: 8px; border-top: 1px solid #edf0eb; }
+.activity-insight-review { width: 100%; display: flex; flex-direction: column; gap: 7px; padding-top: 9px; border-top: 1px solid #edf0eb; }
 .activity-insight-review > p { color: var(--color-text-primary); font: 600 10px/15px 'Poppins', sans-serif; }
-.activity-insight-review-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.activity-insight-review-actions button { min-height: 30px; padding: 5px 9px; border: 1px solid #d9ded7; border-radius: 999px; background: #fff; color: #506058; font: 600 9px/14px 'Roboto', sans-serif; cursor: pointer; }
+.activity-insight-review-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 7px; }
+.activity-insight-review-actions button { width: 100%; min-height: 36px; padding: 6px 8px; border: 1px solid #d9ded7; border-radius: 999px; background: #fff; color: #506058; font: 600 9px/13px 'Roboto', sans-serif; text-align: center; white-space: normal; cursor: pointer; }
 .activity-insight-review-actions button.is-selected.watch { border-color: #e2b83d; background: #fff5c9; color: #7a5700; }
 .activity-insight-review-actions button.is-selected.normal { border-color: #b8d8c7; background: #eaf6ef; color: #39745b; }
 .activity-insight-review-actions button:disabled { cursor: default; opacity: .55; }
 .activity-insight-review-actions button.is-selected:disabled { opacity: 1; }
-.activity-insight-copy .activity-insight-review-meta { color: #6b746e; font: 400 9px/13px 'Roboto', sans-serif; }
-.activity-insight-copy .activity-insight-review-meta.watch { color: #896300; }
-.activity-insight-copy .activity-insight-review-meta.normal { color: #39745b; }
-.activity-insight-link { flex: none; align-self: center; padding: 5px 0 5px 4px; border: 0; background: transparent; color: #896300; font: 600 10px/14px 'Roboto', sans-serif; white-space: nowrap; cursor: pointer; }
+.activity-insight-review-meta { color: #6b746e; font: 400 9px/13px 'Roboto', sans-serif; }
+.activity-insight-review-meta.watch { color: #896300; }
+.activity-insight-review-meta.normal { color: #39745b; }
+.activity-insight-link { flex: none; align-self: flex-start; padding: 5px 0 5px 4px; border: 0; background: transparent; color: #896300; font: 600 10px/14px 'Roboto', sans-serif; white-space: nowrap; cursor: pointer; }
 .activity-insights-empty { display: flex; align-items: center; gap: 10px; padding: 16px; border: 1px solid #f0e2b2; border-radius: 16px; background: #fff9df; }
 .activity-insights-empty span { color: #d99f00; font-size: 20px; }
 .activity-insights-empty p { margin: 0; color: var(--color-text-secondary); font: 400 12px/18px 'Roboto', sans-serif; }
