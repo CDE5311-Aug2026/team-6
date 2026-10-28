@@ -324,12 +324,19 @@ function observationBelongsToAccount(pet: PrototypePet, observation: StoryObserv
   return observation.authorId === accountId || (!observation.authorId && (!pet.sharedGroupId || pet.sharedOwnerAccountId === accountId));
 }
 
-function observationCompletedByAccount(pet: PrototypePet, observationId: string, accountId: string) {
-  return pet.workspace.careTasks.some((task) => task.sourceObservationId === observationId && task.status === 'done' && task.completedBy === accountId);
+function observationCompletedByAccount(pet: PrototypePet, observation: StoryObservation, accountId: string, accountName?: string) {
+  const normalizedAccountName = accountName?.trim().toLocaleLowerCase();
+  const task = pet.workspace.careTasks.find((entry) => entry.sourceObservationId === observation.id);
+  if (task?.status === 'skipped') return false;
+  if (task?.status === 'done') return task.completedBy === accountId || (task.autoCompleted === true && !!normalizedAccountName && task.completedByName?.trim().toLocaleLowerCase() === normalizedAccountName);
+  if (!observation.synthetic || new Date(observation.savedAt).getTime() > Date.now()) return false;
+  const completerId = task?.assignedTo && ['open', 'accepted'].includes(task.status) ? task.assignedTo : observation.authorId || 'simulation';
+  const completerName = completerId === (observation.authorId || 'simulation') ? observation.authorName : undefined;
+  return completerId === accountId || (!observation.authorId && !!normalizedAccountName && completerName?.trim().toLocaleLowerCase() === normalizedAccountName);
 }
 
-function itemCountForPet(pet: PrototypePet, category: ProfileActivityCategory, accountId: string) {
-  if (category === 'records') return pet.workspace.observations.filter((entry) => observationCompletedByAccount(pet, entry.id, accountId) && (!entry.privateRecord || observationBelongsToAccount(pet, entry, accountId))).length;
+function itemCountForPet(pet: PrototypePet, category: ProfileActivityCategory, accountId: string, accountName?: string) {
+  if (category === 'records') return pet.workspace.observations.filter((entry) => observationCompletedByAccount(pet, entry, accountId, accountName) && (!entry.privateRecord || observationBelongsToAccount(pet, entry, accountId))).length;
   if (category === 'contexts') return pet.workspace.contexts.filter((context) => context.authorId === accountId).length;
   return Object.values(pet.workspace.momentEngagement ?? {}).filter((entry) => (category === 'likes' ? entry.likes : entry.favorites).includes(accountId)).length;
 }
@@ -2585,7 +2592,7 @@ function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, own
   );
 }
 
-function ProfileActivityPage({ pets, initialPetId, initialCategory, currentAccountId, onBack, onOpenMoment, onRemoveFavorites }: { pets: PrototypePet[]; initialPetId: string; initialCategory: ProfileActivityCategory; currentAccountId: string; onBack: () => void; onOpenMoment: (petId: string, momentId: string) => void; onRemoveFavorites: (petId: string, momentIds: string[]) => void }) {
+function ProfileActivityPage({ pets, initialPetId, initialCategory, currentAccountId, currentAccountName, onBack, onOpenMoment, onRemoveFavorites }: { pets: PrototypePet[]; initialPetId: string; initialCategory: ProfileActivityCategory; currentAccountId: string; currentAccountName: string; onBack: () => void; onOpenMoment: (petId: string, momentId: string) => void; onRemoveFavorites: (petId: string, momentIds: string[]) => void }) {
   const visiblePets = pets.filter((pet) => !pet.isEmptyProfile).sort((left, right) => Number(right.id === initialPetId) - Number(left.id === initialPetId));
   const [selectedPetId, setSelectedPetId] = useState(initialPetId);
   const [category, setCategory] = useState<ProfileActivityCategory>(initialCategory);
@@ -2596,7 +2603,7 @@ function ProfileActivityPage({ pets, initialPetId, initialCategory, currentAccou
   const selectedPet = visiblePets.find((pet) => pet.id === selectedPetId) ?? visiblePets[0];
   const labels: Record<ProfileActivityCategory, string> = { records: 'My records', likes: 'Liked', favorites: 'Favorites', contexts: 'Contexts' };
   const allowedObservations = selectedPet?.workspace.observations.filter((entry) => !entry.privateRecord || observationBelongsToAccount(selectedPet, entry, currentAccountId)) ?? [];
-  const completedByCurrentAccount = allowedObservations.filter((entry) => selectedPet && observationCompletedByAccount(selectedPet, entry.id, currentAccountId));
+  const completedByCurrentAccount = allowedObservations.filter((entry) => selectedPet && observationCompletedByAccount(selectedPet, entry, currentAccountId, currentAccountName));
   const momentForId = (id: string) => {
     const observation = allowedObservations.find((entry) => entry.id === id);
     if (observation) return { id, title: observation.title, note: observation.note, image: observation.image, mediaType: observation.mediaType, savedAt: observation.savedAt };
@@ -2659,7 +2666,7 @@ function ProfileActivityPage({ pets, initialPetId, initialCategory, currentAccou
     <header className={`favorites-page-header ${selectionMode ? 'selecting' : ''}`}><button className="back-button" aria-label="Back to profile" onClick={onBack}>←</button><div className="favorites-page-title"><span className="eyebrow">MY SPACE</span><h1>{labels[category]}</h1></div>{category === 'favorites' && <div className="favorite-selection-actions">{selectionMode ? <><button type="button" onClick={selectAllMoments}>{selectedMomentIds.length === moments.length ? 'Clear' : 'Select all'}</button><button type="button" className="favorite-delete-action" disabled={!selectedMomentIds.length} onClick={() => { if (selectedPet && selectedMomentIds.length) onRemoveFavorites(selectedPet.id, selectedMomentIds); leaveSelectionMode(); }}>Delete{selectedMomentIds.length ? ` · ${selectedMomentIds.length}` : ''}</button><button type="button" className="favorite-cancel-action" aria-label="Exit selection mode" onClick={leaveSelectionMode}>×</button></> : <button type="button" className="favorite-select-mode" onClick={() => setSelectionMode(true)}>Select</button>}</div>}</header>
     <nav className="profile-activity-tabs" aria-label="Profile activity categories">{(['records', 'likes', 'favorites', 'contexts'] as const).map((item) => <button type="button" key={item} className={category === item ? 'active' : ''} aria-pressed={category === item} onClick={() => chooseCategory(item)}>{labels[item]}</button>)}</nav>
     <nav className="favorite-pet-tabs" aria-label="Pet activity folders">{visiblePets.map((pet) => {
-      const petCount = itemCountForPet(pet, category, currentAccountId);
+      const petCount = itemCountForPet(pet, category, currentAccountId, currentAccountName);
       const selected = pet.id === selectedPet?.id;
       return <button type="button" key={pet.id} className={`favorite-pet-tab ${selected ? 'active' : ''}`} aria-pressed={selected} onClick={() => choosePet(pet.id)}><Avatar name={pet.name} src={pet.avatar} /><span>{pet.name}</span><small>{petCount}</small></button>;
     })}</nav>
@@ -4767,7 +4774,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
             {view === 'undone' && <UndonePage onBack={() => goBack('saved')} onReturnToday={() => navigateTo('today')} onReview={() => navigateTo('overview')} petName={petName} />}
             {view === 'ask' && <AskPage petSpecies={petSpecies} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} messages={askMessages} messageEndRef={askEndRef} noPetYet={activePetRecord.isEmptyProfile ?? false} busy={askBusy} pending={askPending} live={Boolean(cloud)} />}
             {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} accounts={prototypeSession.accounts} onOpenActivity={(category) => { setProfileActivityCategory(category); navigateTo('favorites'); }} onPetsNavigate={() => navigateTo('pets')} onSettingsNavigate={() => navigateTo('settings')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={activePetRecord.isEmptyProfile ? openAddPetForm : () => setShowPetSwitcher(true)} careMembers={orderedCareMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} patterns={typicalPatterns} lifeEvents={lifeCareEvents} mediaSources={mediaSources} onPatternHistory={() => openPatternKnowledge()} onPattern={(id) => openPatternKnowledge(id)} onLifeCare={openLifeCare} onConnectedMedia={openConnectedMedia} invitations={view === 'you' ? receivedCareInvitations : []} onAcceptInvitation={acceptCareInvitation} onDeclineInvitation={(id) => updateInvitationStatus(id, 'declined')} careOwnerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} careOwnerAvatar={primaryCaregiverAvatar} careOwnerRole="Primary caregiver" groupName={activeGroupName} canManageCareGroup={isPrimaryCaregiver} canEditPetDetails={isPrimaryCaregiver} canAddLifeCare={canManageLongTermCare} canManageConnectedMedia={canManageLongTermCare} noPetYet={activePetRecord.isEmptyProfile ?? false} />}
-            {view === 'favorites' && <ProfileActivityPage pets={activeAccount.pets.map((pet) => pet.id === activePetRecord.id ? { ...pet, workspace: { ...pet.workspace, observations: storyObservations, momentEngagement, contexts: savedContexts, careTasks } } : pet)} initialPetId={activePetRecord.id} initialCategory={profileActivityCategory} currentAccountId={activeAccount.id} onBack={() => goBack('you')} onOpenMoment={openFavoriteMoment} onRemoveFavorites={removeFavoriteMoments} />}
+            {view === 'favorites' && <ProfileActivityPage pets={activeAccount.pets.map((pet) => pet.id === activePetRecord.id ? { ...pet, workspace: { ...pet.workspace, observations: storyObservations, momentEngagement, contexts: savedContexts, careTasks } } : pet)} initialPetId={activePetRecord.id} initialCategory={profileActivityCategory} currentAccountId={activeAccount.id} currentAccountName={activeAccount.name} onBack={() => goBack('you')} onOpenMoment={openFavoriteMoment} onRemoveFavorites={removeFavoriteMoments} />}
             {view === 'connectedMedia' && <ConnectedMediaPage petName={petName} sources={mediaSources} initialSourceId={selectedMediaSourceId} onBack={() => goBack('you')} onUpdate={saveMediaSource} onDelete={deleteMediaSource} />}
             {view === 'patternHistory' && <PatternKnowledgePage onMoment={openMomentDetail} petId={activePetRecord.id} records={visibleStoryObservations(storyObservations, includedStoryMoments)} live={Boolean(cloud)} petName={petName} ownerName={ownerName} patterns={typicalPatterns} initialPatternId={selectedPatternId} canManage={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveTypicalPattern} onDelete={deleteTypicalPattern} />}
             {view === 'careEvent' && <LifeCarePage petName={petName} ownerName={ownerName} primaryOwnerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} currentAccountId={activeAccount.id} events={lifeCareEvents} initialCategory={lifeCareInitialCategory} startAdding={lifeCareStartAdding} canAdd={canManageLongTermCare} canManageAll={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveLifeCareEvent} onDelete={deleteLifeCareEvent} />}
@@ -4873,6 +4880,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     </div>
   );
 }
+
 
 
 

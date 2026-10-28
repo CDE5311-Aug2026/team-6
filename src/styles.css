@@ -944,7 +944,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .favorites-page-header.selecting { min-height: 89px; }
 .favorites-page-header .back-button { flex: 0 0 auto; }
 .favorites-page-header.selecting .back-button { visibility: hidden; }
-.favorites-page-title { min-width: 0; height: 44px; flex: 1; overflow: hidden; }
+.favorites-page-title { position: relative; z-index: 1; min-width: 0; height: 48px; flex: 1; overflow: visible; }
 .favorites-page-title h1 { white-space: nowrap; }
 .favorites-page-header.selecting .favorites-page-title { visibility: hidden; }
 .favorites-page-header .eyebrow { color: #ffbd12; font: 700 10px/14px 'Poppins', sans-serif; letter-spacing: 1.2px; }
@@ -1876,4 +1876,5 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .health-record-details > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 10px; font: 400 12px/18px 'Roboto', sans-serif; }
 .health-record-details dt { color: var(--color-text-muted); }
 .health-record-details dd { margin: 0; overflow-wrap: anywhere; }
+
 
