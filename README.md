@@ -4,7 +4,14 @@
 
 【链接已更新26.10.28 16：40】添加了today care + 站内request + change用户判断[点这里](https://pawsona-team-6.vercel.app/)
 
-【26.10.26 23：50】小修了一下一些功能 是旧版用的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
+【正在修改中。。。】是我测试用的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
+
+  1.目前settings里面加了关联邮箱的功能 但因为要进行设置的东西有点多我怕改坏了先搁置了 目前这块用不了
+
+  2.优化了story页面中时间轴和日历功能的显示方式
+
+  3.尝试增加了每日/常态时间轴的功能 目前只是做了个非常潦草的大概（跟c老师聊让它美化这个可真是让我恼火。。。并且怕做坏了只是加了一个卡片 之后可以改~
+
 
 The prototype is deployed on Vercel and can be accessed
 directly through any web browser without installation.
@@ -104,3 +111,4 @@ Cancel exits the observation editing session without auto-creating a draft; prev
 Pet details uses compact name/type/breed/age/sex controls. Each species has eight common breeds plus Mixed breed and Other breed; unlisted existing breeds are kept as custom text. The local SVG breed examples are illustrative and are not inferred from photographs. Choosing a breed keeps an uploaded pet photo; using the breed illustration as the profile image is explicit.
 
 Apply `supabase/pet_profile_sex.sql` before deploying this version. Personal pets store optional `sex` in the existing private workspace JSON; legacy values normalize to Unknown. Shared circles store canonical `pet_sex` constrained to Female/Male/Unknown. The checked-save RPC copies it from owner-authored workspace metadata, and keeps the canonical value for non-owner writes. New circles initialize it from the owner's metadata. Existing records are not assigned a guessed sex. Shared pet species is also read back when switching or refreshing accounts.
+
