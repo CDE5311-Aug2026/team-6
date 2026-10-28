@@ -318,7 +318,7 @@ type MomentRecord = {
 };
 type MomentEngagement = { likes: string[]; favorites: string[] };
 type MomentEngagementById = Record<string, MomentEngagement>;
-type ProfileActivityCategory = 'records' | 'likes' | 'favorites' | 'comments';
+type ProfileActivityCategory = 'records' | 'likes' | 'favorites' | 'contexts';
 
 function observationBelongsToAccount(pet: PrototypePet, observation: StoryObservation, accountId: string) {
   return observation.authorId === accountId || (!observation.authorId && (!pet.sharedGroupId || pet.sharedOwnerAccountId === accountId));
@@ -330,7 +330,7 @@ function observationCompletedByAccount(pet: PrototypePet, observationId: string,
 
 function itemCountForPet(pet: PrototypePet, category: ProfileActivityCategory, accountId: string) {
   if (category === 'records') return pet.workspace.observations.filter((entry) => observationCompletedByAccount(pet, entry.id, accountId) && (!entry.privateRecord || observationBelongsToAccount(pet, entry, accountId))).length;
-  if (category === 'comments') return pet.workspace.contexts.reduce((count, context) => count + (context.comments ?? []).filter((comment) => comment.authorId === accountId).length, 0);
+  if (category === 'contexts') return pet.workspace.contexts.filter((context) => context.authorId === accountId).length;
   return Object.values(pet.workspace.momentEngagement ?? {}).filter((entry) => (category === 'likes' ? entry.likes : entry.favorites).includes(accountId)).length;
 }
 
@@ -2561,7 +2561,7 @@ function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, own
             { id: 'records', label: 'My records', icon: <><path d="M7 3.75h7l4.25 4.3v12.2H7a2 2 0 0 1-2-2v-12a2 2 0 0 1 2-2Z"/><path d="M14 4v5h5M9 13h6M9 16.5h6"/></> },
             { id: 'likes', label: 'Liked', icon: <path d="M20.8 4.9a5.5 5.5 0 0 0-7.8 0L12 5.9l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.3 1-1a5.5 5.5 0 0 0 0-7.8Z"/> },
             { id: 'favorites', label: 'Favorites', icon: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3Z"/> },
-            { id: 'comments', label: 'Comments', icon: <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-5.1a7.4 7.4 0 0 1-1-3.9 7.5 7.5 0 0 1 7.5-7.5h3A7.5 7.5 0 0 1 20 11.5Z"/> },
+            { id: 'contexts', label: 'Contexts', icon: <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-5.1a7.4 7.4 0 0 1-1-3.9 7.5 7.5 0 0 1 7.5-7.5h3A7.5 7.5 0 0 1 20 11.5Z"/> },
           ] as const).map((item) => <button type="button" key={item.id} className={`profile-activity-shortcut ${item.id}`} onClick={() => onOpenActivity(item.id)}><span className="profile-activity-icon"><svg viewBox="0 0 24 24" aria-hidden="true">{item.icon}</svg></span><strong>{item.label}</strong></button>)}
         </div>
       </div>
@@ -2594,7 +2594,7 @@ function ProfileActivityPage({ pets, initialPetId, initialCategory, currentAccou
   const longPressTimer = useRef<number | null>(null);
   const longPressTriggered = useRef(false);
   const selectedPet = visiblePets.find((pet) => pet.id === selectedPetId) ?? visiblePets[0];
-  const labels: Record<ProfileActivityCategory, string> = { records: 'My records', likes: 'Liked', favorites: 'Favorites', comments: 'Comments' };
+  const labels: Record<ProfileActivityCategory, string> = { records: 'My records', likes: 'Liked', favorites: 'Favorites', contexts: 'Contexts' };
   const allowedObservations = selectedPet?.workspace.observations.filter((entry) => !entry.privateRecord || observationBelongsToAccount(selectedPet, entry, currentAccountId)) ?? [];
   const completedByCurrentAccount = allowedObservations.filter((entry) => selectedPet && observationCompletedByAccount(selectedPet, entry.id, currentAccountId));
   const momentForId = (id: string) => {
@@ -2608,11 +2608,11 @@ function ProfileActivityPage({ pets, initialPetId, initialCategory, currentAccou
     ? completedByCurrentAccount.map((entry) => entry.id)
     : Object.entries(engagement).filter(([, value]) => (category === 'likes' ? value.likes : value.favorites).includes(currentAccountId)).map(([id]) => id);
   const moments = momentIds.map(momentForId).filter((moment): moment is NonNullable<typeof moment> => moment !== null).sort((a, b) => b.savedAt.localeCompare(a.savedAt));
-  const comments = (selectedPet?.workspace.contexts ?? []).flatMap((context) => (context.comments ?? [])
-    .filter((comment) => comment.authorId === currentAccountId)
-    .map((comment) => ({ ...comment, context, parent: momentForId(context.momentId) ?? { id: context.momentId, title: context.momentTitle, note: context.note, image: context.momentImage, mediaType: undefined, savedAt: context.savedAt } })))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const count = category === 'comments' ? comments.length : moments.length;
+  const contexts = (selectedPet?.workspace.contexts ?? [])
+    .filter((context) => context.authorId === currentAccountId)
+    .map((context) => ({ ...context, parent: momentForId(context.momentId) ?? { id: context.momentId, title: context.momentTitle, note: context.note, image: context.momentImage, mediaType: undefined, savedAt: context.savedAt } }))
+    .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+  const count = category === 'contexts' ? contexts.length : moments.length;
 
   function clearLongPressTimer() {
     if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
@@ -2657,7 +2657,7 @@ function ProfileActivityPage({ pets, initialPetId, initialCategory, currentAccou
 
   return <section className="favorites-page profile-activity-page">
     <header className={`favorites-page-header ${selectionMode ? 'selecting' : ''}`}><button className="back-button" aria-label="Back to profile" onClick={onBack}>←</button><div className="favorites-page-title"><span className="eyebrow">MY SPACE</span><h1>{labels[category]}</h1></div>{category === 'favorites' && <div className="favorite-selection-actions">{selectionMode ? <><button type="button" onClick={selectAllMoments}>{selectedMomentIds.length === moments.length ? 'Clear' : 'Select all'}</button><button type="button" className="favorite-delete-action" disabled={!selectedMomentIds.length} onClick={() => { if (selectedPet && selectedMomentIds.length) onRemoveFavorites(selectedPet.id, selectedMomentIds); leaveSelectionMode(); }}>Delete{selectedMomentIds.length ? ` · ${selectedMomentIds.length}` : ''}</button><button type="button" className="favorite-cancel-action" aria-label="Exit selection mode" onClick={leaveSelectionMode}>×</button></> : <button type="button" className="favorite-select-mode" onClick={() => setSelectionMode(true)}>Select</button>}</div>}</header>
-    <nav className="profile-activity-tabs" aria-label="Profile activity categories">{(['records', 'likes', 'favorites', 'comments'] as const).map((item) => <button type="button" key={item} className={category === item ? 'active' : ''} aria-pressed={category === item} onClick={() => chooseCategory(item)}>{labels[item]}</button>)}</nav>
+    <nav className="profile-activity-tabs" aria-label="Profile activity categories">{(['records', 'likes', 'favorites', 'contexts'] as const).map((item) => <button type="button" key={item} className={category === item ? 'active' : ''} aria-pressed={category === item} onClick={() => chooseCategory(item)}>{labels[item]}</button>)}</nav>
     <nav className="favorite-pet-tabs" aria-label="Pet activity folders">{visiblePets.map((pet) => {
       const petCount = itemCountForPet(pet, category, currentAccountId);
       const selected = pet.id === selectedPet?.id;
@@ -2665,7 +2665,7 @@ function ProfileActivityPage({ pets, initialPetId, initialCategory, currentAccou
     })}</nav>
     <section className="favorite-collection" aria-label={`${selectedPet?.name ?? 'Pet'} ${labels[category].toLowerCase()}`}>
       <div className="favorite-collection-heading"><div><span>{labels[category].toUpperCase()}</span><h2>{selectedPet?.name ?? 'Pet'} · {labels[category]}</h2></div><strong>{count}</strong></div>
-      {category === 'comments' ? comments.length ? <div className="profile-comment-list">{comments.map((entry) => <button type="button" className="profile-comment-row" key={entry.id} onClick={() => selectedPet && onOpenMoment(selectedPet.id, entry.context.momentId)}><span className="profile-comment-moment-image">{entry.parent.image && <StoryMediaView src={entry.parent.image} type={entry.parent.mediaType} alt=""/>}</span><span><small>{entry.parent.title} · {formatRelativeDate(entry.createdAt)}</small><strong>{entry.body}</strong></span><i>›</i></button>)}</div> : <div className="favorite-folder-empty"><span aria-hidden="true">▢</span><p>No comments yet.</p></div> : moments.length ? <div className={`favorite-moments-grid ${selectionMode ? 'selecting' : ''}`}>{moments.map((moment) => {
+      {category === 'contexts' ? contexts.length ? <div className="profile-comment-list">{contexts.map((entry) => <button type="button" className="profile-comment-row" key={entry.id} onClick={() => selectedPet && onOpenMoment(selectedPet.id, entry.momentId)}><span className="profile-comment-moment-image">{entry.parent.image && <StoryMediaView src={entry.parent.image} type={entry.parent.mediaType} alt=""/>}</span><span><small>{entry.parent.title} · {formatRelativeDate(entry.savedAt)}</small><strong>{entry.note || 'Owner context'}</strong></span><i>›</i></button>)}</div> : <div className="favorite-folder-empty"><span aria-hidden="true">▢</span><p>No contexts yet.</p></div> : moments.length ? <div className={`favorite-moments-grid ${selectionMode ? 'selecting' : ''}`}>{moments.map((moment) => {
         const selected = selectedMomentIds.includes(moment.id);
         return <button type="button" className={`favorite-moment-card ${selected ? 'selected' : ''}`} key={moment.id} aria-pressed={selectionMode ? selected : undefined} onPointerDown={(event) => { if (category === 'favorites' && event.button === 0) beginLongPress(moment.id); }} onPointerUp={clearLongPressTimer} onPointerLeave={clearLongPressTimer} onPointerCancel={clearLongPressTimer} onContextMenu={(event) => { if (category === 'favorites') event.preventDefault(); }} onClick={() => handleMomentClick(moment.id)}><span className="favorite-moment-cover">{moment.image ? <StoryMediaView src={moment.image} type={moment.mediaType} alt={`${selectedPet?.name} · ${moment.title}`} /> : <span aria-hidden="true">🐾</span>}{selectionMode && <span className="favorite-selection-mark" aria-hidden="true">{selected && <svg viewBox="0 0 24 24"><path d="m4.5 12.5 5 5L20 7" /></svg>}</span>}</span><span className="favorite-moment-copy"><strong>{moment.title}</strong><small>{moment.note || 'Moment'}</small><em>{moment.savedAt ? formatRelativeDate(moment.savedAt) : 'Moment'}</em></span></button>;
       })}</div> : <div className="favorite-folder-empty"><span aria-hidden="true">{category === 'records' ? <svg viewBox="0 0 24 24"><path d="M7 3.75h7l4.25 4.3v12.2H7a2 2 0 0 1-2-2v-12a2 2 0 0 1 2-2Z"/><path d="M14 4v5h5M9 13h6M9 16.5h6"/></svg> : category === 'likes' ? '♡' : '☆'}</span><p>No {labels[category].toLowerCase()} for {selectedPet?.name ?? 'this pet'} yet.</p></div>}
