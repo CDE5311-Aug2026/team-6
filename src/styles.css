@@ -917,8 +917,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .favorite-entry-card strong { font: 600 14px/19px 'Poppins', sans-serif; }
 .favorite-entry-card small { color: #78644a; font: 400 11px/16px 'Roboto', sans-serif; }
 .favorite-entry-card > i { color: #b08200; font: normal 20px/1 'Roboto', sans-serif; }
-.profile-activity-shortcuts { min-height: 90px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: center; gap: 2px; margin-top: 10px; padding: 8px; }
-.profile-activity-shortcut { min-width: 0; min-height: 68px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 4px 2px; border: 0; border-radius: 15px; background: transparent; color: var(--color-text-primary); cursor: pointer; }
+.profile-activity-shortcuts { min-height: 76px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: center; gap: 2px; margin-top: 10px; padding: 5px 8px; }
+.profile-activity-shortcut { min-width: 0; min-height: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 3px 2px; border: 0; border-radius: 15px; background: transparent; color: var(--color-text-primary); cursor: pointer; }
 .profile-activity-shortcut:active { background: #fff9df; }
 .profile-activity-icon { width: 39px; height: 39px; display: grid; place-items: center; color: #f3bd19; }
 .profile-activity-icon svg { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -1041,7 +1041,11 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .context-card .knowledge-row:first-child { min-height: 76px; }
 .you-page .main-header { height: 97px; }
 .you-page .main-header > .header-avatar-button { display: none; }
-.account-profile-hero { margin-top: 0; gap: 16px; }
+.account-hero-activity { overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding: 9px; border: 1px solid #f0efea; border-radius: 26px; background: #fff0a7; box-shadow: 0 2px 8px #1a29210a; }
+.account-profile-hero { min-height: 112px; margin-top: 0; gap: 16px; border-radius: 20px; }
+.account-hero-activity .profile-activity-shortcuts { min-height: 70px; margin-top: 0; border: 1px solid #f0efea; border-radius: 20px; background: #fff; box-shadow: none; }
+.account-hero-activity .profile-activity-icon { width: 32px; height: 32px; }
+.account-hero-activity .profile-activity-icon svg { width: 27px; height: 27px; }
 .account-avatar { width: 59px; height: 59px; font-size: 0; }
 .account-profile-hero .profile-hero-copy { gap: 0; }
 .account-profile-hero .profile-hero-copy > strong { font-size: 20px; }
