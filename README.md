@@ -4,7 +4,7 @@
 
 【链接已更新26.10.28 16：40】添加了today care + 站内request + change用户判断[点这里](https://pawsona-team-6.vercel.app/)
 
-【还在改 已更新26.10.28 18：17】添加了my activity功能 是本地版的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
+【已更新26.10.28 19：08】添加了my activity功能 是本地版的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
 
 
 
