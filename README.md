@@ -4,13 +4,8 @@
 
 【链接已更新26.10.28 16：40】添加了today care + 站内request + change用户判断[点这里](https://pawsona-team-6.vercel.app/)
 
-【正在修改中。。。】是我测试用的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
+【已更新26.10.28 18：17】添加了my activity功能 是本地版的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
 
-  1.目前settings里面加了关联邮箱的功能 但因为要进行设置的东西有点多我怕改坏了先搁置了 目前这块用不了
-
-  2.优化了story页面中时间轴和日历功能的显示方式
-
-  3.尝试增加了每日/常态时间轴的功能 目前只是做了个非常潦草的大概（跟c老师聊让它美化这个可真是让我恼火。。。并且怕做坏了只是加了一个卡片 之后可以改~
 
 
 The prototype is deployed on Vercel and can be accessed
