@@ -238,8 +238,11 @@ export function activitySummaryDateWindow(referenceDate: Date, count = 7) {
 }
 
 export function activityPeriodFor(record: Pick<ActivitySummaryRecord, 'savedAt'>): ActivityPeriod {
-  const hour = new Date(record.savedAt).getHours();
-  return hour >= 5 && hour < 12 ? 'morning' : hour >= 12 && hour < 18 ? 'afternoon' : 'evening';
+  const date = new Date(record.savedAt);
+  const minuteOfDay = date.getHours() * 60 + date.getMinutes();
+  return minuteOfDay >= 5 * 60 && minuteOfDay < 12 * 60 ? 'morning'
+    : minuteOfDay >= 12 * 60 && minuteOfDay < 17 * 60 + 30 ? 'afternoon'
+      : 'evening';
 }
 
 function inferredKind(record: ActivitySummaryRecord) {
@@ -302,3 +305,4 @@ export function activityCategoryRecords<T extends ActivitySummaryRecord>(records
 export function activityCategoryLabel(kind: string) {
   return kind === 'meal' ? 'Feeding' : kind === 'walk' ? 'Walk' : kind === 'play' ? 'Play' : kind === 'rest' ? 'Sleeping' : 'Activity';
 }
+
