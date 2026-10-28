@@ -2,7 +2,7 @@
 
 **Click here to explore our interactive prototype: https://pawsona-team6.vercel.app/**
 
-【链接已更新26.10.23 14：30】添加了today care + 站内request [点这里](https://pawsona-team-6.vercel.app/)
+【链接已更新26.10.28 16：40】添加了today care + 站内request + change用户判断[点这里](https://pawsona-team-6.vercel.app/)
 
 【26.10.26 23：50】小修了一下一些功能 是旧版用的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
 
