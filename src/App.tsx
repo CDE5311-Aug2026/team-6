@@ -13,7 +13,7 @@ import { visibleStoryObservations } from './storyVisibility';
 import { buildRollingStorySimulation, isSyntheticSunnyProfile } from './storySimulation';
 import { mergeSharedStoryObservations } from './sharedStoryObservations';
 import { appendCareTaskEvent, careTaskAttentionCount, careTaskSummaryTasks, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask, type CareTask, type CareTaskEvent, type CareTaskEventType } from './careTasks';
-import { useEffect, useRef, useState, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
 
 type View =
   | 'today'
@@ -588,8 +588,10 @@ function BottomNav({ active, onNavigate, unreadCareCount = 0 }: { active: View; 
     { id: 'pets', label: 'Pets', icon: 'paw' },
     { id: 'you', label: 'You' },
   ];
+  const activeIndex = Math.max(0, items.findIndex((item) => item.id === active));
   return (
-    <nav className="bottom-nav" aria-label="Main navigation">
+    <nav className="bottom-nav" aria-label="Main navigation" style={{ '--active-nav-index': activeIndex } as CSSProperties}>
+      <span className="bottom-nav-slider" aria-hidden="true" />
       {items.map((item) => (
         <button
           key={item.id}
@@ -2391,20 +2393,41 @@ function AskPage({ onPetsNavigate, petName, petAvatar, petSpecies, messages, mes
         <span>{message.text}</span>
       </article>)}
       {busy && <article className="chat-message ai ask-thinking" role="status"><ThinkingAvatar species={petSpecies} /> Pawsona is thinking…</article>}
-      <div ref={messageEndRef} />
+      <div ref={messageEndRef} className="ask-thread-end" />
     </section>
   </div>;
 }
 
-function AskComposer({ value, onValue, onSend, onQuickContext, saveError, busy, enabled }: { value: string; onValue: (value: string) => void; onSend: (attachment?: AskAttachment) => Promise<boolean>; onQuickContext: (value: string) => void; saveError: string; busy: boolean; enabled: boolean }) {
+function AskComposer({ value, onValue, onSend, onQuickContext, saveError, busy, enabled, messageEndRef }: { value: string; onValue: (value: string) => void; onSend: (attachment?: AskAttachment) => Promise<boolean>; onQuickContext: (value: string) => void; saveError: string; busy: boolean; enabled: boolean; messageEndRef: RefObject<HTMLDivElement | null> }) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const dockRef = useRef<HTMLElement>(null);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const quickChipsRef = useRef<HTMLDivElement>(null);
+  const chipDragRef = useRef<{ pointerId: number; startX: number; startScrollLeft: number; didMove: boolean } | null>(null);
+  const suppressChipClickRef = useRef(false);
   useEffect(() => {
     const dock = dockRef.current; const phone = dock?.closest<HTMLElement>('.phone');
     if (!dock || !phone) return;
     const observer = new ResizeObserver(() => phone.style.setProperty('--ask-dock-height', `${dock.offsetHeight}px`));
     observer.observe(dock);
     return () => { observer.disconnect(); phone.style.removeProperty('--ask-dock-height'); };
+  }, []);
+  useEffect(() => {
+    const scroll = dockRef.current?.closest<HTMLElement>('.phone')?.querySelector<HTMLElement>('.screen-scroll');
+    if (!scroll) return;
+    const update = () => {
+      const latestBottom = messageEndRef.current?.getBoundingClientRect().bottom;
+      const composerTop = dockRef.current?.getBoundingClientRect().top ?? scroll.getBoundingClientRect().bottom;
+      const visibleBottom = Math.min(scroll.getBoundingClientRect().bottom, composerTop) - 8;
+      setShowJumpToLatest(latestBottom !== undefined && latestBottom > visibleBottom + 12);
+    };
+    update();
+    scroll.addEventListener('scroll', update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(scroll);
+    const askContent = scroll.querySelector<HTMLElement>('.ask-page');
+    if (askContent) observer.observe(askContent);
+    return () => { scroll.removeEventListener('scroll', update); observer.disconnect(); };
   }, []);
   const [attachment, setAttachment] = useState<AskAttachment | undefined>();
   const [attachmentError, setAttachmentError] = useState('');
@@ -2434,8 +2457,9 @@ function AskComposer({ value, onValue, onSend, onQuickContext, saveError, busy, 
   const disabled = busy || reading || !enabled;
   const notice = Boolean(attachment || attachmentError || saveError);
   return <section ref={dockRef} className={`ask-dock${notice ? ' has-attachment' : ''}`} aria-label="Ask Pawsona a question">
+    {showJumpToLatest && <button type="button" className="ask-jump-latest" aria-label="Jump to latest message" title="Jump to latest message" onClick={() => messageEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v15m-6-6 6 6 6-6" /></svg></button>}
     <div className="quick-context-label">Quick questions</div>
-    <div className="quick-chips">{['What can you observe?', 'What should I watch for?', 'Help me understand'].map(text => <button key={text} disabled={disabled} onClick={() => onQuickContext(text)}>{text}</button>)}</div>
+    <div ref={quickChipsRef} className="quick-chips" onPointerDown={(event) => { if (event.pointerType !== 'mouse' || event.button !== 0) return; const rail = quickChipsRef.current; if (!rail) return; chipDragRef.current = { pointerId: event.pointerId, startX: event.clientX, startScrollLeft: rail.scrollLeft, didMove: false }; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={(event) => { const drag = chipDragRef.current; const rail = quickChipsRef.current; if (!drag || drag.pointerId !== event.pointerId || !rail) return; const delta = event.clientX - drag.startX; if (Math.abs(delta) > 4) drag.didMove = true; if (drag.didMove) { event.preventDefault(); rail.scrollLeft = drag.startScrollLeft - delta; } }} onPointerUp={(event) => { const drag = chipDragRef.current; if (!drag || drag.pointerId !== event.pointerId) return; suppressChipClickRef.current = drag.didMove; chipDragRef.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} onPointerCancel={() => { chipDragRef.current = null; }} onClickCapture={(event) => { if (!suppressChipClickRef.current) return; suppressChipClickRef.current = false; event.preventDefault(); event.stopPropagation(); }}>{['What can you observe?', 'What should I watch for?', 'Help me understand'].map(text => <button key={text} disabled={disabled} onClick={() => onQuickContext(text)}>{text}</button>)}</div>
     <div className={`ask-input-box${notice ? ' has-attachment' : ''}`}>
       {attachment && <div className="ask-attachment-preview"><div className="ask-attachment-tile image"><img src={attachment.url} alt={attachment.name} /><button type="button" disabled={busy} aria-label="Remove image attachment" onClick={() => { setAttachment(undefined); setAttachmentError(''); }}>×</button></div></div>}
       {(attachmentError || saveError) && <div className="ask-recording-error" role="alert"><span>{attachmentError || saveError}</span></div>}
@@ -2468,7 +2492,7 @@ function AccountSwitcher({ accounts, activeAccountId, onClose, onSwitch, onRegis
 }
 
 function PetSwitcher({ pets, activePetId, onClose, onSwitch, onAdd, onDelete, initialAdding = false }: { pets: PrototypePet[]; activePetId: string; onClose: () => void; onSwitch: (id: string) => void; onAdd: (name: string, breed: string, age: string, species: 'Dog' | 'Cat', avatar: string) => string; onDelete: (id: string) => string; initialAdding?: boolean }) {
-  const visiblePets = pets.filter((pet) => !pet.isEmptyProfile);
+  const visiblePets = pets.filter((pet) => !pet.isEmptyProfile).sort((left, right) => Number(right.id === activePetId) - Number(left.id === activePetId));
   const [adding, setAdding] = useState(initialAdding);
   const [name, setName] = useState('');
   const [breed, setBreed] = useState('');
@@ -2664,14 +2688,14 @@ function ProfileActivityPage({ pets, initialPetId, initialCategory, currentAccou
 
   return <section className="favorites-page profile-activity-page">
     <header className={`favorites-page-header ${selectionMode ? 'selecting' : ''}`}><button className="back-button" aria-label="Back to profile" onClick={onBack}>←</button><div className="favorites-page-title"><span className="eyebrow">MY SPACE</span><h1>{labels[category]}</h1></div>{category === 'favorites' && <div className="favorite-selection-actions">{selectionMode ? <><button type="button" onClick={selectAllMoments}>{selectedMomentIds.length === moments.length ? 'Clear' : 'Select all'}</button><button type="button" className="favorite-delete-action" disabled={!selectedMomentIds.length} onClick={() => { if (selectedPet && selectedMomentIds.length) onRemoveFavorites(selectedPet.id, selectedMomentIds); leaveSelectionMode(); }}>Delete{selectedMomentIds.length ? ` · ${selectedMomentIds.length}` : ''}</button><button type="button" className="favorite-cancel-action" aria-label="Exit selection mode" onClick={leaveSelectionMode}>×</button></> : <button type="button" className="favorite-select-mode" onClick={() => setSelectionMode(true)}>Select</button>}</div>}</header>
-    <nav className="profile-activity-tabs" aria-label="Profile activity categories">{(['records', 'likes', 'favorites', 'contexts'] as const).map((item) => <button type="button" key={item} className={category === item ? 'active' : ''} aria-pressed={category === item} onClick={() => chooseCategory(item)}>{labels[item]}</button>)}</nav>
+    <nav className="profile-activity-tabs" aria-label="Profile activity categories" style={{ '--active-tab-index': ['records', 'likes', 'favorites', 'contexts'].indexOf(category) } as CSSProperties}><span className="profile-activity-slider" aria-hidden="true" />{(['records', 'likes', 'favorites', 'contexts'] as const).map((item) => <button type="button" key={item} className={category === item ? 'active' : ''} aria-pressed={category === item} onClick={() => chooseCategory(item)}>{labels[item]}</button>)}</nav>
     <nav className="favorite-pet-tabs" aria-label="Pet activity folders">{visiblePets.map((pet) => {
       const petCount = itemCountForPet(pet, category, currentAccountId, currentAccountName);
       const selected = pet.id === selectedPet?.id;
       return <button type="button" key={pet.id} className={`favorite-pet-tab ${selected ? 'active' : ''}`} aria-pressed={selected} onClick={() => choosePet(pet.id)}><Avatar name={pet.name} src={pet.avatar} /><span>{pet.name}</span><small>{petCount}</small></button>;
     })}</nav>
     <section className="favorite-collection" aria-label={`${selectedPet?.name ?? 'Pet'} ${labels[category].toLowerCase()}`}>
-      <div className="favorite-collection-heading"><div><span>{labels[category].toUpperCase()}</span><h2>{selectedPet?.name ?? 'Pet'} · {labels[category]}</h2></div>{category !== 'contexts' && <div className="favorite-collection-tools"><div className="favorite-layout-toggle" role="group" aria-label="Moment layout"><button type="button" className={momentLayout === 'large' ? 'active' : ''} aria-label="Show two large cards per row" aria-pressed={momentLayout === 'large'} onClick={() => setMomentLayout('large')}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg></button><button type="button" className={momentLayout === 'small' ? 'active' : ''} aria-label="Show three small cards per row" aria-pressed={momentLayout === 'small'} onClick={() => setMomentLayout('small')}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="9.25" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="16" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="9.25" width="5.5" height="5.5" rx="1"/><rect x="9.25" y="9.25" width="5.5" height="5.5" rx="1"/><rect x="16" y="9.25" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="16" width="5.5" height="5.5" rx="1"/><rect x="9.25" y="16" width="5.5" height="5.5" rx="1"/><rect x="16" y="16" width="5.5" height="5.5" rx="1"/></svg></button></div></div>}</div>
+      <div className="favorite-collection-heading"><div><span>{labels[category].toUpperCase()}</span><h2>{selectedPet?.name ?? 'Pet'} · {labels[category]}</h2></div>{category !== 'contexts' && <div className="favorite-collection-tools"><div className="favorite-layout-toggle" role="group" aria-label="Moment layout"><span className={`favorite-layout-slider ${momentLayout}`} aria-hidden="true"/><button type="button" className={momentLayout === 'large' ? 'active' : ''} aria-label="Show two large cards per row" aria-pressed={momentLayout === 'large'} onClick={() => setMomentLayout('large')}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg></button><button type="button" className={momentLayout === 'small' ? 'active' : ''} aria-label="Show three small cards per row" aria-pressed={momentLayout === 'small'} onClick={() => setMomentLayout('small')}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="9.25" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="16" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="9.25" width="5.5" height="5.5" rx="1"/><rect x="9.25" y="9.25" width="5.5" height="5.5" rx="1"/><rect x="16" y="9.25" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="16" width="5.5" height="5.5" rx="1"/><rect x="9.25" y="16" width="5.5" height="5.5" rx="1"/><rect x="16" y="16" width="5.5" height="5.5" rx="1"/></svg></button></div></div>}</div>
       {category === 'contexts' ? contexts.length ? <div className="profile-comment-list">{contexts.map((entry) => <button type="button" className="profile-comment-row" key={entry.id} onClick={() => selectedPet && onOpenMoment(selectedPet.id, entry.momentId)}><span className="profile-comment-moment-image">{entry.parent.image && <StoryMediaView src={entry.parent.image} type={entry.parent.mediaType} alt=""/>}</span><span><small>{entry.parent.title} · {formatRelativeDate(entry.savedAt)}</small><strong>{entry.note || 'Owner context'}</strong></span><i>›</i></button>)}</div> : <div className="favorite-folder-empty"><span aria-hidden="true">▢</span><p>No contexts yet.</p></div> : moments.length ? <div className={`favorite-moments-grid ${momentLayout} ${selectionMode ? 'selecting' : ''}`}>{moments.map((moment) => {
         const selected = selectedMomentIds.includes(moment.id);
         return <button type="button" className={`favorite-moment-card ${selected ? 'selected' : ''}`} key={moment.id} aria-pressed={selectionMode ? selected : undefined} onPointerDown={(event) => { if (category === 'favorites' && event.button === 0) beginLongPress(moment.id); }} onPointerUp={clearLongPressTimer} onPointerLeave={clearLongPressTimer} onPointerCancel={clearLongPressTimer} onContextMenu={(event) => { if (category === 'favorites') event.preventDefault(); }} onClick={() => handleMomentClick(moment.id)}><span className="favorite-moment-cover">{moment.image ? <StoryMediaView src={moment.image} type={moment.mediaType} alt={`${selectedPet?.name} · ${moment.title}`} /> : <span aria-hidden="true">🐾</span>}{selectionMode && <span className="favorite-selection-mark" aria-hidden="true">{selected && <svg viewBox="0 0 24 24"><path d="m4.5 12.5 5 5L20 7" /></svg>}</span>}</span><span className="favorite-moment-copy"><strong>{moment.title}</strong><small>{moment.note || 'Moment'}</small><em>{moment.savedAt ? formatRelativeDate(moment.savedAt) : 'Moment'}</em></span></button>;
@@ -4864,7 +4888,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         </main>
         {view === 'story' && canContributeToSharedPet && <button className={`floating-add ${showStoryAddOptions ? 'is-open' : ''}`} aria-expanded={showStoryAddOptions} onClick={() => setShowStoryAddOptions((open) => !open)}><span className="add-icon" aria-hidden="true">+</span><span className="add-label">Add</span></button>}
         {view === 'story' && canContributeToSharedPet && showStoryAddOptions && <div className="story-add-menu-backdrop" role="presentation" onClick={() => setShowStoryAddOptions(false)}><div className="story-add-choices" role="menu" aria-label="Add to Story" onClick={(event) => event.stopPropagation()}><button className="story-add-choice story-add-choice-new" role="menuitem" onClick={() => { setShowStoryAddOptions(false); startStoryObservation(); }}>New moment</button><button className="story-add-choice story-add-choice-drafts" role="menuitem" onClick={() => { setShowStoryAddOptions(false); navigateTo('drafts'); }}>Drafts{storyDrafts.length > 0 ? ` (${storyDrafts.length})` : ''}</button></div></div>}
-        {view === 'ask' && <AskComposer key={askIdentity} busy={askBusy} enabled={Boolean(cloud && activePetRecord && !activePetRecord.isEmptyProfile)} value={askInput} onValue={(value) => { setAskInput(value); if (askSaveError) setAskSaveError(''); }} onSend={sendAskMessage} saveError={askSaveError} onQuickContext={(value) => { setAskSaveError(''); setAskInput((current) => current ? `${current} ${value}` : value); }} />}
+        {view === 'ask' && <AskComposer key={askIdentity} busy={askBusy} enabled={Boolean(cloud && activePetRecord && !activePetRecord.isEmptyProfile)} value={askInput} onValue={(value) => { setAskInput(value); if (askSaveError) setAskSaveError(''); }} onSend={sendAskMessage} saveError={askSaveError} onQuickContext={(value) => { setAskSaveError(''); setAskInput((current) => current ? `${current} ${value}` : value); }} messageEndRef={askEndRef} />}
         {profileAction && <SettingsPanels title={profileAction.title} onClose={() => setProfileAction(null)} preferences={devicePreferences} onPreferences={value => { setDevicePreferences(value); try { localStorage.setItem('pawsona-device-preferences', JSON.stringify(value)); setPreferencesError(''); } catch { setPreferencesError('Preferences apply for this session but could not be saved.'); } }} workspace={captureCurrentSpace(prototypeSession).accounts.find(a => a.id === activeAccount.id)?.pets.find(p => p.id === activePetRecord.id)?.workspace} petName={petName} cloud={Boolean(cloud)} />}
         {preferencesError && <p role="alert">{preferencesError}</p>}
         {pendingDeviceAccountRemoval && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDeviceAccountRemoval(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="remove-device-account-title" onClick={(event) => event.stopPropagation()}><h2 id="remove-device-account-title">Remove {pendingDeviceAccountRemoval.name} from this device?</h2><p>{pendingDeviceAccountRemoval.username.toLowerCase() === (activeAccount.email.endsWith('@users.pawsona.invalid') ? activeAccount.email.split('@')[0].toLowerCase() : activeAccount.email.toLowerCase()) ? 'You will be signed out of this account. Its cloud account and records will not be deleted.' : 'This only removes the remembered username from this device. The cloud account and its records will not be deleted.'}</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDeviceAccountRemoval(null)}>Cancel</button><button className="danger-button" onClick={() => { void confirmRemoveDeviceAccount(); }}>Remove from device</button></div></section></div>}
@@ -4880,7 +4904,6 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     </div>
   );
 }
-
 
 
 

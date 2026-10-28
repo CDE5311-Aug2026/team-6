@@ -15,6 +15,50 @@ type Workspace = {
 
 type DeviceCloudAccount = { username: string; name: string; avatar?: string };
 
+function CloudAccountPreloader({ loading, onFinish }: { loading: boolean; onFinish: () => void }) {
+  const [progress, setProgress] = useState(0);
+  const [opened, setOpened] = useState(false);
+
+  useEffect(() => {
+    const timers: number[] = [];
+    if (loading) {
+      setProgress(0);
+      setOpened(false);
+      let value = 0;
+      const advance = () => {
+        value = Math.min(94, value + (Math.random() < 0.18 ? 0 : 2 + Math.floor(Math.random() * (value > 78 ? 4 : 9))));
+        setProgress(value);
+        if (value < 94) timers.push(window.setTimeout(advance, Math.random() < 0.12 ? 260 : 45));
+      };
+      timers.push(window.setTimeout(advance, 60));
+    } else {
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      setProgress(100);
+      if (reducedMotion) {
+        setOpened(true);
+        timers.push(window.setTimeout(onFinish, 20));
+      } else {
+        timers.push(window.setTimeout(() => setOpened(true), 260));
+        timers.push(window.setTimeout(onFinish, 1180));
+      }
+    }
+    return () => timers.forEach(window.clearTimeout);
+  }, [loading, onFinish]);
+
+  return <div className="cloud-preloader-backdrop">
+    <div className={`cloud-preloader${opened ? ' is-open' : ''}`} role="status" aria-label="Loading your account">
+      <div className="cloud-preloader-panel top" aria-hidden="true" />
+      <div className="cloud-preloader-panel bottom" aria-hidden="true" />
+      <div className="cloud-preloader-brand" aria-hidden="true"><i /><span>PAWSONA</span></div>
+      <div className="cloud-preloader-progress" role="progressbar" aria-label="Loading your account" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+        <small>Loading your account</small>
+        <div className="cloud-preloader-number"><span>{progress}</span><i>%</i></div>
+        <div className="cloud-preloader-track"><i style={{ width: `${progress}%` }} /></div>
+      </div>
+    </div>
+  </div>;
+}
+
 async function decodeCareGroups(groups: Awaited<ReturnType<typeof listCloudCareGroups>>, media: CloudMedia) {
   return Promise.all(groups.map(async (group) => {
     const workspace = { ...group.workspace };
@@ -192,6 +236,7 @@ export default function CloudRoot() {
   const [accountLoginUsername, setAccountLoginUsername] = useState('');
   const [deviceAccounts, setDeviceAccounts] = useState<DeviceCloudAccount[]>(readDeviceAccounts);
   const [loading, setLoading] = useState(!!supabase);
+  const [preloaderVisible, setPreloaderVisible] = useState(!!supabase);
   const [error, setError] = useState('');
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [syncState, setSyncState] = useState<SyncState>('saved');
@@ -209,6 +254,7 @@ export default function CloudRoot() {
   const choice = useRef<'guest' | null>(null);
   const latest = useRef<PrototypeSession | null>(null);
   const rememberedAccountProfile = useRef('');
+  const finishPreloader = useCallback(() => setPreloaderVisible(false), []);
 
   const openCloud = useCallback(async (expectedId?: string) => {
     if (!supabase || choice.current === 'guest') return;
@@ -216,7 +262,7 @@ export default function CloudRoot() {
     setAccountLoginOpen(false);
     if (current.current) { current.current.sync.stop(); current.current.media.dispose(); current.current = null; setWorkspace(null); setMode('entry'); }
     const ticket = ++generation.current;
-    setLoading(true); setError('');
+    setPreloaderVisible(true); setLoading(true); setError('');
     let media: CloudMedia | null = null;
     try {
       const user = await verifiedUser();
@@ -396,8 +442,9 @@ export default function CloudRoot() {
       onRegister={async (_name, username, password) => { await registerCloudAccount(username, password); return ''; }}
       onLogin={async (username, password) => { await loginCloudAccount(username, password); await openCloud(); return ''; }} />
     </div>}
+    {preloaderVisible && <CloudAccountPreloader loading={loading} onFinish={finishPreloader} />}
   </>;
-  return <>{loading && <div className="cloud-loading" role="status">Loading your account…</div>}
+  return <>{preloaderVisible && <CloudAccountPreloader loading={loading} onFinish={finishPreloader} />}
     <Welcome cloud error={error}
       onGuest={() => { choice.current = 'guest'; ++generation.current; setLoading(false); setError(''); setMode('guest'); }}
       onRegister={async (_name, username, password) => {
