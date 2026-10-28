@@ -1194,6 +1194,10 @@ function ActivityInsightsPage({ records, petName, onBack, onActivitySummary }: {
   const observedRecords = records.filter(record => new Date(record.savedAt).getTime() <= referenceDate.getTime());
   const rankedInsights = rankDailyActivityInsights(observedRecords, referenceDate);
   const topInsights = rankedInsights.slice(0, 3);
+  const activityIcon = (label: string) => /food|dinner|breakfast|lunch|meal|feed/i.test(label) ? '🥣'
+    : /walk|stroll|outdoor|potty/i.test(label) ? '🐾'
+      : /rest|sleep/i.test(label) ? '💤'
+        : /play|toy|fetch|game/i.test(label) ? '🎾' : '✨';
   const formatDate = (date: Date) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
   const latestRecordFor = (activityKey: string, date: Date) => observedRecords
     .filter(record => activitySummaryIdentity(record).key === activityKey && isSameLocalDay(record.savedAt, date))
@@ -1209,7 +1213,7 @@ function ActivityInsightsPage({ records, petName, onBack, onActivitySummary }: {
       const record = latestRecordFor(insight.activityKey, insight.currentDate);
       return <article className="activity-insight-card" key={insight.activityKey}>
         <span className="activity-insight-rank" aria-label={`Rank ${index + 1}`}>{index + 1}</span>
-        <div className="activity-insight-copy"><h2>{insight.activityLabel}</h2><p>Today’s {insight.label.toLowerCase()} {direction} {Math.round(Math.abs(insight.relativeChange) * 100)}% vs usual</p><strong>{currentValue} vs {previousValue} {insight.unit}</strong><small>Today: {insight.currentSampleSize} {insight.currentSampleSize === 1 ? 'record' : 'records'} · baseline: {insight.baselineSampleSize} records across {insight.baselineDays} recorded days</small><small>{insight.meetsThreshold ? 'Meets the main change threshold' : 'Smaller shift · shown to complete the daily list'}</small><small>Ranked #{index + 1} by relative change</small></div>
+        <div className="activity-insight-copy"><h2><span className="activity-insight-icon" aria-hidden="true">{activityIcon(insight.activityLabel)}</span>{insight.activityLabel}</h2><p>Today’s {insight.label.toLowerCase()} {direction} {Math.round(Math.abs(insight.relativeChange) * 100)}% vs usual</p><strong>{currentValue} vs {previousValue} {insight.unit}</strong><small>Today: {insight.currentSampleSize} {insight.currentSampleSize === 1 ? 'record' : 'records'} · baseline: {insight.baselineSampleSize} records across {insight.baselineDays} recorded days</small><small>{insight.meetsThreshold ? 'Meets the main change threshold' : 'Smaller shift · shown to complete the daily list'}</small><small>Ranked #{index + 1} by relative change</small></div>
         {record && <button className="activity-insight-link" type="button" onClick={() => onActivitySummary(record)}>View activity →</button>}
       </article>;
     })}</div> : <div className="activity-insights-empty"><span aria-hidden="true">✦</span><p>No standout change today. Metrics need recorded values on at least 3 prior days and must exceed the change thresholds.</p></div>}
