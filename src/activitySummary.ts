@@ -49,6 +49,40 @@ export type RankedDailyActivityInsight = WeeklyInsightCandidate & {
   baselineEndDate: Date;
 };
 
+export type ActivityInsightReviewStatus = 'watch' | 'normal';
+
+export type ActivityInsightReview = {
+  id: string;
+  activityKey: string;
+  metricKey: WeeklyInsightCandidate['key'];
+  dateKey: string;
+  status: ActivityInsightReviewStatus;
+  reviewerId: string;
+  reviewerName: string;
+  reviewedAt: string;
+};
+
+function localDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+export function activityInsightReviewId(insight: Pick<RankedDailyActivityInsight, 'activityKey' | 'key' | 'currentDate'>) {
+  return `${localDateKey(insight.currentDate)}:${encodeURIComponent(insight.activityKey)}:${insight.key}`;
+}
+
+export function activityInsightReviewFor(reviews: ActivityInsightReview[], insight: Pick<RankedDailyActivityInsight, 'activityKey' | 'key' | 'currentDate'>) {
+  const id = activityInsightReviewId(insight);
+  return reviews.find(review => review.id === id);
+}
+
+export function attentionActivityInsights(insights: RankedDailyActivityInsight[], reviews: ActivityInsightReview[]) {
+  return insights
+    .map((insight, rank) => ({ insight, rank, review: activityInsightReviewFor(reviews, insight) }))
+    .filter(entry => entry.review?.status !== 'normal')
+    .sort((left, right) => Number(right.review?.status === 'watch') - Number(left.review?.status === 'watch') || left.rank - right.rank)
+    .map(entry => entry.insight);
+}
+
 export function selectWeeklyInsight(current: ActivityWeekStats, previous: ActivityWeekStats): WeeklyInsightCandidate | null {
   const candidates: WeeklyInsightCandidate[] = [];
   const add = (candidate: Omit<WeeklyInsightCandidate, 'relativeChange' | 'absoluteChange'>, minimumAbsoluteChange: number, minimumRelativeChange: number) => {

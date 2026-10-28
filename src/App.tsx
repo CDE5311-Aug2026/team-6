@@ -4,7 +4,7 @@ import ThinkingAvatar from './ThinkingAvatar';
 import MomentCarousel from './MomentCarousel';
 import PatternSuggestions from './PatternSuggestions';
 import SettingsPanels, { readPreferences } from './SettingsPanels';
-import { activityCategoryLabel, activityCategoryRecords, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight, type ActivityPeriod } from './activitySummary';
+import { activityCategoryLabel, activityCategoryRecords, activityInsightReviewFor, activityInsightReviewId, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, attentionActivityInsights, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight, type ActivityInsightReview, type ActivityInsightReviewStatus, type ActivityPeriod, type RankedDailyActivityInsight } from './activitySummary';
 import { clockMinute, type DailyPattern } from '../supabase/functions/_shared/dailyPatterns';
 import Welcome from './Welcome';
 import { requestAskAI } from './askAI';
@@ -263,6 +263,7 @@ type PetWorkspace = {
   mediaSources: MediaSource[];
   patterns: TypicalPattern[];
   lifeEvents: LifeCareEvent[];
+  insightReviews: ActivityInsightReview[];
   scenarioDate?: string;
   sharedUpdatedAt?: string;
   petSex?: PetSex;
@@ -1189,7 +1190,7 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
   </section>;
 }
 
-function ActivityInsightsPage({ records, petName, onBack, onActivitySummary }: { records: StoryObservation[]; petName: string; onBack: () => void; onActivitySummary: (record: StoryObservation) => void }) {
+function ActivityInsightsPage({ records, petName, reviews, canReview, onReview, onBack, onActivitySummary }: { records: StoryObservation[]; petName: string; reviews: ActivityInsightReview[]; canReview: boolean; onReview: (insight: RankedDailyActivityInsight, status: ActivityInsightReviewStatus) => void; onBack: () => void; onActivitySummary: (record: StoryObservation) => void }) {
   const referenceDate = useCurrentTime();
   const observedRecords = records.filter(record => new Date(record.savedAt).getTime() <= referenceDate.getTime());
   const rankedInsights = rankDailyActivityInsights(observedRecords, referenceDate);
@@ -1199,6 +1200,7 @@ function ActivityInsightsPage({ records, petName, onBack, onActivitySummary }: {
       : /rest|sleep/i.test(label) ? '💤'
         : /play|toy|fetch|game/i.test(label) ? '🎾' : '✨';
   const formatDate = (date: Date) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+  const formatReviewTime = (value: string) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value));
   const latestRecordFor = (activityKey: string, date: Date) => observedRecords
     .filter(record => activitySummaryIdentity(record).key === activityKey && isSameLocalDay(record.savedAt, date))
     .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime())[0];
@@ -1211,10 +1213,10 @@ function ActivityInsightsPage({ records, petName, onBack, onActivitySummary }: {
       const currentValue = insight.current.toFixed(1);
       const previousValue = insight.previous.toFixed(1);
       const record = latestRecordFor(insight.activityKey, insight.currentDate);
+      const review = activityInsightReviewFor(reviews, insight);
       return <article className="activity-insight-card" key={insight.activityKey}>
-        <span className="activity-insight-rank" aria-label={`Rank ${index + 1}`}>{index + 1}</span>
-        <div className="activity-insight-copy"><h2><span className="activity-insight-icon" aria-hidden="true">{activityIcon(insight.activityLabel)}</span>{insight.activityLabel}</h2><p>Today’s {insight.label.toLowerCase()} {direction} {Math.round(Math.abs(insight.relativeChange) * 100)}% vs usual</p><strong>{currentValue} vs {previousValue} {insight.unit}</strong><small>Today: {insight.currentSampleSize} {insight.currentSampleSize === 1 ? 'record' : 'records'} · baseline: {insight.baselineSampleSize} records across {insight.baselineDays} recorded days</small><small>{insight.meetsThreshold ? 'Meets the main change threshold' : 'Smaller shift · shown to complete the daily list'}</small><small>Ranked #{index + 1} by relative change</small></div>
-        {record && <button className="activity-insight-link" type="button" onClick={() => onActivitySummary(record)}>View activity →</button>}
+        <div className="activity-insight-main"><span className="activity-insight-rank" aria-label={`Rank ${index + 1}`}>{index + 1}</span><div className="activity-insight-copy"><h2><span className="activity-insight-icon" aria-hidden="true">{activityIcon(insight.activityLabel)}</span>{insight.activityLabel}</h2><p>Today’s {insight.label.toLowerCase()} {direction} {Math.round(Math.abs(insight.relativeChange) * 100)}% vs usual</p><strong>{currentValue} vs {previousValue} {insight.unit}</strong><small>Today: {insight.currentSampleSize} {insight.currentSampleSize === 1 ? 'record' : 'records'} · baseline: {insight.baselineSampleSize} records across {insight.baselineDays} recorded days</small><small>{insight.meetsThreshold ? 'Meets the main change threshold' : 'Smaller shift · shown to complete the daily list'}</small><small>Ranked #{index + 1} by relative change</small></div>{record && <button className="activity-insight-link" type="button" onClick={() => onActivitySummary(record)}>View activity →</button>}</div>
+        <div className="activity-insight-review"><p>How does this look to you?</p><div className="activity-insight-review-actions" role="group" aria-label={`Review ${insight.activityLabel}`}><button type="button" className={review?.status === 'watch' ? 'is-selected watch' : ''} aria-pressed={review?.status === 'watch'} disabled={!canReview} onClick={() => onReview(insight, 'watch')}>Keep an eye on it</button><button type="button" className={review?.status === 'normal' ? 'is-selected normal' : ''} aria-pressed={review?.status === 'normal'} disabled={!canReview} onClick={() => onReview(insight, 'normal')}>Looks normal for {petName}</button></div>{review && <small className={`activity-insight-review-meta ${review.status}`}>{review.status === 'watch' ? 'Marked for attention' : `Marked as normal for ${petName}`} by {review.reviewerName} · {formatReviewTime(review.reviewedAt)}</small>}{!canReview && !review && <small className="activity-insight-review-meta">View-only members can’t review changes.</small>}</div>
       </article>;
     })}</div> : <div className="activity-insights-empty"><span aria-hidden="true">✦</span><p>No standout change today. Metrics need recorded values on at least 3 prior days and must exceed the change thresholds.</p></div>}
     <details className="activity-insights-method"><summary>How we rank these</summary><p>For each behavior, we compare today’s average duration or food per record with its average daily value across all prior recorded days through yesterday. Days with no record are excluded, not counted as zero. A metric needs recorded values on at least 3 prior days. We show up to 3 changes: those meeting the main thresholds come first; if fewer than 3 qualify, smaller non-zero shifts fill the remaining spots. These smaller shifts may be normal variation, not an unusual change. Record count is context, not ranked by itself. Main thresholds: duration 10% and 1 minute; food 10% and 15 grams.</p></details>
@@ -1222,7 +1224,7 @@ function ActivityInsightsPage({ records, petName, onBack, onActivitySummary }: {
   </section>;
 }
 
-function TodayPage({ onStory, onMoment, onPetsNavigate, onAddPet, onActivitySummary, onOpenInsights, onCareTasks, onToggleCareTask, onSkipCareTask, careTasks, careMembers, currentUserId, canAct, isPrimary, petName, petAvatar, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, dayOffset, onDayOffsetChange }: { onStory: () => void; onMoment: (momentId: string) => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; onCareTasks: () => void; onToggleCareTask: (task: CareTask) => void; onSkipCareTask: (task: CareTask) => void; careTasks: CareTask[]; careMembers: CareMember[]; currentUserId: string; canAct: boolean; isPrimary: boolean; petName: string; petAvatar: string; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
+function TodayPage({ onStory, onMoment, onPetsNavigate, onAddPet, onActivitySummary, onOpenInsights, onCareTasks, onToggleCareTask, onSkipCareTask, careTasks, careMembers, insightReviews, currentUserId, canAct, isPrimary, petName, petAvatar, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, dayOffset, onDayOffsetChange }: { onStory: () => void; onMoment: (momentId: string) => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; onCareTasks: () => void; onToggleCareTask: (task: CareTask) => void; onSkipCareTask: (task: CareTask) => void; careTasks: CareTask[]; careMembers: CareMember[]; insightReviews: ActivityInsightReview[]; currentUserId: string; canAct: boolean; isPrimary: boolean; petName: string; petAvatar: string; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
   const now = useCurrentTime();
   const displayName = petName.replace(/\s*[（(]test[^）)]*[）)]$/i, '');
   const visibleRecords = visibleStoryObservations(observations.filter(record => !isObservationSkippedForToday(record, careTasks)), includedMoments)
@@ -1231,7 +1233,9 @@ function TodayPage({ onStory, onMoment, onPetsNavigate, onAddPet, onActivitySumm
   const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
   const featured = todayRecords.length ? todayRecords : visibleRecords.filter(record => new Date(record.savedAt).toDateString() === new Date(visibleRecords[0]?.savedAt).toDateString());
   const clock = (value: string) => formatObservationTime(value).split('\n').at(-1);
-  const standoutActivity = rankDailyActivityInsights(visibleRecords, now)[0];
+  const rankedActivities = rankDailyActivityInsights(visibleRecords, now);
+  const standoutActivity = attentionActivityInsights(rankedActivities, insightReviews)[0];
+  const allChangesLookNormal = rankedActivities.length > 0 && !standoutActivity;
 
   return (
     <>
@@ -1261,8 +1265,8 @@ function TodayPage({ onStory, onMoment, onPetsNavigate, onAddPet, onActivitySumm
       <section className="today-section closer-look">
         <h2>Worth a closer look</h2>
         <button className="notice-card" onClick={onOpenInsights}>
-          <img src={asset('warning.png')} alt="" />
-          <span><strong>{standoutActivity ? `${standoutActivity.activityLabel} · ${standoutActivity.key === 'duration' ? 'avg duration' : 'avg food/record'} ${standoutActivity.relativeChange > 0 ? '+' : '−'}${Math.round(Math.abs(standoutActivity.relativeChange) * 100)}% today` : 'No change recorded today'}</strong><small>{standoutActivity ? `${standoutActivity.current.toFixed(1)} vs ${standoutActivity.previous.toFixed(1)} ${standoutActivity.unit} · ${standoutActivity.meetsThreshold ? 'meets main threshold' : 'small shift'} vs recorded history` : 'No measured change to compare against prior recorded history.'}</small></span>
+          {allChangesLookNormal ? <span className="notice-card-reviewed" aria-hidden="true">✓</span> : <img src={asset('warning.png')} alt="" />}
+          <span><strong>{standoutActivity ? `${standoutActivity.activityLabel} · ${standoutActivity.key === 'duration' ? 'avg duration' : 'avg food/record'} ${standoutActivity.relativeChange > 0 ? '+' : '−'}${Math.round(Math.abs(standoutActivity.relativeChange) * 100)}% today` : allChangesLookNormal ? 'No changes need your attention today' : 'No change recorded today'}</strong><small>{standoutActivity ? `${standoutActivity.current.toFixed(1)} vs ${standoutActivity.previous.toFixed(1)} ${standoutActivity.unit} · ${standoutActivity.meetsThreshold ? 'meets main threshold' : 'small shift'} vs recorded history` : allChangesLookNormal ? `All reviewed changes look normal for ${petName}.` : 'No measured change to compare against prior recorded history.'}</small></span>
         </button>
       </section>
       </>}
@@ -2195,6 +2199,7 @@ function emptyPetWorkspace(ownerName: string): PetWorkspace {
     mediaSources: defaultMediaSources(false),
     patterns: [],
     lifeEvents: [],
+    insightReviews: [],
   };
 }
 
@@ -2213,6 +2218,7 @@ function currentLegacyWorkspace(ownerName: string): PetWorkspace {
     mediaSources: readMediaSources(true),
     patterns: readTypicalPatterns(ownerName, true),
     lifeEvents: readLifeCareEvents(),
+    insightReviews: [],
   };
 }
 
@@ -2235,6 +2241,7 @@ function normalizeWorkspace(value: unknown, ownerName: string, hasDemoData: bool
     mediaSources: Array.isArray(workspace.mediaSources) ? workspace.mediaSources : defaultMediaSources(hasDemoData),
     patterns: Array.isArray(workspace.patterns) ? workspace.patterns : defaultTypicalPatterns(ownerName, hasDemoData),
     lifeEvents: Array.isArray(workspace.lifeEvents) ? workspace.lifeEvents : [],
+    insightReviews: Array.isArray(workspace.insightReviews) ? workspace.insightReviews.filter((review): review is ActivityInsightReview => Boolean(review && typeof review === 'object' && typeof review.id === 'string' && typeof review.activityKey === 'string' && ['duration', 'food'].includes(review.metricKey) && typeof review.dateKey === 'string' && ['watch', 'normal'].includes(review.status) && typeof review.reviewerId === 'string' && typeof review.reviewerName === 'string' && typeof review.reviewedAt === 'string')) : [],
     petSex: normalizePetSex(workspace.petSex),
     scenarioDate: typeof workspace.scenarioDate === 'string' ? workspace.scenarioDate : undefined,
     sharedUpdatedAt: typeof workspace.sharedUpdatedAt === 'string' ? workspace.sharedUpdatedAt : undefined,
@@ -3245,6 +3252,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     { id: 'dad', name: 'Dad', role: 'Caregiver', detail: 'can add observations' },
   ]);
   const [careTasks, setCareTasks] = useState<CareTask[]>(() => initialSharedWorkspace?.careTasks ?? initialWorkspace?.careTasks ?? []);
+  const [insightReviews, setInsightReviews] = useState<ActivityInsightReview[]>(() => initialSharedWorkspace?.insightReviews ?? initialWorkspace?.insightReviews ?? []);
   const [careInvitations, setCareInvitations] = useState<CareInvitation[]>(() => cloud ? [] : readCareInvitations());
   async function refreshCareInvitations() {
     if (!cloud) return careInvitations;
@@ -3334,6 +3342,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       askOwnerAccountId: activeAccount?.id,
       careMembers,
       careTasks,
+      insightReviews,
       careEvent: activePetRecord?.workspace.careEvent ?? (cloud ? null : readCareEvent()),
       mediaSources,
       patterns: typicalPatterns,
@@ -3388,7 +3397,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     return true;
   }
 
-  function persistSharedWorkspacePatch(patch: Partial<Pick<PetWorkspace, 'mediaSources' | 'patterns' | 'lifeEvents' | 'momentEngagement' | 'sunnyVaccinationSeeded' | 'careTasks'>>): boolean {
+  function persistSharedWorkspacePatch(patch: Partial<Pick<PetWorkspace, 'mediaSources' | 'patterns' | 'lifeEvents' | 'momentEngagement' | 'sunnyVaccinationSeeded' | 'careTasks' | 'insightReviews'>>): boolean {
     if (!activeAccount || !activePetRecord) return false;
     const captured = captureCurrentSpace(prototypeSession);
     const groupId = activePetRecord.sharedGroupId;
@@ -3561,6 +3570,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setAskMessages(privateAskMessagesFor(pet, account.id));
     setCareMembers(sharedWorkspace.careMembers);
     setCareTasks(sharedWorkspace.careTasks ?? []);
+    setInsightReviews(sharedWorkspace.insightReviews ?? []);
     setMediaSources(sharedWorkspace.mediaSources);
     setTypicalPatterns(sharedWorkspace.patterns);
     setLifeCareEvents(sharedWorkspace.lifeEvents);
@@ -4249,7 +4259,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       sync.updatedAt = group.updatedAt;
       sync.baseline = stableShared({ workspace: { ...nextWorkspace, lifeEvents: nextWorkspace.lifeEvents.filter(e => e.useForAsk), observations: nextWorkspace.observations.filter(o => !o.privateRecord), contexts: nextWorkspace.contexts, askMessages: [], drafts: [], careMembers: [], askOwnerAccountId: undefined, sharedUpdatedAt: undefined }, petName: group.petName, petBreed: group.petBreed, petAge: group.petAge, petAvatar: group.petAvatar, petSpecies: group.petSpecies });
       setPetName(group.petName); setPetBreed(group.petBreed); setPetAge(group.petAge); setPetAvatar(group.petAvatar);
-      setStoryObservations(nextWorkspace.observations); setSavedContexts(remote.contexts); setTypicalPatterns(remote.patterns); setLifeCareEvents(nextWorkspace.lifeEvents); setMediaSources(remote.mediaSources); setMomentEngagement(remote.momentEngagement); setIncludedStoryMoments(remote.visibility); setCareTasks(remote.careTasks ?? []);
+      setStoryObservations(nextWorkspace.observations); setSavedContexts(remote.contexts); setTypicalPatterns(remote.patterns); setLifeCareEvents(nextWorkspace.lifeEvents); setMediaSources(remote.mediaSources); setMomentEngagement(remote.momentEngagement); setIncludedStoryMoments(remote.visibility); setCareTasks(remote.careTasks ?? []); setInsightReviews(remote.insightReviews ?? []);
       setPrototypeSession(session => ({ ...session, accounts: session.accounts.map(a => a.id !== activeAccount!.id ? a : { ...a, pets: a.pets.map(p => p.id !== activePetRecord!.id ? p : { ...p, name: group.petName, breed: group.petBreed, species: group.petSpecies, sex: group.petSex, age: group.petAge, avatar: group.petAvatar, workspace: nextWorkspace }) }) }));
     } catch (cause) { setAccountActionError(cause instanceof Error ? cause.message : 'Shared updates are temporarily unavailable.'); }
   };
@@ -4469,6 +4479,27 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setLifeCareStartAdding(category === undefined && canContributeToSharedPet);
     navigateTo('careEvent');
   }
+  function reviewActivityInsight(insight: RankedDailyActivityInsight, status: ActivityInsightReviewStatus) {
+    if (!canContributeToSharedPet || !activeAccount) return;
+    const id = activityInsightReviewId(insight);
+    const review: ActivityInsightReview = {
+      id,
+      activityKey: insight.activityKey,
+      metricKey: insight.key,
+      dateKey: id.slice(0, 10),
+      status,
+      reviewerId: activeAccount.id,
+      reviewerName: activeAccount.name,
+      reviewedAt: new Date().toISOString(),
+    };
+    const next = [...insightReviews.filter(entry => entry.id !== id), review];
+    if (!persistSharedWorkspacePatch({ insightReviews: next })) {
+      setAccountActionError('This activity review could not be saved on this device.');
+      return;
+    }
+    setInsightReviews(next);
+    setAccountActionError('');
+  }
   function saveCareTasks(next: CareTask[]) {
     if (!canContributeToSharedPet || !persistSharedWorkspacePatch({ careTasks: next })) return false;
     setCareTasks(next);
@@ -4536,9 +4567,9 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         {sharedId && sharedSync.current.failed && sharedWritePending() && <p className="shared-sync-pending" role="status">Shared sync paused. Your local edits are kept; resolve the sync error before leaving.</p>}
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
-            {view === 'today' && <TodayPage hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenInsights={() => navigateTo('activityInsights')} onCareTasks={() => navigateTo('careTasks')} onToggleCareTask={toggleCareTask} onSkipCareTask={skipCareTask} careTasks={careTasks} careMembers={displayedCareMembers} currentUserId={activeAccount.id} canAct={canContributeToSharedPet} isPrimary={isPrimaryCaregiver} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
+            {view === 'today' && <TodayPage hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenInsights={() => navigateTo('activityInsights')} onCareTasks={() => navigateTo('careTasks')} onToggleCareTask={toggleCareTask} onSkipCareTask={skipCareTask} careTasks={careTasks} careMembers={displayedCareMembers} insightReviews={insightReviews} currentUserId={activeAccount.id} canAct={canContributeToSharedPet} isPrimary={isPrimaryCaregiver} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
             {view === 'careTasks' && <CareTasksPage tasks={careTasks} patterns={typicalPatterns} observations={storyObservations} members={displayedCareMembers} currentUserId={activeAccount.id} currentUserName={activeAccount.name} petName={petName} dayOffset={dailyRhythmDayOffset} isPrimary={isPrimaryCaregiver} canAct={canContributeToSharedPet} onBack={() => goBack('today')} onPatterns={() => openPatternKnowledge()} onToggleTask={toggleCareTask} onSkipTask={skipCareTask} onSave={saveCareTasks} />}
-            {view === 'activityInsights' && <ActivityInsightsPage records={visibleStoryObservations(storyObservations.filter(observation => !isObservationSkippedForToday(observation, careTasks)), includedStoryMoments)} petName={petName} onBack={() => goBack('today')} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} />}
+            {view === 'activityInsights' && <ActivityInsightsPage records={visibleStoryObservations(storyObservations.filter(observation => !isObservationSkippedForToday(observation, careTasks)), includedStoryMoments)} petName={petName} reviews={insightReviews} canReview={canContributeToSharedPet} onReview={reviewActivityInsight} onBack={() => goBack('today')} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} />}
 
             {view === 'activitySummary' && selectedActivityMoment && <PetActivitySummaryPage moment={selectedActivityMoment} moments={visibleStoryObservations(storyObservations, includedStoryMoments)} petId={activePetRecord.id} petName={petName} petAvatar={petAvatar} onBack={() => goBack('today')} />}
             {view === 'story' && <StoryPage onMoment={openMomentDetail} onEditStory={(dateKey) => { setStoryEditDateKey(dateKey ?? null); navigateTo('storyEdit'); }} onEditMoment={(item) => editStoryRow({ id: item.id, image: item.image, mediaType: item.mediaType, title: item.title, meta: `${item.time} · story moment`, note: item.note })} onDeleteMoment={deleteStoryMoment} onPetsNavigate={() => navigateTo('pets')} onAddPet={openAddPetForm} petName={petName} petAvatar={petAvatar} ownerName={ownerName} accounts={prototypeSession.accounts} contexts={savedContexts} observations={storyObservations} careTasks={careTasks} includedMoments={includedStoryMoments} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} canEdit={canContributeToSharedPet} />}
