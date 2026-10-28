@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../src/activitySummary.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
-const { activityCategoryLabel, activityCategoryRecords, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
+const { activityCategoryLabel, activityCategoryRecords, activityInsightReviewFor, activityInsightReviewId, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, attentionActivityInsights, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
 
 test('selects the largest meaningful relative weekly change using per-record averages', () => {
   const current = { recordCount: 7, durationMinutes: 57, durationRecordCount: 7, consumedGrams: 1125, consumptionRecordCount: 7 };
@@ -109,6 +109,28 @@ test('fills up to three daily slots with smaller changes only after main-thresho
   assert.equal(ranked.length, 3);
   assert.ok(ranked.every(insight => !insight.meetsThreshold));
   assert.ok(ranked.every(insight => Math.abs(insight.relativeChange - 0.05) < 0.0001));
+});
+
+test('uses a stable per-day activity and metric id for insight reviews', () => {
+  const currentDate = new Date(2026, 9, 21);
+  const duration = { activityKey: 'rest:afternoon', key: 'duration', currentDate };
+  const food = { ...duration, key: 'food' };
+
+  assert.equal(activityInsightReviewId(duration), '2026-10-21:rest%3Aafternoon:duration');
+  assert.notEqual(activityInsightReviewId(duration), activityInsightReviewId(food));
+});
+
+test('hides normal reviews from Today and prioritizes changes marked for attention', () => {
+  const currentDate = new Date(2026, 9, 21);
+  const insight = (activityKey, key = 'duration') => ({ activityKey, activityLabel: activityKey, key, currentDate });
+  const insights = [insight('breakfast'), insight('play'), insight('rest')];
+  const reviews = [
+    { id: activityInsightReviewId(insights[0]), status: 'normal' },
+    { id: activityInsightReviewId(insights[2]), status: 'watch' },
+  ];
+
+  assert.equal(activityInsightReviewFor(reviews, insights[0]).status, 'normal');
+  assert.deepEqual(attentionActivityInsights(insights, reviews).map(entry => entry.activityKey), ['rest', 'play']);
 });
 
 test('does not use a later same-day record until its event time has arrived', () => {

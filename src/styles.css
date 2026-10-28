@@ -189,6 +189,17 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .activity-insight-copy p { margin: 0; color: #4d6356; font: 500 11px/16px 'Roboto', sans-serif; }
 .activity-insight-copy strong { color: var(--color-text-primary); font: 600 11px/16px 'Roboto', sans-serif; }
 .activity-insight-copy small { color: var(--color-text-muted); font: 400 9px/13px 'Roboto', sans-serif; }
+.activity-insight-review { display: flex; flex-direction: column; gap: 6px; margin-top: 7px; padding-top: 8px; border-top: 1px solid #edf0eb; }
+.activity-insight-review > p { color: var(--color-text-primary); font: 600 10px/15px 'Poppins', sans-serif; }
+.activity-insight-review-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.activity-insight-review-actions button { min-height: 30px; padding: 5px 9px; border: 1px solid #d9ded7; border-radius: 999px; background: #fff; color: #506058; font: 600 9px/14px 'Roboto', sans-serif; cursor: pointer; }
+.activity-insight-review-actions button.is-selected.watch { border-color: #e2b83d; background: #fff5c9; color: #7a5700; }
+.activity-insight-review-actions button.is-selected.normal { border-color: #b8d8c7; background: #eaf6ef; color: #39745b; }
+.activity-insight-review-actions button:disabled { cursor: default; opacity: .55; }
+.activity-insight-review-actions button.is-selected:disabled { opacity: 1; }
+.activity-insight-copy .activity-insight-review-meta { color: #6b746e; font: 400 9px/13px 'Roboto', sans-serif; }
+.activity-insight-copy .activity-insight-review-meta.watch { color: #896300; }
+.activity-insight-copy .activity-insight-review-meta.normal { color: #39745b; }
 .activity-insight-link { flex: none; align-self: center; padding: 5px 0 5px 4px; border: 0; background: transparent; color: #896300; font: 600 10px/14px 'Roboto', sans-serif; white-space: nowrap; cursor: pointer; }
 .activity-insights-empty { display: flex; align-items: center; gap: 10px; padding: 16px; border: 1px solid #f0e2b2; border-radius: 16px; background: #fff9df; }
 .activity-insights-empty span { color: #d99f00; font-size: 20px; }
@@ -308,6 +319,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .closer-look { margin-top: 16px; }
 .notice-card { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 72px; margin-top: 14px; padding: 11px 16px; border: 1px solid #f2e39d; border-radius: 14px; background: var(--color-accent-soft); text-align: left; }
 .notice-card img { width: 32px; height: 32px; object-fit: contain; }
+.notice-card .notice-card-reviewed { width: 32px; height: 32px; display: grid; flex: 0 0 32px; place-items: center; border-radius: 50%; background: #dcefe4; color: #39745b; font: 700 18px/1 'Roboto', sans-serif; }
 .notice-card span { display: flex; flex-direction: column; }
 .notice-card strong { font: 600 13px/20px 'Poppins', sans-serif; }
 .notice-card small { color: var(--color-text-secondary); font: 400 12px/17px 'Roboto', sans-serif; }
