@@ -21,6 +21,7 @@ type View =
   | 'ask'
   | 'pets'
   | 'you'
+  | 'favorites'
   | 'settings'
   | 'petDetails'
   | 'profile'
@@ -2492,12 +2493,24 @@ function PetSwitcher({ pets, activePetId, onClose, onSwitch, onAdd, onDelete, in
   return <div className="profile-dialog-backdrop" role="presentation" onClick={onClose}><section className="profile-dialog switcher-dialog" role="dialog" aria-modal="true" aria-labelledby="pet-switcher-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={onClose}>×</button><h2 id="pet-switcher-title">Pet profiles</h2><p>{visiblePets.length ? 'Choose which pet’s Today, Story and context you want to view.' : 'Add a pet profile to continue to Today, Story and context.'}</p>{visiblePets.length > 0 && <div className="switcher-list pet-switcher-list">{visiblePets.map((pet) => <div key={pet.id} className={`pet-switcher-row ${pet.id === activePetId ? 'selected' : ''}`}><button className="pet-switcher-choice" onClick={() => { if (pet.id !== activePetId) onSwitch(pet.id); onClose(); }}><Avatar name={pet.name} src={pet.avatar} /><span><strong>{pet.name}</strong><small>{pet.breed} · {formatPetAge(pet.age)}</small></span><em>{pet.id === activePetId ? 'Current' : 'Switch'}</em></button><button className="pet-profile-delete" disabled={visiblePets.length === 1} aria-label={visiblePets.length === 1 ? `${pet.name} is the only pet and cannot be deleted` : `Delete ${pet.name}`} title={visiblePets.length === 1 ? 'Add another pet before deleting this one' : `Delete ${pet.name}`} onClick={() => { setError(''); setPendingDelete(pet); }}>Delete</button></div>)}</div>}{visiblePets.length === 1 && <p className="pet-delete-help">Add another pet before deleting this profile.</p>}{error && !adding && <p className="account-form-error" role="alert">{error}</p>}{adding ? <form className="switcher-form" onSubmit={add}><div className="pet-photo-field"><label className="profile-avatar-upload" aria-label="Upload pet photo">{avatar ? <img className="profile-edit-avatar pet-edit-avatar" src={avatar} alt={name || 'Pet'} /> : <span className="profile-edit-avatar pet-edit-avatar pet-photo-placeholder" aria-hidden="true">＋</span>}<span className="avatar-edit-badge" aria-hidden="true">✎</span><input type="file" accept="image/*" aria-label="Choose pet photo" onChange={(event) => readPetAvatar(event.target.files?.[0])} /></label><span>Add a pet photo</span></div><fieldset className="pet-species-field"><legend>Pet type</legend><div className="pet-species-options">{(['Dog', 'Cat'] as const).map((option) => <button key={option} type="button" aria-pressed={species === option} className={species === option ? 'selected' : ''} onClick={() => setSpecies(option)}>{option === 'Dog' ? '🐕 Dog' : '🐈 Cat'}</button>)}</div></fieldset><label><span>Pet name</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label><label><span>Breed</span><input value={breed} onChange={(event) => setBreed(event.target.value)} placeholder="Mixed breed" /></label><label><span>Age</span><input type="number" min="0" max="40" value={age} onChange={(event) => setAge(event.target.value)} /></label>{error && <p className="account-form-error" role="alert">{error}</p>}<div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => { setAdding(false); setError(''); }}>Cancel</button><button className="primary-button" disabled={!name.trim() || !breed.trim() || !age.trim()}>Add pet</button></div></form> : <button className="cancel-button full" onClick={() => setAdding(true)}>Add a pet</button>}{pendingDelete && <div className="nested-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog pet-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-pet-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-pet-title">Delete {pendingDelete.name}?</h2><p>This permanently removes this pet profile and its timeline, Story, context and Ask AI history from this device. Other pets will not be changed.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={() => { setPendingDelete(null); confirmDelete(); }}>Delete pet</button></div></section></div>}</section></div>;
 }
 
-function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', ownerPreference = 'Manage your profile details here.', pets, activePetId, onPetsNavigate, onSettingsNavigate, onPetEdit, onProfileEdit, onPetSwitcher, careMembers, accounts, primaryMemberId, onMemberClick, onCareMembers, patterns, lifeEvents, mediaSources, onPatternHistory, onPattern, onLifeCare, onConnectedMedia, invitations = [], onAcceptInvitation, onDeclineInvitation, careOwnerName = ownerName, careOwnerAvatar = ownerAvatar, careOwnerRole = ownerRole, groupName = 'Care circle', canManageCareGroup = primaryMemberId === 'emily', canEditPetDetails = true, canAddLifeCare = true, canManageConnectedMedia = true, noPetYet = false }: { kind: 'pets' | 'you'; petName: string; petAvatar: string; petBreed: string; petAge: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; ownerPreference?: string; pets: PrototypePet[]; activePetId: string; accounts: PrototypeAccount[]; onPetsNavigate: () => void; onSettingsNavigate: () => void; onPetEdit: () => void; onProfileEdit: () => void; onPetSwitcher: () => void; careMembers: CareMember[]; primaryMemberId: string; onMemberClick: (id: string) => void; onCareMembers: () => void; patterns: TypicalPattern[]; lifeEvents: LifeCareEvent[]; mediaSources: MediaSource[]; onPatternHistory: () => void; onPattern: (id: string) => void; onLifeCare: (category?: 'life' | 'health') => void; onConnectedMedia: (sourceId?: string) => void; invitations?: CareInvitation[]; onAcceptInvitation?: (invite: CareInvitation) => void; onDeclineInvitation?: (inviteId: string) => void; careOwnerName?: string; careOwnerAvatar?: string; careOwnerRole?: string; groupName?: string; canManageCareGroup?: boolean; canEditPetDetails?: boolean; canAddLifeCare?: boolean; canManageConnectedMedia?: boolean; noPetYet?: boolean }) {
+function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', ownerPreference = 'Manage your profile details here.', pets, activePetId, currentAccountId, onOpenFavorites, onPetsNavigate, onSettingsNavigate, onPetEdit, onProfileEdit, onPetSwitcher, careMembers, accounts, primaryMemberId, onMemberClick, onCareMembers, patterns, lifeEvents, mediaSources, onPatternHistory, onPattern, onLifeCare, onConnectedMedia, invitations = [], onAcceptInvitation, onDeclineInvitation, careOwnerName = ownerName, careOwnerAvatar = ownerAvatar, careOwnerRole = ownerRole, groupName = 'Care circle', canManageCareGroup = primaryMemberId === 'emily', canEditPetDetails = true, canAddLifeCare = true, canManageConnectedMedia = true, noPetYet = false }: { kind: 'pets' | 'you'; petName: string; petAvatar: string; petBreed: string; petAge: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; ownerPreference?: string; pets: PrototypePet[]; activePetId: string; currentAccountId: string; onOpenFavorites: () => void; accounts: PrototypeAccount[]; onPetsNavigate: () => void; onSettingsNavigate: () => void; onPetEdit: () => void; onProfileEdit: () => void; onPetSwitcher: () => void; careMembers: CareMember[]; primaryMemberId: string; onMemberClick: (id: string) => void; onCareMembers: () => void; patterns: TypicalPattern[]; lifeEvents: LifeCareEvent[]; mediaSources: MediaSource[]; onPatternHistory: () => void; onPattern: (id: string) => void; onLifeCare: (category?: 'life' | 'health') => void; onConnectedMedia: (sourceId?: string) => void; invitations?: CareInvitation[]; onAcceptInvitation?: (invite: CareInvitation) => void; onDeclineInvitation?: (inviteId: string) => void; careOwnerName?: string; careOwnerAvatar?: string; careOwnerRole?: string; groupName?: string; canManageCareGroup?: boolean; canEditPetDetails?: boolean; canAddLifeCare?: boolean; canManageConnectedMedia?: boolean; noPetYet?: boolean }) {
   void canManageCareGroup;
   const shownSex = normalizePetSex(pets.find(p => p.id === activePetId)?.sex);
   const petDetailsLabel = `${petBreed} · ${formatPetAge(petAge)}${shownSex === 'Unknown' ? '' : ` · ${shownSex}`}`;
   const displayPets = pets.filter((pet) => !pet.isEmptyProfile).sort((left, right) => Number(right.id === activePetId) - Number(left.id === activePetId));
   const confirmedPatterns = patterns.filter((pattern) => pattern.status === 'confirmed');
+  const favoriteMomentsFor = (pet: PrototypePet) => {
+    const favoriteIds = Object.entries(pet.workspace.momentEngagement ?? {})
+      .filter(([, engagement]) => Array.isArray(engagement.favorites) && engagement.favorites.includes(currentAccountId))
+      .map(([momentId]) => momentId);
+    return favoriteIds.map((id) => {
+      const observation = pet.workspace.observations.find((entry) => entry.id === id && (!entry.privateRecord || entry.authorId === currentAccountId));
+      if (observation) return { id, title: observation.title, note: observation.note, image: observation.image, mediaType: observation.mediaType, savedAt: observation.savedAt };
+      const base = baseMomentDefinitions.find((entry) => entry.id === id);
+      return base ? { id, title: base.title, note: base.description, image: asset(base.image), mediaType: undefined, savedAt: '' } : null;
+    }).filter((moment): moment is NonNullable<typeof moment> => moment !== null)
+      .sort((left, right) => right.savedAt.localeCompare(left.savedAt));
+  };
   return kind === 'pets' ? (
     <div className="profile-page pets-page">
       <MainHeader eyebrow="PET PROFILE" title="Pet profile" onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
@@ -2548,6 +2561,11 @@ function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, own
         {invitations.length > 0 && <div className="care-invitation-list" aria-label="Care group invitations">{invitations.map((invite) => <article className="care-invitation-card" key={invite.id}><div className="care-invitation-pet"><Avatar name={invite.petName} src={invite.petAvatar} /><span><strong>{invite.petName}’s care group</strong><small>Invited by <b>{invite.ownerName}</b></small></span></div><p><strong>{invite.ownerName}</strong> invited you to help care for <strong>{invite.petName}</strong> as a {invite.role.toLowerCase()}.</p><div className="care-invitation-actions"><button className="cancel-button" onClick={() => onDeclineInvitation?.(invite.id)}>Decline</button><button className="primary-button" onClick={() => onAcceptInvitation?.(invite)}>Accept invitation</button></div></article>)}</div>}
       </section>
 
+      <section className="profile-section you-section favorites-section">
+        <div className="profile-section-heading"><h2>Favorite moments</h2><span className="favorite-total">{displayPets.reduce((total, pet) => total + favoriteMomentsFor(pet).length, 0)} saved</span></div>
+        <button type="button" className="profile-card favorite-entry-card" onClick={onOpenFavorites}><span className="favorite-entry-icon" aria-hidden="true">★</span><span><strong>Saved moments</strong><small>{displayPets.length} pet folders · tap to view your collection</small></span><i aria-hidden="true">→</i></button>
+      </section>
+
       <section className="profile-section you-section media-section">
         <div className="profile-section-heading"><h2>Connected media</h2>{canManageConnectedMedia && <button className="profile-link" onClick={() => onConnectedMedia()}>Add source +</button>}</div>
         <div className="profile-card you-list media-list">
@@ -2557,6 +2575,77 @@ function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, own
 
     </div>
   );
+}
+
+function FavoritesPage({ pets, initialPetId, currentAccountId, onBack, onOpenMoment, onRemoveFavorites }: { pets: PrototypePet[]; initialPetId: string; currentAccountId: string; onBack: () => void; onOpenMoment: (petId: string, momentId: string) => void; onRemoveFavorites: (petId: string, momentIds: string[]) => void }) {
+  const visiblePets = pets.filter((pet) => !pet.isEmptyProfile).sort((left, right) => Number(right.id === initialPetId) - Number(left.id === initialPetId));
+  const [selectedPetId, setSelectedPetId] = useState(initialPetId);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedMomentIds, setSelectedMomentIds] = useState<string[]>([]);
+  const longPressTimer = useRef<number | null>(null);
+  const longPressTriggered = useRef(false);
+  const selectedPet = visiblePets.find((pet) => pet.id === selectedPetId) ?? visiblePets[0];
+  const favorites = selectedPet ? Object.entries(selectedPet.workspace.momentEngagement ?? {})
+    .filter(([, engagement]) => Array.isArray(engagement.favorites) && engagement.favorites.includes(currentAccountId))
+    .map(([id]) => {
+      const observation = selectedPet.workspace.observations.find((entry) => entry.id === id && (!entry.privateRecord || entry.authorId === currentAccountId));
+      if (observation) return { id, title: observation.title, note: observation.note, image: observation.image, mediaType: observation.mediaType, savedAt: observation.savedAt };
+      const base = baseMomentDefinitions.find((entry) => entry.id === id);
+      return base ? { id, title: base.title, note: base.description, image: asset(base.image), mediaType: undefined, savedAt: '' } : null;
+    })
+    .filter((moment): moment is NonNullable<typeof moment> => moment !== null)
+    .sort((left, right) => right.savedAt.localeCompare(left.savedAt)) : [];
+
+  function clearLongPressTimer() {
+    if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  }
+  function beginLongPress(momentId: string) {
+    if (selectionMode) return;
+    clearLongPressTimer();
+    longPressTriggered.current = false;
+    longPressTimer.current = window.setTimeout(() => {
+      longPressTriggered.current = true;
+      setSelectionMode(true);
+      setSelectedMomentIds([momentId]);
+    }, 480);
+  }
+  function toggleSelected(momentId: string) {
+    setSelectedMomentIds((current) => current.includes(momentId) ? current.filter((id) => id !== momentId) : [...current, momentId]);
+  }
+  function leaveSelectionMode() {
+    setSelectionMode(false);
+    setSelectedMomentIds([]);
+  }
+  function choosePet(petId: string) {
+    clearLongPressTimer();
+    setSelectedPetId(petId);
+    leaveSelectionMode();
+  }
+  function handleMomentClick(momentId: string) {
+    if (longPressTriggered.current) { longPressTriggered.current = false; return; }
+    if (selectionMode) { toggleSelected(momentId); return; }
+    if (selectedPet) onOpenMoment(selectedPet.id, momentId);
+  }
+  function selectAllMoments() {
+    setSelectedMomentIds((current) => current.length === favorites.length ? [] : favorites.map((moment) => moment.id));
+  }
+
+  return <section className="favorites-page">
+    <header className={`favorites-page-header ${selectionMode ? 'selecting' : ''}`}><button className="back-button" aria-label="Back to profile" onClick={onBack}>←</button><div className="favorites-page-title"><span className="eyebrow">MY SPACE</span><h1>Favorite moments</h1></div><div className="favorite-selection-actions">{selectionMode ? <><button type="button" onClick={selectAllMoments}>{selectedMomentIds.length === favorites.length ? 'Clear' : 'Select all'}</button><button type="button" className="favorite-delete-action" disabled={!selectedMomentIds.length} onClick={() => { if (selectedPet && selectedMomentIds.length) onRemoveFavorites(selectedPet.id, selectedMomentIds); leaveSelectionMode(); }}>Delete{selectedMomentIds.length ? ` · ${selectedMomentIds.length}` : ''}</button><button type="button" className="favorite-cancel-action" aria-label="Exit selection mode" onClick={leaveSelectionMode}>×</button></> : <button type="button" className="favorite-select-mode" onClick={() => setSelectionMode(true)}>Select</button>}</div></header>
+    <nav className="favorite-pet-tabs" aria-label="Pet favorites folders">{visiblePets.map((pet) => {
+      const count = Object.values(pet.workspace.momentEngagement ?? {}).filter((engagement) => Array.isArray(engagement.favorites) && engagement.favorites.includes(currentAccountId)).length;
+      const selected = pet.id === selectedPet?.id;
+      return <button type="button" key={pet.id} className={`favorite-pet-tab ${selected ? 'active' : ''}`} aria-pressed={selected} onClick={() => choosePet(pet.id)}><Avatar name={pet.name} src={pet.avatar} /><span>{pet.name}</span><small>{count}</small></button>;
+    })}</nav>
+    <section className="favorite-collection" aria-label={`${selectedPet?.name ?? 'Pet'} saved moments`}>
+      <div className="favorite-collection-heading"><div><span>COLLECTION</span><h2>{selectedPet?.name ?? 'Pet'}’s moments</h2></div><strong>{favorites.length}</strong></div>
+      {favorites.length ? <div className={`favorite-moments-grid ${selectionMode ? 'selecting' : ''}`}>{favorites.map((moment) => {
+        const selected = selectedMomentIds.includes(moment.id);
+        return <button type="button" className={`favorite-moment-card ${selected ? 'selected' : ''}`} key={moment.id} aria-pressed={selectionMode ? selected : undefined} onPointerDown={(event) => { if (event.button === 0) beginLongPress(moment.id); }} onPointerUp={clearLongPressTimer} onPointerLeave={clearLongPressTimer} onPointerCancel={clearLongPressTimer} onContextMenu={(event) => event.preventDefault()} onClick={() => handleMomentClick(moment.id)}><span className="favorite-moment-cover">{moment.image ? <StoryMediaView src={moment.image} type={moment.mediaType} alt={`${selectedPet?.name} · ${moment.title}`} /> : <span aria-hidden="true">🐾</span>}{selectionMode && <span className="favorite-selection-mark" aria-hidden="true">{selected && <svg viewBox="0 0 24 24"><path d="m4.5 12.5 5 5L20 7" /></svg>}</span>}</span><span className="favorite-moment-copy"><strong>{moment.title}</strong><small>{moment.note || 'Saved moment'}</small><em>{moment.savedAt ? formatRelativeDate(moment.savedAt) : 'Saved moment'}</em></span></button>;
+      })}</div> : <div className="favorite-folder-empty"><span aria-hidden="true">☆</span><p>No saved moments for {selectedPet?.name ?? 'this pet'} yet.</p><small>Star a moment in Story to add it to this folder.</small></div>}
+    </section>
+  </section>;
 }
 
 function ConnectedMediaPage({ petName, sources, initialSourceId, onBack, onUpdate, onDelete }: { petName: string; sources: MediaSource[]; initialSourceId: string | null; onBack: () => void; onUpdate: (source: MediaSource) => string; onDelete: (id: string) => string }) {
@@ -3292,6 +3381,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const returnScrollPosition = useRef<number | null>(null);
   const askEndRef = useRef<HTMLDivElement>(null);
   const navigationHistory = useRef<View[]>([]);
+  const pendingFavoriteMomentRef = useRef<{ petId: string; momentId: string } | null>(null);
   const contextReturnView = useRef<View>('momentDetail');
   const activeAccount = prototypeSession.accounts.find((account) => account.id === prototypeSession.activeAccountId) ?? null;
   const activePetRecord = activeAccount?.pets.find((pet) => pet.id === activeAccount.activePetId) ?? activeAccount?.pets[0] ?? null;
@@ -3994,6 +4084,14 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const selectedMomentContexts = savedContexts.filter((context) => context.momentId === selectedMomentId);
   const lastSavedContext = savedContexts.find((context) => context.id === lastSavedContextId) ?? null;
 
+  useEffect(() => {
+    const pending = pendingFavoriteMomentRef.current;
+    if (!pending || pending.petId !== activePetRecord?.id) return;
+    pendingFavoriteMomentRef.current = null;
+    setSelectedMomentId(pending.momentId);
+    navigateTo('momentDetail');
+  }, [activePetRecord?.id]);
+
   function startContextForMoment(momentId: string, existing?: OwnerContext) {
     if (!canContributeToSharedPet) return;
     if (existing?.authorId && existing.authorId !== activeAccount?.id && activePetRecord?.sharedGroupId) return;
@@ -4012,6 +4110,54 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   function openMomentDetail(momentId: string) {
     setSelectedMomentId(momentId);
     navigateTo('momentDetail');
+  }
+
+  function openFavoriteMoment(petId: string, momentId: string) {
+    if (petId === activePetRecord?.id) {
+      openMomentDetail(momentId);
+      return;
+    }
+    if (sharedWritePending() || !activeAccount?.pets.some((pet) => pet.id === petId)) return;
+    pendingFavoriteMomentRef.current = { petId, momentId };
+    const error = applyAccountSpace(captureCurrentSpace(prototypeSession), activeAccount.id, petId);
+    if (error) {
+      pendingFavoriteMomentRef.current = null;
+      setAccountActionError(error);
+    }
+  }
+
+  function removeFavoriteMoments(petId: string, momentIds: string[]) {
+    if (!activeAccount || !momentIds.length) return;
+    const targetPet = activeAccount.pets.find((pet) => pet.id === petId);
+    if (!targetPet) return;
+    const captured = captureCurrentSpace(prototypeSession);
+    const groupId = targetPet.sharedGroupId;
+    const ids = new Set(momentIds);
+    const removeFromEngagement = (engagement: MomentEngagementById): MomentEngagementById => Object.fromEntries(
+      Object.entries(engagement).map(([id, value]) => [id, ids.has(id) ? { ...value, favorites: value.favorites.filter((accountId) => accountId !== activeAccount.id) } : value]),
+    );
+    const nextSession: PrototypeSession = {
+      ...captured,
+      accounts: captured.accounts.map((account) => ({
+        ...account,
+        pets: account.pets.map((pet) => {
+          const isTarget = account.id === activeAccount.id && pet.id === petId;
+          const isSharedCopy = Boolean(groupId && pet.sharedGroupId === groupId);
+          return isTarget || isSharedCopy ? { ...pet, workspace: { ...pet.workspace, momentEngagement: removeFromEngagement(pet.workspace.momentEngagement ?? {}) } } : pet;
+        }),
+      })),
+    };
+    try {
+      persistPrototypeSession(nextSession);
+    } catch {
+      setAccountActionError('Favorites could not be updated on this device.');
+      return;
+    }
+    setPrototypeSession(nextSession);
+    if (petId === activePetRecord?.id) {
+      const updated = nextSession.accounts.find((account) => account.id === activeAccount.id)?.pets.find((pet) => pet.id === petId)?.workspace.momentEngagement ?? {};
+      setMomentEngagement(updated);
+    }
   }
 
   function saveContext() {
@@ -4479,6 +4625,11 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setLifeCareStartAdding(category === undefined && canContributeToSharedPet);
     navigateTo('careEvent');
   }
+  function saveCareTasks(next: CareTask[]) {
+    if (!canContributeToSharedPet || !persistSharedWorkspacePatch({ careTasks: next })) return false;
+    setCareTasks(next);
+    return true;
+  }
   function reviewActivityInsight(insight: RankedDailyActivityInsight, status: ActivityInsightReviewStatus) {
     if (!canContributeToSharedPet || !activeAccount) return;
     const id = activityInsightReviewId(insight);
@@ -4499,11 +4650,6 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     }
     setInsightReviews(next);
     setAccountActionError('');
-  }
-  function saveCareTasks(next: CareTask[]) {
-    if (!canContributeToSharedPet || !persistSharedWorkspacePatch({ careTasks: next })) return false;
-    setCareTasks(next);
-    return true;
   }
   function toggleCareTask(task: CareTask) {
     const currentAccountId = activeAccount?.id;
@@ -4594,7 +4740,8 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
             {view === 'saved' && lastSavedContext && <SavedPage saved={lastSavedContext} onBack={() => goBack('confirm')} onReturnStory={() => navigateTo('story')} onUndo={() => undoContext(lastSavedContext.id)} onEvidence={() => openMomentDetail(lastSavedContext.momentId)} onEdit={() => startContextForMoment(lastSavedContext.momentId, lastSavedContext)} petName={petName} ownerName={ownerName} />}
             {view === 'undone' && <UndonePage onBack={() => goBack('saved')} onReturnToday={() => navigateTo('today')} onReview={() => navigateTo('overview')} petName={petName} />}
             {view === 'ask' && <AskPage petSpecies={petSpecies} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} messages={askMessages} messageEndRef={askEndRef} noPetYet={activePetRecord.isEmptyProfile ?? false} busy={askBusy} pending={askPending} live={Boolean(cloud)} />}
-            {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} accounts={prototypeSession.accounts} onPetsNavigate={() => navigateTo('pets')} onSettingsNavigate={() => navigateTo('settings')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={activePetRecord.isEmptyProfile ? openAddPetForm : () => setShowPetSwitcher(true)} careMembers={orderedCareMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} patterns={typicalPatterns} lifeEvents={lifeCareEvents} mediaSources={mediaSources} onPatternHistory={() => openPatternKnowledge()} onPattern={(id) => openPatternKnowledge(id)} onLifeCare={openLifeCare} onConnectedMedia={openConnectedMedia} invitations={view === 'you' ? receivedCareInvitations : []} onAcceptInvitation={acceptCareInvitation} onDeclineInvitation={(id) => updateInvitationStatus(id, 'declined')} careOwnerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} careOwnerAvatar={primaryCaregiverAvatar} careOwnerRole="Primary caregiver" groupName={activeGroupName} canManageCareGroup={isPrimaryCaregiver} canEditPetDetails={isPrimaryCaregiver} canAddLifeCare={canManageLongTermCare} canManageConnectedMedia={canManageLongTermCare} noPetYet={activePetRecord.isEmptyProfile ?? false} />}
+            {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} accounts={prototypeSession.accounts} currentAccountId={activeAccount.id} onOpenFavorites={() => navigateTo('favorites')} onPetsNavigate={() => navigateTo('pets')} onSettingsNavigate={() => navigateTo('settings')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={activePetRecord.isEmptyProfile ? openAddPetForm : () => setShowPetSwitcher(true)} careMembers={orderedCareMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} patterns={typicalPatterns} lifeEvents={lifeCareEvents} mediaSources={mediaSources} onPatternHistory={() => openPatternKnowledge()} onPattern={(id) => openPatternKnowledge(id)} onLifeCare={openLifeCare} onConnectedMedia={openConnectedMedia} invitations={view === 'you' ? receivedCareInvitations : []} onAcceptInvitation={acceptCareInvitation} onDeclineInvitation={(id) => updateInvitationStatus(id, 'declined')} careOwnerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} careOwnerAvatar={primaryCaregiverAvatar} careOwnerRole="Primary caregiver" groupName={activeGroupName} canManageCareGroup={isPrimaryCaregiver} canEditPetDetails={isPrimaryCaregiver} canAddLifeCare={canManageLongTermCare} canManageConnectedMedia={canManageLongTermCare} noPetYet={activePetRecord.isEmptyProfile ?? false} />}
+            {view === 'favorites' && <FavoritesPage pets={activeAccount.pets} initialPetId={activePetRecord.id} currentAccountId={activeAccount.id} onBack={() => goBack('you')} onOpenMoment={openFavoriteMoment} onRemoveFavorites={removeFavoriteMoments} />}
             {view === 'connectedMedia' && <ConnectedMediaPage petName={petName} sources={mediaSources} initialSourceId={selectedMediaSourceId} onBack={() => goBack('you')} onUpdate={saveMediaSource} onDelete={deleteMediaSource} />}
             {view === 'patternHistory' && <PatternKnowledgePage onMoment={openMomentDetail} petId={activePetRecord.id} records={visibleStoryObservations(storyObservations, includedStoryMoments)} live={Boolean(cloud)} petName={petName} ownerName={ownerName} patterns={typicalPatterns} initialPatternId={selectedPatternId} canManage={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveTypicalPattern} onDelete={deleteTypicalPattern} />}
             {view === 'careEvent' && <LifeCarePage petName={petName} ownerName={ownerName} primaryOwnerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} currentAccountId={activeAccount.id} events={lifeCareEvents} initialCategory={lifeCareInitialCategory} startAdding={lifeCareStartAdding} canAdd={canManageLongTermCare} canManageAll={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveLifeCareEvent} onDelete={deleteLifeCareEvent} />}
