@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { careTaskTiming, careTaskUnreadCount, careTasksForDate, canRemindCareTask, type CareTask } from './careTasks';
+import { canToggleCareTaskCompletion, careTaskTiming, careTaskUnreadCount, careTasksForDate, canRemindCareTask, type CareTask } from './careTasks';
 import type { DailyPattern, TimedRecord } from '../supabase/functions/_shared/dailyPatterns';
 
 type Member = { id: string; name: string; role: string; access?: 'editor' | 'viewer'; expiresAt?: string };
@@ -40,14 +40,14 @@ export default function TodayCare({ petName, patterns, observations, tasks, memb
     {!today.length && <div className="today-care-empty"><p>Add a task or confirm a routine to plan {petName}’s day.</p><button className="primary-button" onClick={onOpenPlan}>{isPrimary ? 'Add task' : 'Open care plan'}</button><button className="today-care-plan" onClick={onPatterns}>Review routine →</button></div>}
     {pending.length > 0 && <ol className="today-care-checklist">{pending.map(task => {
       const timing = careTaskTiming(task, now);
-      const canComplete = canAct && ['open', 'accepted'].includes(task.status) && (!task.assignedTo || task.assignedTo === currentUserId || isPrimary);
+      const canComplete = canAct && canToggleCareTaskCompletion(task,currentUserId,isPrimary);
       const canRemind = canAct && helpers.length > 0 && (isPrimary || !task.assignedTo || task.assignedTo === currentUserId);
       const clock = new Date(task.dueAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
       const status = task.status === 'declined' ? 'Needs help' : task.status === 'requested' ? 'Awaiting reply' : timing === 'overdue' ? 'Check first' : timing === 'due' ? 'Due now' : timing === 'soon' ? 'Due soon' : 'Upcoming';
       const isExpanded = expanded === task.id;
       return <li key={task.id} className={'today-care-item ' + timing}>
         <div className="today-care-row">
-          <button type="button" className="today-care-check" aria-label={'Mark ' + task.title + ' done'} disabled={!canComplete} onClick={() => onDone(task)}><span aria-hidden="true" /></button>
+          <button type="button" className="today-care-check" aria-pressed={false} aria-label={'Mark ' + task.title + ' done'} disabled={!canComplete} onClick={() => onDone(task)}><span aria-hidden="true" /></button>
           <button type="button" className="today-care-task" aria-expanded={isExpanded} aria-controls={'care-detail-' + task.id} onClick={() => setExpanded(isExpanded ? null : task.id)}><span className="today-care-task-title">{task.title}</span><span className="today-care-task-meta"><time>{clock}</time><span aria-hidden="true">·</span><span className="today-care-status">{status}</span>{task.assignedTo && <><span aria-hidden="true">·</span><span>{name(task.assignedTo)}</span></>}</span></button>
           {canRemind && <button type="button" className="today-care-remind" aria-label={'Remind a caregiver about ' + task.title} title="Remind caregiver" aria-expanded={reminding === task.id} onClick={() => { if (reminding === task.id) setReminding(null); else openReminder(task); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg></button>}
         </div>
@@ -63,8 +63,8 @@ export default function TodayCare({ petName, patterns, observations, tasks, memb
     })}</ol>}
     {message && <p className="today-care-message" role="status">{message}</p>}
     {today.length > 0 && !pending.length && <p className="today-care-all-done">✓ All planned care is recorded.</p>}
-    {lastDone && <div className="today-care-last-done"><span aria-hidden="true">✓</span><p><strong>{lastDone.title}</strong><small>Done by {lastDone.completedByName ?? name(lastDone.completedBy)}{lastDone.completedAt ? ' · ' + new Date(lastDone.completedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''}</small></p></div>}
-    {completed.length > 0 && <details className="today-care-completed"><summary><span>Completed <span className="today-care-completed-count">{completed.length}</span></span><span className="today-care-chevron" aria-hidden="true">⌄</span></summary>{completed.map(task => <div className="today-care-done-row" key={task.id}><span aria-hidden="true">✓</span><p><strong>{task.title}</strong><small>{task.autoCompleted ? 'Simulation · caregiver not verified' : 'Done by ' + (task.completedByName ?? name(task.completedBy))}{task.completedAt ? ' · ' + new Date(task.completedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''}</small></p></div>)}</details>}
+    {lastDone && <div className="today-care-last-done"><button type="button" className="today-care-check is-done" aria-pressed={true} aria-label={'Undo completion for ' + lastDone.title} title="Uncheck if marked done by mistake" disabled={!canAct || !canToggleCareTaskCompletion(lastDone,currentUserId,isPrimary)} onClick={()=>onDone(lastDone)}><span aria-hidden="true">✓</span></button><p><strong>{lastDone.title}</strong><small>Done by {lastDone.completedByName ?? name(lastDone.completedBy)}{lastDone.completedAt ? ' · ' + new Date(lastDone.completedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''}</small></p></div>}
+    {completed.length > 0 && <details className="today-care-completed"><summary><span>Completed <span className="today-care-completed-count">{completed.length}</span></span><span className="today-care-chevron" aria-hidden="true">⌄</span></summary>{completed.map(task => <div className="today-care-done-row" key={task.id}><button type="button" className="today-care-check is-done" aria-pressed={true} aria-label={'Undo completion for ' + task.title} title="Uncheck if marked done by mistake" disabled={!canAct || !canToggleCareTaskCompletion(task,currentUserId,isPrimary)} onClick={()=>onDone(task)}><span aria-hidden="true">✓</span></button><p><strong>{task.title}</strong><small>{task.autoCompleted ? 'Simulation · caregiver not verified' : 'Done by ' + (task.completedByName ?? name(task.completedBy))}{task.completedAt ? ' · ' + new Date(task.completedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''}</small></p></div>)}</details>}
     <footer><span><span className="today-care-bell-dot" aria-hidden="true" />In-app reminders</span><button className="today-care-plan" onClick={onOpenPlan}>View all →</button></footer>
   </section>;
 }
