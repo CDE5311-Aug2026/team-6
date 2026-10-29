@@ -107,3 +107,16 @@ Pet details uses compact name/type/breed/age/sex controls. Each species has eigh
 
 Apply `supabase/pet_profile_sex.sql` before deploying this version. Personal pets store optional `sex` in the existing private workspace JSON; legacy values normalize to Unknown. Shared circles store canonical `pet_sex` constrained to Female/Male/Unknown. The checked-save RPC copies it from owner-authored workspace metadata, and keeps the canonical value for non-owner writes. New circles initialize it from the owner's metadata. Existing records are not assigned a guessed sex. Shared pet species is also read back when switching or refreshing accounts.
 
+
+
+## Getting started and single active login (2026-10-29)
+
+New accounts open an optional three-step setup (display name/relationship, optional pet basics, and care goals plus device preferences), followed by a skippable seven-step tour starting on Today. You > Help & getting started contains the help guide, Review getting-started guide and Edit basics & preferences. Existing accounts can open these manually. Setup/guide status and care goals are saved with the account; display/history preferences retain their documented device scope. Quick questions in Ask AI now include routine, records, engagement, handover and vet-note prompts; selecting a prompt only fills the composer.
+
+Apply `supabase/single_active_session.sql` before deploying the frontend. It introduces a private active-session registry keyed by user, claims Auth-issued session IDs using Auth-created timestamps, and never allows an older session to reclaim ownership after a later login or logout. Existing sessions are seeded from the latest Auth session. Authenticated personal/shared/storage access is fenced with restrictive RLS; existing care-group RPC checks are preserved and augmented. Write guards hold a shared registry lock to serialize writes with login takeover. Service-role jobs retain their existing authorization. Existing revision checks remain in place.
+
+The frontend checks the server on cloud access, every five seconds while signed in, and on focus/visibility restoration. A confirmed replacement stops pending sync, closes the workspace, signs out locally, shows an alert, and returns to Log in. Network failure alone does not classify a session as replaced. Background-tab timers may be throttled: server writes are still fenced immediately, while the visible notice is shown on the next check/resume. Previously issued media URLs remain subject to their existing expiry.
+
+The deployed ask-ai function also checks the caller's active session before reading the workspace or consuming quota. Deploy it with its existing explicit Bearer authentication and existing CORS configuration; preserve its prior `verify_jwt=false` setting because it validates the user and current session in the handler.
+
+Validation: TypeScript; automated tests; SQL transactional smoke test of takeover, rejected old-session RPC/direct writes and non-resurrection after logout. UI checks use the deployed preview/production and a dedicated QA account; credentials are not committed. See `supabase/tests/single_active_session.sql` for the rollback-only database test.

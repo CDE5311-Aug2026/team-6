@@ -1,10 +1,11 @@
-import { supabase } from './cloud';
+import { supabase, assertActiveSession } from './cloud';
 
 export type AskTurn = { role: 'user' | 'assistant'; text: string; attachment?: { kind: 'image' | 'audio'; url: string } };
 
 /** Only local image bytes are sent; never ask the server to fetch arbitrary URLs. */
 export async function requestAskAI(petId: string, turns: AskTurn[], signal: AbortSignal, includeHistory = true): Promise<string> {
   if (!supabase) throw new Error('Log in to use Ask AI.');
+  await assertActiveSession();
   const recent = turns.slice(-12);
   const imageIndices = recent.map((turn, index) => turn.role === 'user' && turn.attachment?.kind === 'image' ? index : -1).filter(index => index >= 0).slice(-3);
   const messages = await Promise.all(recent.map(async (turn, index) => {
