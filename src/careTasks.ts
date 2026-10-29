@@ -1,6 +1,6 @@
 export type CareTaskStatus = 'open' | 'requested' | 'accepted' | 'declined' | 'done' | 'skipped';
 
-export type CareTaskEventType = 'assigned' | 'requested' | 'reassigned' | 'accepted' | 'declined' | 'released' | 'taken_over' | 'completed' | 'reopened' | 'skipped' | 'restored' | 'auto_completed';
+export type CareTaskEventType = 'assigned' | 'requested' | 'reassigned' | 'accepted' | 'declined' | 'released' | 'taken_over' | 'completed' | 'reopened' | 'skipped' | 'restored' | 'auto_completed' | 'reminded';
 
 export type CareTaskEvent = {
   id: string;
@@ -16,6 +16,7 @@ export type CareTask = {
   title: string;
   note: string;
   dueAt: string;
+  windowEndAt?: string;
   assignedTo: string;
   assignedBy: string;
   status: CareTaskStatus;
@@ -47,7 +48,7 @@ type CarePattern = {
 type SimulatedActivity = {
   id: string;
   title: string;
-  note: string;
+  note?: string;
   savedAt: string;
   synthetic?: boolean;
   simulationKey?: string;
@@ -118,15 +119,16 @@ export function careTaskSummaryTasks(tasks: CareTask[], now: Date): CareTask[] {
   return completed.slice(0, 1);
 }
 
-function completeWhenRecorded(task: CareTask, now: Date, recordedBy = 'simulation', recordedByName?: string): CareTask {
+function completeWhenRecorded(task: CareTask, now: Date): CareTask {
   if (task.status === 'skipped' || task.status === 'done' || new Date(task.dueAt).getTime() > now.getTime()) return task;
-  const responsibleId = task.assignedTo && (task.status === 'accepted' || task.status === 'open') ? task.assignedTo : recordedBy;
+  // A simulation or record author cannot establish who actually provided care.
+  const responsibleId = 'simulation';
   const completed: CareTask = {
     ...task,
     status: 'done',
     completedAt: task.dueAt,
     completedBy: responsibleId,
-    completedByName: responsibleId === recordedBy ? recordedByName : undefined,
+    completedByName: 'Pawsona simulation',
     autoCompleted: true,
   };
   if (task.events?.some((event) => event.type === 'auto_completed')) return completed;
@@ -142,7 +144,7 @@ function simulatedCareTasksForDate(observations: SimulatedActivity[], savedTasks
       const generated: CareTask = {
         id,
         title: observation.title,
-        note: observation.note,
+        note: observation.note ?? '',
         dueAt: observation.savedAt,
         assignedTo: '',
         assignedBy: 'simulation',
@@ -151,7 +153,7 @@ function simulatedCareTasksForDate(observations: SimulatedActivity[], savedTasks
         sourceObservationId: observation.id,
         occurrenceDate: localDayKey(date),
       };
-      return completeWhenRecorded(saved ?? generated, now, observation.authorId || 'simulation', observation.authorName);
+      return completeWhenRecorded(saved ?? generated, now);
     })
     .sort((left, right) => left.dueAt.localeCompare(right.dueAt));
 }
@@ -168,7 +170,7 @@ function patternCareTasksForDate(patterns: CarePattern[], savedTasks: CareTask[]
       const due = new Date(date.getFullYear(), date.getMonth(), date.getDate(), Math.floor(start / 60), start % 60);
       const generated: CareTask = {
         id,
-        title: `${petName}’s ${pattern.activity!.toLowerCase()}`,
+        title: pattern.activity === 'Walk' ? `Walk ${petName}` : pattern.activity === 'Play' ? `Play with ${petName}` : `Feed ${petName} ${pattern.activity!.toLowerCase()}`,
         note: `Usual window ${clockMinute(pattern.startMinute!)}–${clockMinute(pattern.endMinute!)}`,
         dueAt: due.toISOString(),
         assignedTo: '',
@@ -178,7 +180,9 @@ function patternCareTasksForDate(patterns: CarePattern[], savedTasks: CareTask[]
         sourcePatternId: pattern.id,
         occurrenceDate: key,
       };
-      return saved ?? generated;
+      const end = pattern.endMinute!;
+      const windowEndAt = new Date(date.getFullYear(), date.getMonth(), date.getDate(), Math.floor(end / 60), end % 60).toISOString();
+      return { ...(saved ?? generated), windowEndAt };
     })
     .sort((left, right) => left.dueAt.localeCompare(right.dueAt));
 }
@@ -214,4 +218,22 @@ export function releaseAcceptedCareTask(task: CareTask, currentUserId: string, d
 
 export function isObservationSkippedForToday(observation: Pick<SimulatedActivity, 'id'>, tasks: CareTask[]) {
   return tasks.some((task) => task.sourceObservationId === observation.id && task.status === 'skipped');
+}
+
+/** Timing describes a plan, never evidence that care was missed. */
+export function careTaskTiming(task: CareTask, now: Date): 'upcoming' | 'soon' | 'due' | 'overdue' | 'closed' {
+  if (task.status === 'done' || task.status === 'skipped') return 'closed';
+  const start = Date.parse(task.dueAt);
+  const end = task.windowEndAt ? Date.parse(task.windowEndAt) : start;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return 'upcoming';
+  if (+now > end) return 'overdue';
+  if (+now >= start) return 'due';
+  return start - +now <= 15 * 60000 ? 'soon' : 'upcoming';
+}
+
+/** One reminder per task and recipient per five minutes, preserving responsibility. */
+export function canRemindCareTask(task: CareTask, recipientId: string, now: Date): boolean {
+  if (!recipientId || ['done', 'skipped'].includes(task.status)) return false;
+  return !(task.events ?? []).some(event => event.type === 'reminded' && event.targetId === recipientId
+    && +now - Date.parse(event.createdAt) < 5 * 60000);
 }
