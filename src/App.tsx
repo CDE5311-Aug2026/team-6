@@ -751,12 +751,15 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
   const momentPoints = selectedMoments.map(moment => {
     const date = new Date(moment.savedAt);
     const minutes = date.getHours() * 60 + date.getMinutes();
-    return { moment, ...pointAtProgress(adjustedProgress.get(moment.id) ?? dayProgress(minutes), 220), minutes, time: displayTime(moment, date) };
+    const labelProgress = adjustedProgress.get(moment.id) ?? dayProgress(minutes);
+    return { moment, ...pointAtProgress(moment.careTaskId ? dayProgress(minutes) : labelProgress, 220), labelProgress, minutes, time: displayTime(moment, date) };
   });
   const activityLabelRadius = 270;
   const activityMarkers = momentPoints.map(point => {
-    const radialX = (point.x - 300) / 220;
-    const radialY = (point.y - 390) / 220;
+    // Keep completion dots at their true clock angle; spread only labels for legibility.
+    const labelAnchor = point.moment.careTaskId ? pointAtProgress(point.labelProgress, 220) : point;
+    const radialX = (labelAnchor.x - 300) / 220;
+    const radialY = (labelAnchor.y - 390) / 220;
     const iconX = 300 + radialX * activityLabelRadius;
     const iconY = 390 + radialY * activityLabelRadius;
     return { ...point, iconX, iconY };
