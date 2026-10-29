@@ -1923,34 +1923,58 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .health-record-details dd { margin: 0; overflow-wrap: anywhere; }
 
 
-/* Action-first shared care, above the rhythm and Story cards. */
-.today-care-action { margin: 8px 20px 22px; padding: 20px; border: 1px solid #e2ded4; border-radius: 24px; background: #fffdf7; color: #303238; }
-.today-care-action > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.today-care-action h2 { margin: 3px 0 0; font-size: 23px; }
-.today-care-action > p { margin: 10px 0; font-size: 13px; }
-.today-care-action .eyebrow { margin: 0; font-size: 10px; letter-spacing: .11em; }
-.today-care-action header button { max-width: 125px; text-align: right; font-size: 12px; }
-.today-care-checklist { padding: 0; margin: 16px 0; list-style: none; display: grid; gap: 12px; }
-.today-care-item { border: 1px solid #e6e1d7; border-radius: 16px; padding: 14px; background: white; }
-.today-care-item.overdue { border-color: #c8a160; background: #fff8e8; }
-.today-care-item.due, .today-care-item.soon { border-color: #b5c8e2; }
-.today-care-item-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 11px; }
-.today-care-item-top time { font-size: 16px; font-weight: 600; white-space: nowrap; }
-.today-care-item-top span { text-align: right; }
-.today-care-item h3 { margin: 10px 0 5px; font-size: 16px; line-height: 1.4; overflow-wrap: anywhere; }
-.today-care-item p { margin: 5px 0; font-size: 12px; }
-.today-care-item small { display: block; margin-top: 6px; font-size: 11px; line-height: 1.5; color: #5d626d; }
-.today-care-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.today-care-actions button, .today-care-empty .primary-button { width: auto; min-height: 42px; padding: 9px 13px; font-size: 12px; }
-.today-care-action button:focus-visible, .today-care-action select:focus-visible, .today-care-completed summary:focus-visible { outline: 3px solid #435b91; outline-offset: 3px; }
-.today-care-incoming { display: block; width: 100%; text-align: left; padding: 12px; border-radius: 12px; background: #e5edfb; color: #273d67; border: 0; font: inherit; font-size: 12px; }
-.today-care-empty p { font-size: 13px; line-height: 1.6; }
-.today-care-empty .profile-link { display: block; margin-top: 12px; }
-.today-care-completed { margin: 14px 0; border-top: 1px solid #e2ded4; padding-top: 12px; }
-.today-care-completed summary { cursor: pointer; font-size: 13px; font-weight: 600; }
-.today-care-completed p { margin: 12px 0; }
-.today-care-completed strong, .today-care-completed span { display: block; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
-.today-care-completed span { color: #5d626d; }
-.today-care-delivery { display: block; color: #65656b; font-size: 10px; line-height: 1.5; margin-top: 15px; }
-.today-care-all-done { color: #38624e; font-weight: 500; }
-@media (max-width: 380px) { .today-care-action { margin-inline: 12px; padding: 15px; } .today-care-action > header { align-items: flex-start; } }
+/* Shared-care checklist, immediately below Daily Rhythm. */
+.today-care-action { margin: 12px 0 0; padding: 16px 14px 10px; border: 1px solid var(--color-border); border-radius: 22px; background: #fffcf5; color: var(--color-text-primary); }
+.today-care-header, .today-care-header > div { display: flex; align-items: center; gap: 9px; }
+.today-care-header { justify-content: space-between; margin-bottom: 6px; }
+.today-care-action h2 { margin: 0; font: 600 16px/24px 'Poppins', sans-serif; letter-spacing: -.3px; }
+.today-care-progress { padding: 3px 7px; border-radius: 7px; background: #f0eee5; color: #687068; font: 400 10px/14px 'Roboto', sans-serif; white-space: nowrap; }
+.today-care-plan { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 36px; padding: 4px 0; border: 0; background: none; color: #635c46; font: 500 11px/16px 'Poppins', sans-serif; cursor: pointer; }
+.today-care-plan > span:not([aria-hidden]) { padding: 1px 5px; border-radius: 8px; background: var(--color-action); color: #283128; }
+.today-care-checklist { list-style: none; padding: 0; margin: 0; }
+.today-care-item { padding: 0; border: 0; border-radius: 0; background: none; }
+.today-care-item + .today-care-item { border-top: 1px solid #e9e7df; }
+.today-care-row { display: flex; align-items: center; min-height: 65px; gap: 4px; }
+.today-care-check, .today-care-remind { flex: none; display: grid; place-items: center; width: 40px; height: 44px; padding: 0; border: 0; border-radius: 12px; background: transparent; color: #696c61; cursor: pointer; }
+.today-care-check { margin-left: -7px; }
+.today-care-check > span { width: 19px; height: 19px; border: 1.5px solid #c3c5b9; border-radius: 7px; background: #fffefa; transition: background 150ms ease, border-color 150ms ease; }
+.today-care-check:not(:disabled):hover > span { border-color: #b5932f; background: #fff1b1; }
+.today-care-check:disabled { cursor: default; opacity: .45; }
+.today-care-task { flex: 1; min-width: 0; padding: 10px 2px; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
+.today-care-task-title { display: block; overflow-wrap: anywhere; font: 500 13px/19px 'Poppins', sans-serif; }
+.today-care-task-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 3px; color: #727568; font: 400 11px/15px 'Roboto', sans-serif; }
+.today-care-task-meta time { font-variant-numeric: tabular-nums; }
+.today-care-item.overdue .today-care-status, .today-care-item.due .today-care-status { color: #866027; font-weight: 600; }
+.today-care-item.soon .today-care-status { color: #566f7d; }
+.today-care-remind { margin-right: -4px; }
+.today-care-remind:hover, .today-care-remind[aria-expanded="true"] { background: #f5efd9; color: #705b21; }
+.today-care-remind svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.today-care-task-detail { margin: 0 0 12px 35px; padding: 0 4px; }
+.today-care-task-detail p { margin: 5px 0; color: #6b7067; font: 400 11px/17px 'Roboto', sans-serif; }
+.today-care-item .care-help-form { margin: 2px 0 12px 32px; padding: 12px; border: 1px solid #e7e1ce; border-radius: 12px; background: #fffdf6; }
+.today-care-item .care-help-form p, .today-care-item .care-help-form small { font: 400 11px/17px 'Roboto', sans-serif; color: #6b7067; }
+.today-care-actions { display: flex; gap: 8px; margin-top: 10px; }
+.today-care-actions button, .today-care-empty .primary-button { min-height: 36px; padding: 7px 11px; font-size: 11px; width: auto; }
+.today-care-action button:focus-visible, .today-care-action select:focus-visible, .today-care-completed summary:focus-visible { outline: 2px solid #546c57; outline-offset: 2px; }
+.today-care-incoming { width: 100%; margin: 6px 0; padding: 9px 10px; border: 0; border-radius: 9px; background: #f7ecc4; color: #675221; text-align: left; font: 400 11px/17px 'Roboto', sans-serif; }
+.today-care-empty p { margin: 10px 0; color: #6b7067; font: 400 12px/18px 'Roboto', sans-serif; }
+.today-care-empty > button { margin-right: 10px; }
+.today-care-message { margin: 7px 0; color: #596d53; font: 400 11px/17px 'Roboto', sans-serif; }
+.today-care-all-done { margin: 12px 0; color: #496549; font: 400 12px/18px 'Roboto', sans-serif; }
+.today-care-last-done, .today-care-done-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 2px; color: #6a7c63; }
+.today-care-last-done { border-top: 1px solid #e9e7df; }
+.today-care-last-done > span, .today-care-done-row > span { margin: 2px 0 0 3px; font-size: 13px; }
+.today-care-last-done p, .today-care-done-row p { margin: 0; min-width: 0; }
+.today-care-last-done strong, .today-care-done-row strong { display: block; color: #66745f; overflow-wrap: anywhere; font: 400 12px/18px 'Poppins', sans-serif; }
+.today-care-last-done small, .today-care-done-row small { display: block; color: #7b7e73; font: 400 10px/15px 'Roboto', sans-serif; }
+.today-care-completed { border-top: 1px solid #e9e7df; }
+.today-care-completed summary { display: flex; align-items: center; justify-content: space-between; min-height: 38px; padding: 3px 2px; list-style: none; cursor: pointer; color: #757a6e; font: 400 11px/16px 'Roboto', sans-serif; }
+.today-care-completed summary::-webkit-details-marker { display: none; }
+.today-care-completed-count { margin-left: 5px; color: #8c9084; }
+.today-care-chevron { font-size: 15px; transition: transform 150ms ease; }
+.today-care-completed[open] .today-care-chevron { transform: rotate(180deg); }
+.today-care-action > footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid #e9e7df; padding: 2px 2px 0; color: #888b7e; font: 400 10px/14px 'Roboto', sans-serif; }
+.today-care-action > footer > span { display: inline-flex; align-items: center; gap: 5px; }
+.today-care-bell-dot { width: 4px; height: 4px; border-radius: 50%; background: #b9b499; }
+@media (max-width: 360px) { .today-care-action { padding-inline: 10px; } .today-care-progress { font-size: 9px; } .today-care-header { gap: 5px; } .today-care-action h2 { font-size: 15px; } }
+@media (prefers-reduced-motion: reduce) { .today-care-chevron, .today-care-check > span { transition: none; } }
