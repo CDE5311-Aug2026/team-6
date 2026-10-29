@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../src/careTasks.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
-const { appendCareTaskEvent, careTaskAttentionCount, careTaskInboxCount, careTaskSummaryTasks, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
+const { canRemindCareTask, careTaskTiming, appendCareTaskEvent, careTaskAttentionCount, careTaskInboxCount, careTaskSummaryTasks, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
 
 const activity = (id, hour, title) => ({
   id,
@@ -26,10 +26,10 @@ test('builds the daily care checklist from every simulated activity', () => {
   assert.deepEqual(tasks.map((task) => task.title), ['Breakfast record', 'Afternoon rest', 'Evening walk']);
   assert.equal(tasks[0].status, 'done');
   assert.equal(tasks[0].autoCompleted, true);
-  assert.equal(tasks[0].completedBy, 'owner');
-  assert.equal(tasks[0].completedByName, 'Emily');
+  assert.equal(tasks[0].completedBy, 'simulation');
+  assert.equal(tasks[0].completedByName, 'Pawsona simulation');
   assert.equal(tasks[0].events.at(-1).type, 'auto_completed');
-  assert.equal(tasks[0].events.at(-1).actorId, 'owner');
+  assert.equal(tasks[0].events.at(-1).actorId, 'simulation');
   assert.equal(tasks[1].status, 'open');
 });
 
@@ -77,10 +77,10 @@ test('preserves a caregiver request until the simulated activity is recorded', (
   assert.equal(before.requestNote, requested.requestNote);
   assert.equal(after.status, 'done');
   assert.equal(after.autoCompleted, true);
-  assert.equal(after.completedBy, 'owner');
+  assert.equal(after.completedBy, 'simulation');
 });
 
-test('credits an accepted caregiver when the assigned activity completes automatically', () => {
+test('does not attribute simulated completion to an assigned caregiver', () => {
   const observation = activity('rest', 13, 'Afternoon rest');
   const accepted = {
     id: `simulation-care-${observation.id}`,
@@ -99,9 +99,9 @@ test('credits an accepted caregiver when the assigned activity completes automat
   const completed = careTasksForDate([], [observation], [accepted], new Date(2026, 9, 23, 12), new Date(2026, 9, 23, 14), 'Sunny')[0];
 
   assert.equal(completed.status, 'done');
-  assert.equal(completed.completedBy, 'caregiver-cutee');
-  assert.equal(completed.completedByName, undefined);
-  assert.equal(completed.events.at(-1).actorId, 'caregiver-cutee');
+  assert.equal(completed.completedBy, 'simulation');
+  assert.equal(completed.completedByName, 'Pawsona simulation');
+  assert.equal(completed.events.at(-1).actorId, 'simulation');
 });
 
 test('lets the requester take over a declined activity without losing its request history', () => {
@@ -230,6 +230,33 @@ test('falls back to confirmed Pattern tasks when a day has no simulation', () =>
   const tasks = careTasksForDate(patterns, [], [], new Date(2026, 9, 23, 12), new Date(2026, 9, 23, 12), 'Sunny');
 
   assert.equal(tasks.length, 1);
-  assert.equal(tasks[0].title, 'Sunny’s breakfast');
+  assert.equal(tasks[0].title, 'Feed Sunny breakfast');
   assert.equal(tasks[0].sourcePatternId, 'breakfast');
+});
+
+test('routine time prompts respect the whole confirmed window and close after completion', () => {
+  const [task] = careTasksForDate([{ id: 'meal', status: 'confirmed', activity: 'Breakfast', startMinute: 540, endMinute: 570 }], [], [], new Date(2026, 9, 23), new Date(2026, 9, 23, 8), 'Sunny');
+  assert.equal(careTaskTiming(task, new Date(2026, 9, 23, 8, 44)), 'upcoming');
+  assert.equal(careTaskTiming(task, new Date(2026, 9, 23, 8, 45)), 'soon');
+  assert.equal(careTaskTiming(task, new Date(2026, 9, 23, 9)), 'due');
+  assert.equal(careTaskTiming(task, new Date(2026, 9, 23, 9, 30)), 'due');
+  assert.equal(careTaskTiming(task, new Date(2026, 9, 23, 10)), 'overdue');
+  assert.equal(careTaskTiming({ ...task, status: 'done' }, new Date(2026, 9, 23, 10)), 'closed');
+  assert.equal(careTaskTiming({ ...task, status: 'skipped' }, new Date(2026, 9, 23, 10)), 'closed');
+});
+test('reminders notify the named recipient without changing accepted responsibility and limit repeats', () => {
+  const now = new Date(2026, 9, 23, 10);
+  const base = { id: 'meal', title: 'Feed Sunny breakfast', note: '', dueAt: new Date(2026, 9, 23, 9).toISOString(), assignedTo: 'mum', assignedBy: 'owner', status: 'accepted', createdAt: now.toISOString() };
+  assert.equal(canRemindCareTask(base, 'mum', now), true);
+  const reminded = appendCareTaskEvent(base, { type: 'reminded', actorId: 'owner', targetId: 'mum', createdAt: now.toISOString() });
+  assert.equal(reminded.status, 'accepted');
+  assert.equal(reminded.assignedTo, 'mum');
+  assert.equal(careTaskUnreadCount([reminded], 'mum'), 1);
+  assert.equal(careTaskUnreadCount([reminded], 'owner'), 0);
+  assert.equal(canRemindCareTask(reminded, 'mum', new Date(+now + 299999)), false);
+  assert.equal(canRemindCareTask(reminded, 'mum', new Date(+now + 300000)), true);
+  assert.equal(canRemindCareTask(reminded, 'other-helper', now), true);
+  assert.equal(canRemindCareTask({ ...base, status: 'done' }, 'mum', now), false);
+  assert.equal(canRemindCareTask({ ...base, status: 'skipped' }, 'mum', now), false);
+  assert.equal(canRemindCareTask(base, '', now), false);
 });
