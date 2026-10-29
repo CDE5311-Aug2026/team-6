@@ -2037,3 +2037,13 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .session-replaced-dialog h2 { margin:12px 0; font:600 22px/29px 'Poppins',sans-serif; }
 .session-replaced-dialog p { margin:0 0 20px; color:#6c7567; font:400 13px/21px 'Roboto',sans-serif; }
 @media(max-height:650px) { .getting-started-panel { padding:16px; } .getting-started-panel h2 { font-size:20px; line-height:27px; } .setup-fields { gap:9px; } .guided-tour-panel { padding:14px 17px; } .guided-tour-panel > p:not(.getting-started-step) { font-size:11px; line-height:17px; } }
+
+/* Completed care remains reversible, in the same compact visual language. */
+.today-care-last-done, .today-care-done-row { align-items:center; gap:4px; padding:6px 0; }
+.today-care-last-done .today-care-check, .today-care-done-row .today-care-check { margin:0 3px 0 -7px; height:40px; }
+.today-care-check.is-done > span { display:grid; place-items:center; border-color:#bac7ad; background:#e8eedf; color:#607650; font:600 12px/18px 'Roboto',sans-serif; }
+.today-care-check.is-done:not(:disabled):hover > span { border-color:#a6b49a; background:#f3f1e7; color:#7c7967; }
+.care-task-undo { display:block; min-height:36px; margin:8px 0 0; padding:5px 0; border:0; background:none; color:#667b58; font:500 11px/17px 'Poppins',sans-serif; text-decoration:underline; text-underline-offset:3px; }
+.daily-rhythm-activity-label.is-care-completion .daily-rhythm-activity-badge { fill:#e8efd9; stroke:#b0c392; stroke-width:2; }
+.daily-rhythm-completion-note { display:flex; align-items:center; justify-content:space-between; gap:9px; margin:3px 2px 0; color:#66745b; font:400 11px/17px 'Roboto',sans-serif; }
+.daily-rhythm-completion-note button { border:0; background:none; color:#6c754f; min-height:30px; padding:3px 0; font:500 10px/16px 'Poppins',sans-serif; }

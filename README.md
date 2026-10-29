@@ -120,3 +120,12 @@ The frontend checks the server on cloud access, every five seconds while signed 
 The deployed ask-ai function also checks the caller's active session before reading the workspace or consuming quota. Deploy it with its existing explicit Bearer authentication and existing CORS configuration; preserve its prior `verify_jwt=false` setting because it validates the user and current session in the handler.
 
 Validation: TypeScript; automated tests; SQL transactional smoke test of takeover, rejected old-session RPC/direct writes and non-resurrection after logout. UI checks use the deployed preview/production and a dedicated QA account; credentials are not committed. See `supabase/tests/single_active_session.sql` for the rollback-only database test.
+
+
+## Reversible care completion and Daily Rhythm (2026-10-29)
+
+The recent-completion row and Completed history both expose an accessible checked button to undo a mistaken completion. The care-plan archive also offers Undo completion. Completion is reversible for its author or the primary caregiver; viewers remain read-only. Reopening an accepted assignment restores its accepted status and preserves the event history. Rechecking records a fresh actual completion time.
+
+Daily Rhythm merges independent visible Story observations with view-only task completion markers. Human-completed tasks use completedAt, an activity-specific icon, and Done by attribution. Opening a task marker leads to the care plan, not fabricated Story evidence. Reopening removes only the task-derived marker; independent real observations remain. Linked simulated activity is replaced rather than duplicated, and an explicit undo persists across refreshes and future simulated recordings. Pattern view remains the confirmed routine, separate from actual completion.
+
+Validation: TypeScript and 72 automated tests, including completion/undo/recheck, authorization, simulation override persistence after reminders, actual timestamps, overnight completion, deduplication and independent/private evidence handling.

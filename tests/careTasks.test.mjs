@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../src/careTasks.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
-const { canRemindCareTask, careTaskTiming, appendCareTaskEvent, careTaskAttentionCount, careTaskInboxCount, careTaskSummaryTasks, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
+const { careRhythmForDate, toggleCareTaskCompletion, canToggleCareTaskCompletion, canRemindCareTask, careTaskTiming, appendCareTaskEvent, careTaskAttentionCount, careTaskInboxCount, careTaskSummaryTasks, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
 
 const activity = (id, hour, title) => ({
   id,
@@ -259,4 +259,54 @@ test('reminders notify the named recipient without changing accepted responsibil
   assert.equal(canRemindCareTask({ ...base, status: 'done' }, 'mum', now), false);
   assert.equal(canRemindCareTask({ ...base, status: 'skipped' }, 'mum', now), false);
   assert.equal(canRemindCareTask(base, '', now), false);
+});
+
+test('completion can be undone and checked again with actual timestamps and preserved history', () => {
+  const base = { id:'walk',title:'Walk Sunny',note:'',dueAt:new Date(2026,9,23,18).toISOString(),assignedTo:'mum',assignedBy:'owner',status:'accepted',acceptedAt:new Date(2026,9,23,9).toISOString(),createdAt:new Date(2026,9,23,9).toISOString() };
+  const first = toggleCareTaskCompletion(base,'mum','Mum',false,new Date(2026,9,23,10));
+  assert.equal(first.status,'done'); assert.equal(first.completedByName,'Mum');
+  const undo = toggleCareTaskCompletion(first,'mum','Mum',false,new Date(2026,9,23,10,1));
+  assert.equal(undo.status,'accepted'); assert.equal(undo.completedAt,undefined); assert.equal(undo.completedBy,undefined);
+  assert.equal(undo.completionOverridden,true);
+  const second = toggleCareTaskCompletion(undo,'mum','Mum',false,new Date(2026,9,23,10,5));
+  assert.equal(second.completedAt,new Date(2026,9,23,10,5).toISOString());
+  assert.deepEqual(second.events.map(e=>e.type),['completed','reopened','completed']);
+  assert.equal(canToggleCareTaskCompletion(second,'other',false),false);
+  assert.equal(toggleCareTaskCompletion(second,'other','Other',false),null);
+  assert.equal(canToggleCareTaskCompletion(second,'owner',true),true);
+});
+test('undoing a simulated task stays undone after its scheduled time, even after a reminder', () => {
+  const record=activity('undo-breakfast',8,'Breakfast record'), date=new Date(2026,9,23,12);
+  const done=careTasksForDate([], [record], [], date, date,'Sunny')[0];
+  const undo=toggleCareTaskCompletion(done,'owner','Emily',true,date);
+  const reminded=appendCareTaskEvent(undo,{type:'reminded',actorId:'owner',targetId:'mum',createdAt:date.toISOString()});
+  const reloaded=careTasksForDate([], [record], [reminded], date,new Date(2026,9,23,20),'Sunny')[0];
+  assert.equal(reloaded.status,'open'); assert.equal(reloaded.completedAt,undefined);
+  const rhythm=careRhythmForDate([record],[reloaded],date,new Date(2026,9,23,20));
+  assert.equal(rhythm.records.length,0); assert.equal(rhythm.completions.length,0);
+});
+test('rhythm uses actual completion time, replaces a linked simulation and retains unrelated real evidence', () => {
+  const source=activity('future-walk',18,'Evening walk'), actual=new Date(2026,9,23,10,12), date=new Date(2026,9,23);
+  const base=careTasksForDate([], [source], [], date,new Date(2026,9,23,9),'Sunny')[0];
+  const done=toggleCareTaskCompletion(base,'mum','Mum',true,actual);
+  const independent={id:'real',title:'A real walk record',savedAt:new Date(2026,9,23,10).toISOString(),synthetic:false};
+  const now=new Date(2026,9,23,20);
+  const rhythm=careRhythmForDate([source,independent],[done,done],date,now);
+  assert.deepEqual(rhythm.records.map(r=>r.id),['real']);
+  assert.equal(rhythm.completions.length,1);
+  assert.equal(rhythm.completions[0].savedAt,actual.toISOString());
+  assert.equal(rhythm.completions[0].observationKind,'walk');
+  assert.equal(rhythm.completions[0].authorName,'Mum');
+  const undone=toggleCareTaskCompletion(done,'mum','Mum',false,now);
+  const after=careRhythmForDate([source,independent],[undone],date,now);
+  assert.deepEqual(after.records.map(r=>r.id),['real']); assert.equal(after.completions.length,0);
+});
+test('rhythm places overnight completion on its actual day, excludes future/private data and ignores reopened tasks', () => {
+  const yesterday=new Date(2026,9,22,22), actual=new Date(2026,9,23,0,10), now=new Date(2026,9,23,12);
+  const task={id:'meal',title:'Feed Sunny dinner',note:'',dueAt:yesterday.toISOString(),assignedTo:'mum',assignedBy:'owner',status:'done',createdAt:yesterday.toISOString(),completedAt:actual.toISOString(),completedBy:'mum'};
+  const current=careRhythmForDate([{id:'private',title:'private',savedAt:actual.toISOString(),privateRecord:true}],[task],now,now,{mum:'Mum'});
+  assert.equal(current.records.length,0); assert.equal(current.completions.length,1); assert.equal(current.completions[0].observationKind,'meal');
+  assert.equal(careRhythmForDate([], [task], yesterday,now).completions.length,0);
+  assert.equal(careRhythmForDate([], [{...task,completedAt:new Date(2026,9,23,15).toISOString()}], now,now).completions.length,0);
+  assert.equal(careRhythmForDate([], [{...task,status:'open'}], now,now).completions.length,0);
 });

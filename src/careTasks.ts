@@ -31,6 +31,7 @@ export type CareTask = {
   sourceObservationId?: string;
   occurrenceDate?: string;
   autoCompleted?: boolean;
+  completionOverridden?: boolean;
   skippedAt?: string;
   skippedBy?: string;
   requestNote?: string;
@@ -120,7 +121,7 @@ export function careTaskSummaryTasks(tasks: CareTask[], now: Date): CareTask[] {
 }
 
 function completeWhenRecorded(task: CareTask, now: Date): CareTask {
-  if (task.status === 'skipped' || task.status === 'done' || new Date(task.dueAt).getTime() > now.getTime()) return task;
+  if (task.status === 'skipped' || task.status === 'done' || task.completionOverridden || task.events?.some(event => event.type === 'reopened') || new Date(task.dueAt).getTime() > now.getTime()) return task;
   // A simulation or record author cannot establish who actually provided care.
   const responsibleId = 'simulation';
   const completed: CareTask = {
@@ -236,4 +237,49 @@ export function canRemindCareTask(task: CareTask, recipientId: string, now: Date
   if (!recipientId || ['done', 'skipped'].includes(task.status)) return false;
   return !(task.events ?? []).some(event => event.type === 'reminded' && event.targetId === recipientId
     && +now - Date.parse(event.createdAt) < 5 * 60000);
+}
+
+/** Reversible completion with the same permissions for the checkbox and command. */
+export function canToggleCareTaskCompletion(task: CareTask, userId: string, isPrimary: boolean): boolean {
+  if (!userId) return false;
+  if (task.status === 'done') return isPrimary || task.completedBy === userId;
+  return ['open', 'accepted'].includes(task.status) && (!task.assignedTo || task.assignedTo === userId || isPrimary);
+}
+export function toggleCareTaskCompletion(task: CareTask, userId: string, userName: string, isPrimary: boolean, now = new Date()): CareTask | null {
+  if (!canToggleCareTaskCompletion(task, userId, isPrimary)) return null;
+  const reopening = task.status === 'done';
+  const stamp = now.toISOString();
+  const next: CareTask = reopening
+    ? { ...task, status: task.assignedTo && task.acceptedAt ? 'accepted' : 'open', completedBy: undefined, completedByName: undefined, completedAt: undefined, autoCompleted: undefined, completionOverridden: true }
+    : { ...task, status: 'done', completedBy: userId, completedByName: userName, completedAt: stamp, autoCompleted: undefined, completionOverridden: false };
+  const targetId = task.assignedTo && task.assignedTo !== userId ? task.assignedTo : task.assignedBy && task.assignedBy !== userId ? task.assignedBy : undefined;
+  return appendCareTaskEvent(next, { type: reopening ? 'reopened' : 'completed', actorId: userId, targetId, createdAt: stamp });
+}
+
+type RhythmRecord = { id: string; title: string; savedAt: string; privateRecord?: boolean; synthetic?: boolean };
+export type CareCompletionMarker = { id: string; title: string; note: string; savedAt: string; authorId?: string; authorName: string; careTaskId: string; observationKind: 'meal' | 'walk' | 'play' | 'rest' | 'other' };
+
+/** View-only markers: no invented Story record, no planned-time completion, no duplicate simulation. */
+export function careRhythmForDate<T extends RhythmRecord>(records: T[], tasks: CareTask[], date: Date, now: Date, names: Record<string,string> = {}): { records: T[]; completions: CareCompletionMarker[] } {
+  const bySource = new Map(tasks.filter(task => task.sourceObservationId).map(task => [task.sourceObservationId!, task]));
+  const visible = records.filter(record => {
+    if (record.privateRecord || !isSameLocalDay(record.savedAt,date) || Date.parse(record.savedAt) > +now) return false;
+    const task = bySource.get(record.id);
+    // Real observations remain independent evidence when a task is corrected.
+    return !record.synthetic || !task || !(task.completionOverridden || (task.status === 'done' && !task.autoCompleted) || task.events?.some(event => event.type === 'reopened'));
+  });
+  const unique = new Map(tasks.map(task => [task.id, task]));
+  const completions: CareCompletionMarker[] = [...unique.values()].filter(task =>
+    task.status === 'done' && !task.autoCompleted && !!task.completedAt &&
+    Number.isFinite(Date.parse(task.completedAt)) && Date.parse(task.completedAt) <= +now && isSameLocalDay(task.completedAt,date)
+  ).map(task => {
+    const authorName = task.completedByName ?? names[task.completedBy ?? ''] ?? 'Caregiver';
+    const title = task.title.toLowerCase();
+    const observationKind = /\b(feed|fed|food|meal|breakfast|lunch|dinner)\b/.test(title) ? 'meal' as const
+      : /\b(walk|walking)\b/.test(title) ? 'walk' as const : /\b(play|playing|fetch|toy)\b/.test(title) ? 'play' as const
+        : /\b(rest|sleep|nap)\b/.test(title) ? 'rest' as const : 'other' as const;
+    return { id: 'completed-care-' + task.id, careTaskId: task.id, title: task.title, note: 'Done by ' + authorName,
+      savedAt: task.completedAt!, authorId: task.completedBy, authorName, observationKind };
+  });
+  return { records: visible, completions };
 }
