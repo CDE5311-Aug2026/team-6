@@ -14,7 +14,7 @@ import { searchCareAccounts, type CareAccountSearchResult, type CloudCareGroup, 
 import { visibleStoryObservations } from './storyVisibility';
 import { buildRollingStorySimulation, isSyntheticSunnyProfile } from './storySimulation';
 import { mergeSharedStoryObservations } from './sharedStoryObservations';
-import { careRhythmForDate, canToggleCareTaskCompletion, toggleCareTaskCompletion, canRemindCareTask, appendCareTaskEvent, careTaskAttentionCount, careTaskSummaryTasks, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask, type CareTask, type CareTaskEvent, type CareTaskEventType } from './careTasks';
+import { careRhythmForDate, careTaskTiming, canToggleCareTaskCompletion, toggleCareTaskCompletion, canRemindCareTask, appendCareTaskEvent, careTaskAttentionCount, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask, type CareTask, type CareTaskEvent, type CareTaskEventType } from './careTasks';
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
 
 type View =
@@ -655,13 +655,10 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
 }
 
 
-function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpenActivitySummary, patterns, careTasks, careMembers, currentUserId, canAct, isPrimary, onToggleCareTask, onSkipCareTask, onOpenCareTasks, onPatterns, dayOffset, onDayOffsetChange }: { petName: string; petAvatar: string; moments: StoryObservation[]; scheduledMoments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; patterns: TypicalPattern[]; careTasks: CareTask[]; careMembers: CareMember[]; currentUserId: string; canAct: boolean; isPrimary: boolean; onToggleCareTask: (task: CareTask) => void; onSkipCareTask: (task: CareTask) => void; onOpenCareTasks: () => void; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
+function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySummary, patterns, careTasks, careMembers, onOpenCareTasks, onPatterns, dayOffset, onDayOffsetChange }: { petName: string; moments: StoryObservation[]; scheduledMoments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; patterns: TypicalPattern[]; careTasks: CareTask[]; careMembers: CareMember[]; onOpenCareTasks: () => void; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void }) {
   const [revealedActivityId, setRevealedActivityId] = useState<string | null>(null);
-  const wheelRef = useRef<SVGGElement | null>(null);
   useEffect(() => setRevealedActivityId(null), [dayOffset]);
   const dragStart = useRef<number | null>(null);
-  const todayButtonDragStart = useRef<number | null>(null);
-  const suppressTodayClick = useRef(false);
   const navStart = useRef<'previous' | 'newer' | null>(null);
   const pressedMomentId = useRef<string | null>(null);
   const suppressNavClick = useRef(false);
@@ -682,19 +679,12 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
     if (revealedActivityId !== moment.id) { setRevealedActivityId(moment.id); return; }
     if (patternById.has(moment.id)) onPatterns(moment.id); else if (moment.careTaskId) onOpenCareTasks(); else onOpenActivitySummary(moment);
   };
-  const displayTime = (_moment: StoryObservation, date: Date) => timeLabel(date);
   const routineTasks = careTasksForDate(patterns, scheduledMoments, careTasks, selectedDate, now, displayName);
   const datedTasks = careTasks.filter(task => !task.sourcePatternId && !task.sourceObservationId && isSameLocalDay(task.dueAt, selectedDate) && task.status !== 'declined');
   const dayCareTasks = [...routineTasks, ...datedTasks].sort((left, right) => left.dueAt.localeCompare(right.dueAt));
-  const summaryCareTasks = careTaskSummaryTasks(dayCareTasks, now);
-  const allCareTasksComplete = dayCareTasks.length > 0 && dayCareTasks.every(task => task.status === 'done');
-  const memberName = (id: string, fallback?: string) => id === 'simulation' ? 'Pawsona' : careMembers.find(member => member.id === id)?.name ?? fallback ?? 'Caregiver';
-  const requestAttentionCount = careTaskAttentionCount(careTasks, currentUserId, isPrimary);
-  const unreadRequestCount = careTaskUnreadCount(careTasks, currentUserId);
   const isToday = dayOffset === 0;
   const dayTitle = isToday ? 'TODAY' : dayOffset === -1 ? 'YESTERDAY' : new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(selectedDate).toUpperCase();
   const selectedDateLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(selectedDate);
-  const currentPetAvatar = petAvatar || asset('luna-avatar.png');
   const dayProgress = (minutes: number) => {
     const clampedMinutes = Math.max(0, Math.min(1440, minutes));
     return clampedMinutes / 1440;
@@ -703,8 +693,8 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
   // the visible chart, so their arcs remain genuinely concentric.
   const dialCenter = { x: 300, y: 450 };
   const todayTrackRadius = 350;
-  const patternTrackOuterRadius = 318;
-  const patternTrackInnerRadius = 284;
+  const patternTrackOuterRadius = 350;
+  const patternTrackInnerRadius = 336;
   const patternTrackRadius = (patternTrackOuterRadius + patternTrackInnerRadius) / 2;
   const patternTrackWidth = patternTrackOuterRadius - patternTrackInnerRadius;
   const dialStartAngle = Math.acos(-300 / todayTrackRadius);
@@ -725,116 +715,53 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
     return `M${start.x} ${start.y} A${radius} ${radius} 0 0 ${sweep} ${end.x} ${end.y}`;
   };
   const patternBandBasePath = arcBetweenAngles(patternTrackRadius, Math.acos(-300 / patternTrackOuterRadius), Math.acos(300 / patternTrackOuterRadius), 1);
-  const pageArrowRadius = 190;
-  const pageArrowStartAngle = 1.96;
-  const pageArrowEndAngle = 2.35;
-  const previousDayArrowPath = arcBetweenAngles(pageArrowRadius, pageArrowStartAngle, pageArrowEndAngle, 0);
-  const newerDayArrowPath = arcBetweenAngles(pageArrowRadius, Math.PI - pageArrowStartAngle, Math.PI - pageArrowEndAngle, 1);
-  const pointOnDial = (minutes: number, radius: number) => pointAtProgress(dayProgress(minutes), radius);
   const timeLabel = (date: Date) => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
-  const momentPoints = selectedMoments.map(moment => {
-    const date = new Date(moment.savedAt);
-    const minutes = date.getHours() * 60 + date.getMinutes();
-    const labelProgress = dayProgress(minutes);
-    return { moment, ...pointAtProgress(labelProgress, todayTrackRadius), labelProgress, minutes, time: displayTime(moment, date) };
+  const activityGlyphFor = (title: string, kind?: string) => kind === 'meal' ? '🥣'
+    : kind === 'walk' ? '🐾'
+      : kind === 'rest' ? '💤'
+        : kind === 'play' ? '🎾'
+          : /food|dinner|breakfast|lunch/i.test(title) ? '🥣'
+            : /walk/i.test(title) ? '🐾'
+              : /rest|sleep/i.test(title) ? '💤' : /play|toy|fetch/i.test(title) ? '🎾' : '✨';
+  const activityGlyph = (moment: StoryObservation) => activityGlyphFor(moment.title, moment.observationKind);
+  const visibleDayCareTasks = dayCareTasks.filter(task => task.status !== 'skipped');
+  const linkedObservationIds = new Set(visibleDayCareTasks.flatMap(task => task.sourceObservationId ? [task.sourceObservationId] : []));
+  const taskTimelineItems = visibleDayCareTasks.map(task => {
+    const linkedMoment = selectedMoments.find(moment => moment.careTaskId === task.id || moment.id === task.sourceObservationId);
+    const at = task.status === 'done' ? linkedMoment?.savedAt ?? task.completedAt ?? task.dueAt : task.dueAt;
+    const timing = careTaskTiming(task, now);
+    const state: 'done' | 'upcoming' | 'soon' | 'attention' = task.status === 'done' ? 'done' : timing === 'due' || timing === 'overdue' ? 'attention' : timing === 'soon' ? 'soon' : 'upcoming';
+    const stateLabel = state === 'done' ? 'Done' : state === 'attention' ? timing === 'due' ? 'Due now' : 'Check first' : state === 'soon' ? 'Due soon' : 'Upcoming';
+    return { id: task.id, title: task.title, at, state, stateLabel, glyph: activityGlyphFor(task.title), moment: linkedMoment };
   });
-  const activityLabelRadius = 390;
-  const activityMarkers = momentPoints.map(point => {
-    // Keep activity markers on the strict 24-hour time scale.
-    const labelAngle = dialAngle(point.labelProgress);
-    const iconX = Math.max(28, Math.min(572, dialCenter.x + activityLabelRadius * Math.cos(labelAngle)));
-    const iconY = dialCenter.y - activityLabelRadius * Math.sin(labelAngle);
-    return { ...point, iconX, iconY };
-  });
-  const placedTimeBoxes: Array<{ id: string; left: number; right: number; top: number; bottom: number }> = [];
-  const timeLabelPositions = new Map<string, { timeX: number; timeY: number }>();
-  [...activityMarkers].sort((left, right) => left.minutes - right.minutes).forEach(marker => {
-    const outward = marker.iconX < 300 ? -1 : 1;
-    const offsets = [outward * 28, outward * 56, 0, -outward * 28, outward * 84, -outward * 56, -outward * 84];
-    const verticalOffsets = [0, -18, 18, -36, 36];
-    const candidates = offsets.flatMap(offset => verticalOffsets.map(verticalOffset => {
-      const timeX = Math.max(34, Math.min(566, marker.iconX + offset));
-      const timeY = marker.iconY - 40 + verticalOffset;
-      const halfWidth = Math.max(29, marker.time.length * 5.8);
-      return { timeX, timeY, halfWidth, cost: Math.abs(offset - outward * 28) + Math.abs(verticalOffset) * 1.5 };
-    })).sort((left, right) => left.cost - right.cost);
-    const isClear = (candidate: typeof candidates[number]) => {
-      const box = { left: candidate.timeX - candidate.halfWidth, right: candidate.timeX + candidate.halfWidth, top: candidate.timeY - 12, bottom: candidate.timeY + 12 };
-      if (box.left < 4 || box.right > 596 || box.top < 20 || box.bottom > 382) return false;
-      if (placedTimeBoxes.some(placed => box.left < placed.right + 8 && box.right + 8 > placed.left && box.top < placed.bottom + 6 && box.bottom + 6 > placed.top)) return false;
-      return activityMarkers.every(other => other.moment.id === marker.moment.id ||
-        !(box.left < other.iconX + 23 && box.right > other.iconX - 23 && box.top < other.iconY + 23 && box.bottom > other.iconY - 23));
-    };
-    const chosen = candidates.find(isClear) ?? candidates[0];
-    timeLabelPositions.set(marker.moment.id, { timeX: chosen.timeX, timeY: chosen.timeY });
-    placedTimeBoxes.push({ left: chosen.timeX - chosen.halfWidth, right: chosen.timeX + chosen.halfWidth, top: chosen.timeY - 12, bottom: chosen.timeY + 12, id: marker.moment.id });
-  });
-  const labeledMomentPoints = activityMarkers.map(point => ({ ...point, label: { iconX: point.iconX, iconY: point.iconY, ...timeLabelPositions.get(point.moment.id)! } }));
-  const timeLabelLeaders = labeledMomentPoints.map(({ moment, x, y, label }) => {
-    const savedAt = new Date(moment.savedAt);
-    const progress = dayProgress(savedAt.getHours() * 60 + savedAt.getMinutes());
-    const angle = dialAngle(progress);
-    const radialX = Math.cos(angle);
-    const radialY = -Math.sin(angle);
-    return {
-      id: moment.id,
-      x1: x + radialX * 9,
-      y1: y + radialY * 9,
-      x2: label.iconX - radialX * 26,
-      y2: label.iconY - radialY * 26,
-    };
-  });
-  const activityGlyph = (moment: StoryObservation) => moment.observationKind === 'meal' ? '🥣'
-    : moment.observationKind === 'walk' ? '🐾'
-      : moment.observationKind === 'rest' ? '💤'
-        : moment.observationKind === 'play' ? '🎾'
-          : /food|dinner|breakfast|lunch/i.test(moment.title) ? '🥣'
-            : /walk/i.test(moment.title) ? '🐾'
-              : /rest|sleep/i.test(moment.title) ? '💤' : /play|toy|fetch/i.test(moment.title) ? '🎾' : '✨';
-  const currentMinute = now.getHours() * 60 + now.getMinutes();
-  const currentPoint = pointOnDial(currentMinute, todayTrackRadius);
-  const patternPointerInner = pointOnDial(currentMinute, patternTrackInnerRadius);
-  const revealedMarker = labeledMomentPoints.find(point => point.moment.id === revealedActivityId);
+  const unplannedTimelineItems = selectedMoments
+    .filter(moment => !moment.careTaskId && !linkedObservationIds.has(moment.id))
+    .map(moment => ({ id: `record-${moment.id}`, title: moment.title, at: moment.savedAt, state: 'done' as const, stateLabel: 'Recorded', glyph: activityGlyph(moment), moment }));
+  const todayTimelineItems = [...taskTimelineItems, ...unplannedTimelineItems].sort((left, right) => left.at.localeCompare(right.at));
   const revealedPatternMoment = patternMoments.find(moment => moment.id === revealedActivityId);
-  const revealedSelection = revealedMarker ?? (revealedPatternMoment ? { moment: revealedPatternMoment, time: `${clockMinute(patternById.get(revealedPatternMoment.id)!.startMinute!)}–${clockMinute(patternById.get(revealedPatternMoment.id)!.endMinute!)}` } : undefined);
-  const activityLabelsOnTop = revealedMarker
-    ? [...labeledMomentPoints.filter(point => point.moment.id !== revealedActivityId), revealedMarker]
-    : labeledMomentPoints;
-  const animateWheel = (direction: 'clockwise' | 'counterclockwise') => {
-    const wheel = wheelRef.current;
-    if (!wheel || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    wheel.getAnimations().forEach(animation => animation.cancel());
-    const endingAngle = direction === 'counterclockwise' ? -360 : 360;
-    wheel.animate(
-      [{ transform: 'rotate(0deg)' }, { transform: `rotate(${endingAngle}deg)` }],
-      { duration: 720, easing: 'cubic-bezier(.2,.7,.25,1)' },
-    );
-  };
-  const goToPreviousDay = () => { animateWheel('clockwise'); onDayOffsetChange(dayOffset - 1); };
-  const goToNewerDay = () => { if (dayOffset < 0) { animateWheel('counterclockwise'); onDayOffsetChange(dayOffset + 1); } };
-  const handleNavKey = (event: React.KeyboardEvent<SVGGElement>, direction: 'previous' | 'newer') => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    if (direction === 'previous') goToPreviousDay(); else goToNewerDay();
-  };
-  return <section className="daily-rhythm-card has-pattern-overlay" aria-labelledby="daily-rhythm-title">
+  const revealedSelection = revealedPatternMoment ? { moment: revealedPatternMoment, time: `${clockMinute(patternById.get(revealedPatternMoment.id)!.startMinute!)}–${clockMinute(patternById.get(revealedPatternMoment.id)!.endMinute!)}` } : undefined;
+  const goToPreviousDay = () => onDayOffsetChange(dayOffset - 1);
+  const goToNewerDay = () => { if (dayOffset < 0) onDayOffsetChange(dayOffset + 1); };
+  return <section className="daily-rhythm-card daily-rhythm-split" aria-labelledby="daily-rhythm-title">
     <header className="daily-rhythm-header">
       <div><p className="eyebrow">DAILY RHYTHM</p><h2 id="daily-rhythm-title">{displayName}’s day</h2></div>
-      <div className="daily-rhythm-legend" aria-label="Timeline legend">
-        <span><i className="daily-rhythm-legend-recorded" aria-hidden="true" />Recorded</span>
-        <button type="button" onClick={() => onPatterns()}><i className="daily-rhythm-legend-typical" aria-hidden="true" />{timedPatterns.length ? 'Typical' : 'Set typical'}</button>
+      <div className="daily-rhythm-date-nav" aria-label="Selected day">
+        <button type="button" aria-label="Show previous day" onClick={goToPreviousDay}>‹</button>
+        <span>{selectedDateLabel}</span>
+        <button type="button" aria-label="Show newer day" disabled={isToday} onClick={goToNewerDay}>›</button>
       </div>
     </header>
     <>
+    <div className="daily-rhythm-lane-heading"><span>TYPICAL PATTERN</span><button type="button" onClick={() => onPatterns()}>{timedPatterns.length ? 'View →' : 'Set up →'}</button></div>
     <div className="daily-rhythm-chart">
-      {dayOffset < 0 && <button type="button" className="daily-rhythm-go-today" onPointerDown={event => { todayButtonDragStart.current = event.clientX; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerUp={event => { const startX = todayButtonDragStart.current; todayButtonDragStart.current = null; if (startX === null) return; const deltaX = event.clientX - startX; if (deltaX > 32 || deltaX < -32) { suppressTodayClick.current = true; if (deltaX > 32) goToPreviousDay(); else goToNewerDay(); window.setTimeout(() => { suppressTodayClick.current = false; }, 0); } }} onPointerCancel={() => { todayButtonDragStart.current = null; }} onClick={() => { if (suppressTodayClick.current) { suppressTodayClick.current = false; return; } onDayOffsetChange(0); }}>Today</button>}
+      {dayOffset < 0 && <button type="button" className="daily-rhythm-go-today" onClick={() => onDayOffsetChange(0)}>Today</button>}
       {revealedSelection && <button type="button" className="daily-rhythm-selected-banner" aria-label={`Open details for ${revealedSelection.moment.title} at ${revealedSelection.time}`} onClick={() => openActivity(revealedSelection.moment)}>
         <span className="daily-rhythm-selected-banner-icon" aria-hidden="true">{activityGlyph(revealedSelection.moment)}</span>
         <span className="daily-rhythm-selected-banner-title">{revealedSelection.moment.title}</span>
         <span className="daily-rhythm-selected-banner-time">{revealedSelection.time}</span>
         <span className="daily-rhythm-selected-banner-arrow" aria-hidden="true">→</span>
       </button>}
-      <svg viewBox="0 32 600 352" role="application" tabIndex={0} aria-label={`Recorded moments for ${dayTitle.toLowerCase()} and ${displayName}’s confirmed typical time ranges on a true 24-hour scale. Select an activity or range to reveal details. Swipe right to view the previous day or swipe left to view a newer day.`}
+      <svg viewBox="0 48 600 235" role="application" tabIndex={0} aria-label={`${displayName}’s confirmed typical activity times. Select a pattern to reveal its time window.`}
         onPointerDown={event => {
           const target = event.target as Element;
           dragStart.current = event.clientX;
@@ -903,60 +830,23 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
             const patternMoment = patternMoments.find(moment => moment.id === p.id);
             return <g key={`${p.id}-window`} className={`daily-pattern-segment ${revealedActivityId === p.id ? 'is-revealed' : ''}`} data-moment-trigger={p.id} role="button" tabIndex={0} aria-label={`${p.activity} · ${clockMinute(p.startMinute!)}–${clockMinute(p.endMinute!)}`} aria-pressed={revealedActivityId === p.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (patternMoment) openActivity(patternMoment); } }}>
               <path className="daily-pattern-window" d={path} strokeWidth={patternTrackWidth}><title>{p.activity} · {clockMinute(p.startMinute!)}–{clockMinute(p.endMinute!)}</title></path>
-              <circle className="daily-pattern-midpoint" cx={middle.x} cy={middle.y} r="3.5" aria-hidden="true" />
+              <circle className="daily-pattern-node" cx={middle.x} cy={middle.y} r="15" aria-hidden="true" />
+              {patternMoment && <text className="daily-pattern-node-glyph" x={middle.x} y={middle.y + 1} textAnchor="middle" dominantBaseline="middle" aria-hidden="true">{activityGlyph(patternMoment)}</text>}
             </g>;
           })}
         </g>
-        <g ref={wheelRef} className="daily-rhythm-moments">
-          {timeLabelLeaders.map(line => <line key={`${line.id}-leader`} className="daily-rhythm-leader-line" x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} aria-hidden="true"/>)}
-          {momentPoints.map(({ moment, x, y, time }) => <g className="daily-rhythm-point" key={moment.id} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
-            <circle className="daily-rhythm-point-hit" cx={x} cy={y} r="28"/>
-            <circle className="daily-rhythm-point-marker" cx={x} cy={y} r="7"/>
-            <circle className="daily-rhythm-point-core" cx={x} cy={y} r="2.5"/>
-          </g>)}
-          {isToday && <g className="daily-rhythm-current-point" aria-label={`Current time ${timeLabel(now)}`}>
-            <title>Now · {timeLabel(now)}</title>
-            <line className="daily-rhythm-pattern-current-pointer" x1={currentPoint.x} y1={currentPoint.y} x2={patternPointerInner.x} y2={patternPointerInner.y} aria-hidden="true"/>
-            <circle className="daily-rhythm-current-avatar-outer" cx={currentPoint.x} cy={currentPoint.y} r="23"/>
-            <circle className="daily-rhythm-current-avatar-inner" cx={currentPoint.x} cy={currentPoint.y} r="20"/>
-            <image href={currentPetAvatar} x={currentPoint.x - 18.5} y={currentPoint.y - 18.5} width="37" height="37" preserveAspectRatio="xMidYMid slice" clipPath="url(#rhythm-current-avatar-clip)"/>
-          </g>}
-          {activityLabelsOnTop.map(({ moment, label, time }) => <g className={`daily-rhythm-time-trigger daily-rhythm-activity-label ${moment.observationKind ?? 'other'} ${moment.careTaskId ? 'is-care-completion' : ''} ${revealedActivityId === moment.id ? 'is-revealed' : ''}`} key={`${moment.id}-label`} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
-            <rect className="daily-rhythm-time-hit" x={label.iconX - 37} y={label.iconY - 37} width="74" height="88"/>
-            <circle className="daily-rhythm-activity-badge" cx={label.iconX} cy={label.iconY} r="27"/>
-            <text className="daily-rhythm-activity-glyph" x={label.iconX} y={label.iconY + 1} textAnchor="middle" dominantBaseline="middle">{activityGlyph(moment)}</text>
-
-          </g>)}
-        </g>
-        </g>
-        <text className="daily-rhythm-time daily-rhythm-end-time" x="52" y="372" textAnchor="middle" dominantBaseline="middle">00:00</text>
-        <text className="daily-rhythm-time daily-rhythm-end-time" x="548" y="372" textAnchor="middle" dominantBaseline="middle">00:00</text>
-        <><g className="daily-rhythm-nav-arrow" data-day-nav="previous" role="button" tabIndex={0} aria-label="Show previous day" onClick={() => { if (!suppressNavClick.current) goToPreviousDay(); }} onKeyDown={event => handleNavKey(event, 'previous')}>
-          <path className="daily-rhythm-arrow-hit" d={previousDayArrowPath}/>
-          <path className="daily-rhythm-arrow" d={previousDayArrowPath} markerEnd="url(#rhythm-arrow)"/>
-        </g>
-        <g className={`daily-rhythm-nav-arrow ${isToday ? 'disabled' : ''}`} data-day-nav="newer" role="button" tabIndex={isToday ? -1 : 0} aria-disabled={isToday} aria-label="Show newer day" onClick={() => { if (!suppressNavClick.current && !isToday) goToNewerDay(); }} onKeyDown={event => { if (!isToday) handleNavKey(event, 'newer'); }}>
-          <path className="daily-rhythm-arrow-hit" d={newerDayArrowPath}/>
-          <path className="daily-rhythm-arrow" d={newerDayArrowPath} markerEnd="url(#rhythm-arrow)"/>
-        </g>
-        </>
-        <g className="daily-rhythm-center-selection" {...(revealedSelection ? { role: 'button', tabIndex: 0, 'data-moment-trigger': revealedSelection.moment.id, 'aria-label': `Open details for ${revealedSelection.moment.title}`, onKeyDown: (event: React.KeyboardEvent<SVGGElement>) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(revealedSelection.moment); } } } : {})}>
-          <text className="daily-rhythm-center-title" x="300" y="306" textAnchor="middle">{dayTitle}</text>
-          <text className="daily-rhythm-center-date" x="300" y="332" textAnchor="middle">{selectedDateLabel}</text>
         </g>
     </svg>
     </div>
-    {revealedMarker?.moment.careTaskId && <p className="daily-rhythm-completion-note" role="status">{revealedMarker.moment.note} · {revealedMarker.time}<button type="button" onClick={onOpenCareTasks}>View task →</button></p>}
-    {!isToday ? <section className="daily-rhythm-care" aria-label="Care tasks for selected day">
-      <div className="daily-rhythm-care-heading"><div><strong><svg className="daily-rhythm-care-title-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg><span>{isToday ? 'Today’s care' : `Care · ${selectedDateLabel}`}</span></strong><small>{dayCareTasks.length ? `${dayCareTasks.filter(task => task.status === 'done').length} of ${dayCareTasks.length} done${dayCareTasks.some(task => task.status === 'skipped') ? ` · ${dayCareTasks.filter(task => task.status === 'skipped').length} not today` : ''}` : 'Based on today’s planned activities'}</small></div><button type="button" onClick={onOpenCareTasks}>{unreadRequestCount > 0 && <span className="care-request-unread-dot" aria-label={`${unreadRequestCount} unread care ${unreadRequestCount === 1 ? 'notification' : 'notifications'}`} />}{requestAttentionCount ? `Requests · ${requestAttentionCount}` : unreadRequestCount ? 'Requests' : 'View all →'}</button></div>
-      {dayCareTasks.length ? <div className="daily-rhythm-care-list">{summaryCareTasks.map(task => {
-        const canComplete = canAct && canToggleCareTaskCompletion(task,currentUserId,isPrimary);
-        const time = task.sourcePatternId ? task.note.replace(/^Usual window /, '') : new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(task.dueAt));
-        const detail = task.status === 'skipped' ? 'Not today · hidden from Story' : task.autoCompleted ? 'Simulated activity recorded · caregiver not verified' : task.status === 'done' ? `Completed by ${memberName(task.completedBy ?? '', task.completedByName)}` : task.status === 'requested' ? `Waiting for ${memberName(task.assignedTo)}` : task.assignedTo ? `Assigned to ${memberName(task.assignedTo)}` : task.sourceObservationId ? 'Planned simulated activity' : 'Shared routine';
-        return <div className={`daily-rhythm-care-row ${task.status === 'done' ? 'is-done' : ''} ${task.status === 'skipped' ? 'is-skipped' : ''}`} key={task.id}><button type="button" className={`daily-rhythm-care-check ${task.status === 'done' ? 'is-done' : ''} ${task.status === 'skipped' ? 'is-skipped' : ''}`} aria-label={task.status === 'done' ? `${task.title} completed` : task.status === 'skipped' ? `${task.title} is not planned today` : `Mark ${task.title} complete`} disabled={!canComplete} onClick={() => onToggleCareTask(task)}>{task.status === 'done' ? '✓' : task.status === 'skipped' ? '—' : ''}</button><span className="daily-rhythm-care-copy"><strong>{task.title}</strong><small>{time} · {detail}</small></span>{canAct && task.sourceObservationId && (task.status === 'open' || task.status === 'skipped') && <button type="button" className="daily-rhythm-care-skip" onClick={() => onSkipCareTask(task)}>{task.status === 'skipped' ? 'Add back' : 'Not today'}</button>}</div>;
-      })}</div> : <p className="daily-rhythm-care-empty">No planned activities for this day.</p>}
-      {(!dayCareTasks.length || allCareTasksComplete || dayCareTasks.length > summaryCareTasks.length) && <div className="daily-rhythm-care-footer">{!dayCareTasks.length && <button type="button" onClick={() => onPatterns()}>Review Pattern →</button>}{allCareTasksComplete ? <span>All activities completed</span> : dayCareTasks.length > summaryCareTasks.length && <span>+{dayCareTasks.length - summaryCareTasks.length} more activities</span>}</div>}
-    </section> : null}
+    <section className="daily-rhythm-today-lane" aria-label={`${dayTitle.toLowerCase()} activities`}>
+      <div className="daily-rhythm-lane-heading"><span>{dayTitle}</span><small>{todayTimelineItems.filter(item => item.state === 'done').length} of {todayTimelineItems.length} complete</small></div>
+      {todayTimelineItems.length ? <div className="daily-rhythm-today-track" role="list">{todayTimelineItems.map(item => <button type="button" role="listitem" className={`daily-rhythm-today-item is-${item.state}`} key={item.id} aria-label={`${item.title}, ${timeLabel(new Date(item.at))}, ${item.stateLabel}`} onClick={() => item.moment ? onOpenActivitySummary(item.moment) : onOpenCareTasks()}>
+        <span className="daily-rhythm-today-glyph" aria-hidden="true">{item.glyph}</span>
+        <strong>{item.title}</strong>
+        <time>{timeLabel(new Date(item.at))}</time>
+        <small><span aria-hidden="true">{item.state === 'done' ? '✓' : item.state === 'soon' ? '◷' : item.state === 'attention' ? '!' : '○'}</span>{item.stateLabel}</small>
+      </button>)}</div> : <button type="button" className="daily-rhythm-today-empty" onClick={onOpenCareTasks}>No activities planned for this day · View care plan →</button>}
+    </section>
     </>
   </section>;
 }
@@ -1262,7 +1152,7 @@ function ActivityInsightsPage({ records, petName, reviews, canReview, onReview, 
   </section>;
 }
 
-function TodayPage({ onRemindTask, onStory, onPetsNavigate, onAddPet, onActivitySummary, onOpenInsights, onCareTasks, onToggleCareTask, onSkipCareTask, careTasks, careMembers, insightReviews, currentUserId, canAct, isPrimary, petName, petAvatar, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, dayOffset, onDayOffsetChange }: { onRemindTask: (task: CareTask, recipientId: string) => boolean; onStory: () => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; onCareTasks: () => void; onToggleCareTask: (task: CareTask) => void; onSkipCareTask: (task: CareTask) => void; careTasks: CareTask[]; careMembers: CareMember[]; insightReviews: ActivityInsightReview[]; currentUserId: string; canAct: boolean; isPrimary: boolean; petName: string; petAvatar: string; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
+function TodayPage({ onRemindTask, onStory, onPetsNavigate, onAddPet, onActivitySummary, onOpenInsights, onCareTasks, onToggleCareTask, careTasks, careMembers, insightReviews, currentUserId, canAct, isPrimary, petName, petAvatar, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, dayOffset, onDayOffsetChange }: { onRemindTask: (task: CareTask, recipientId: string) => boolean; onStory: () => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; onCareTasks: () => void; onToggleCareTask: (task: CareTask) => void; careTasks: CareTask[]; careMembers: CareMember[]; insightReviews: ActivityInsightReview[]; currentUserId: string; canAct: boolean; isPrimary: boolean; petName: string; petAvatar: string; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
   const now = useCurrentTime();
   const displayName = petName.replace(/\s*[（(]test[^）)]*[）)]$/i, '');
   const visibleRecords = visibleStoryObservations(observations.filter(record => !isObservationSkippedForToday(record, careTasks)), includedMoments)
@@ -1275,7 +1165,7 @@ function TodayPage({ onRemindTask, onStory, onPetsNavigate, onAddPet, onActivity
     <>
       <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       {!noPetYet && <>
-      <DailyRhythmCard petName={petName} petAvatar={petAvatar} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} patterns={patterns} careTasks={careTasks} careMembers={careMembers} currentUserId={currentUserId} canAct={canAct} isPrimary={isPrimary} onToggleCareTask={onToggleCareTask} onSkipCareTask={onSkipCareTask} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
+      <DailyRhythmCard petName={petName} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} patterns={patterns} careTasks={careTasks} careMembers={careMembers} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
       {standoutActivity && <button className="home-attention-strip" onClick={onOpenInsights}>
         <img src={asset('warning.png')} alt="" />
         <span><strong>{`${standoutActivity.activityLabel} · ${standoutActivity.key === 'duration' ? 'avg duration' : 'avg food/record'} ${standoutActivity.relativeChange > 0 ? '+' : '−'}${Math.round(Math.abs(standoutActivity.relativeChange) * 100)}% today`}</strong><small>{`${standoutActivity.current.toFixed(1)} vs ${standoutActivity.previous.toFixed(1)} ${standoutActivity.unit} · ${standoutActivity.meetsThreshold ? 'Worth a closer look' : 'Small shift in recorded activity'}`}</small></span>
@@ -4808,7 +4698,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         {sharedId && sharedSync.current.failed && sharedWritePending() && <p className="shared-sync-pending" role="status">Shared sync paused. Your local edits are kept; resolve the sync error before leaving.</p>}
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
-            {view === 'today' && <TodayPage onRemindTask={remindCareTask} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenInsights={() => navigateTo('activityInsights')} onCareTasks={() => navigateTo('careTasks')} onToggleCareTask={toggleCareTask} onSkipCareTask={skipCareTask} careTasks={careTasks} careMembers={displayedCareMembers} insightReviews={insightReviews} currentUserId={activeAccount.id} canAct={canContributeToSharedPet} isPrimary={isPrimaryCaregiver} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
+            {view === 'today' && <TodayPage onRemindTask={remindCareTask} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenInsights={() => navigateTo('activityInsights')} onCareTasks={() => navigateTo('careTasks')} onToggleCareTask={toggleCareTask} careTasks={careTasks} careMembers={displayedCareMembers} insightReviews={insightReviews} currentUserId={activeAccount.id} canAct={canContributeToSharedPet} isPrimary={isPrimaryCaregiver} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
             {view === 'careTasks' && <CareTasksPage tasks={careTasks} patterns={typicalPatterns} observations={storyObservations} members={displayedCareMembers} currentUserId={activeAccount.id} currentUserName={activeAccount.name} petName={petName} dayOffset={dailyRhythmDayOffset} isPrimary={isPrimaryCaregiver} canAct={canContributeToSharedPet} onBack={() => goBack('today')} onPatterns={() => openPatternKnowledge()} onToggleTask={toggleCareTask} onSkipTask={skipCareTask} onSave={saveCareTasks} />}
             {view === 'activityInsights' && <ActivityInsightsPage records={visibleStoryObservations(storyObservations.filter(observation => !isObservationSkippedForToday(observation, careTasks)), includedStoryMoments)} petName={petName} reviews={insightReviews} canReview={canContributeToSharedPet} onReview={reviewActivityInsight} onBack={() => goBack('today')} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} />}
 
