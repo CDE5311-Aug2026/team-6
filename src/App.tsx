@@ -4,7 +4,6 @@ import TodayCare from './TodayCare';
 import BreedPicker from './BreedPicker';
 import { breedAvatar, normalizePetSex, type PetSex } from './petBreeds';
 import ThinkingAvatar from './ThinkingAvatar';
-import MomentCarousel from './MomentCarousel';
 import PatternSuggestions from './PatternSuggestions';
 import SettingsPanels, { readPreferences } from './SettingsPanels';
 import { activityCategoryLabel, activityCategoryRecords, activityInsightReviewFor, activityInsightReviewId, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, attentionActivityInsights, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight, type ActivityInsightReview, type ActivityInsightReviewStatus, type ActivityPeriod, type RankedDailyActivityInsight } from './activitySummary';
@@ -1265,55 +1264,28 @@ function ActivityInsightsPage({ records, petName, reviews, canReview, onReview, 
   </section>;
 }
 
-function TodayPage({ onRemindTask, onStory, onMoment, onPetsNavigate, onAddPet, onActivitySummary, onOpenInsights, onCareTasks, onToggleCareTask, onSkipCareTask, careTasks, careMembers, insightReviews, currentUserId, canAct, isPrimary, petName, petAvatar, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, dayOffset, onDayOffsetChange }: { onRemindTask: (task: CareTask, recipientId: string) => boolean; onStory: () => void; onMoment: (momentId: string) => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; onCareTasks: () => void; onToggleCareTask: (task: CareTask) => void; onSkipCareTask: (task: CareTask) => void; careTasks: CareTask[]; careMembers: CareMember[]; insightReviews: ActivityInsightReview[]; currentUserId: string; canAct: boolean; isPrimary: boolean; petName: string; petAvatar: string; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
+function TodayPage({ onRemindTask, onStory, onPetsNavigate, onAddPet, onActivitySummary, onOpenInsights, onCareTasks, onToggleCareTask, onSkipCareTask, careTasks, careMembers, insightReviews, currentUserId, canAct, isPrimary, petName, petAvatar, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, dayOffset, onDayOffsetChange }: { onRemindTask: (task: CareTask, recipientId: string) => boolean; onStory: () => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; onCareTasks: () => void; onToggleCareTask: (task: CareTask) => void; onSkipCareTask: (task: CareTask) => void; careTasks: CareTask[]; careMembers: CareMember[]; insightReviews: ActivityInsightReview[]; currentUserId: string; canAct: boolean; isPrimary: boolean; petName: string; petAvatar: string; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
   const now = useCurrentTime();
   const displayName = petName.replace(/\s*[（(]test[^）)]*[）)]$/i, '');
   const visibleRecords = visibleStoryObservations(observations.filter(record => !isObservationSkippedForToday(record, careTasks)), includedMoments)
     .filter(record => new Date(record.savedAt).getTime() <= now.getTime())
     .sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime());
-  const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
-  const featured = todayRecords.length ? todayRecords : visibleRecords.filter(record => new Date(record.savedAt).toDateString() === new Date(visibleRecords[0]?.savedAt).toDateString());
-  const clock = (value: string) => formatObservationTime(value).split('\n').at(-1);
   const rankedActivities = rankDailyActivityInsights(visibleRecords, now);
   const standoutActivity = attentionActivityInsights(rankedActivities, insightReviews)[0];
-  const allChangesLookNormal = rankedActivities.length > 0 && !standoutActivity;
 
   return (
     <>
       <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       {!noPetYet && <>
       <DailyRhythmCard petName={petName} petAvatar={petAvatar} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} patterns={patterns} careTasks={careTasks} careMembers={careMembers} currentUserId={currentUserId} canAct={canAct} isPrimary={isPrimary} onToggleCareTask={onToggleCareTask} onSkipCareTask={onSkipCareTask} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
+      {standoutActivity && <button className="home-attention-strip" onClick={onOpenInsights}>
+        <img src={asset('warning.png')} alt="" />
+        <span><strong>{`${standoutActivity.activityLabel} · ${standoutActivity.key === 'duration' ? 'avg duration' : 'avg food/record'} ${standoutActivity.relativeChange > 0 ? '+' : '−'}${Math.round(Math.abs(standoutActivity.relativeChange) * 100)}% today`}</strong><small>{`${standoutActivity.current.toFixed(1)} vs ${standoutActivity.previous.toFixed(1)} ${standoutActivity.unit} · ${standoutActivity.meetsThreshold ? 'Worth a closer look' : 'Small shift in recorded activity'}`}</small></span>
+        <span className="home-attention-arrow" aria-hidden="true">→</span>
+      </button>}
       <TodayCare key={currentUserId + petName} petName={petName} patterns={patterns} observations={observations} tasks={careTasks} members={careMembers} currentUserId={currentUserId} canAct={canAct} isPrimary={isPrimary} onDone={onToggleCareTask} onRemind={onRemindTask} onOpenPlan={onCareTasks} onPatterns={() => onPatterns()} />
       </>}
-      {!hasDemoMoments && !visibleRecords.length ? noPetYet ? <section className="today-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section> : <>
-      <section className="today-section">
-        <h2>Moments you might love</h2>
-        <MomentCarousel>
-          {!hasDemoMoments ? featured.map(record => <button className="moment-card" key={record.id} onClick={() => onMoment(record.id)}>
-            {observationHasPrimaryMedia(record) ? <StoryMediaView src={record.image} type={record.mediaType} alt={record.title} /> : <span className="moment-text-preview" aria-hidden="true">✦</span>}
-            <span className="moment-card-copy"><strong>{record.title}</strong><small>{observationHasPrimaryMedia(record) ? record.mediaType?.startsWith('video/') ? 'Video' : record.mediaType?.startsWith('audio/') ? 'Audio' : 'Photo' : 'Written observation'} · {clock(record.savedAt)}</small></span>
-          </button>) : <>
-
-          <button className="moment-card" onClick={() => onMoment('toy')}>
-            <img src={asset('toy-chase.png')} alt={`${petName} with a toy on a blue background`} />
-            <span className="moment-card-copy"><strong>The toy chase</strong><small>Video · 0:18 · 4:20 PM</small></span>
-          </button>
-          <button className="moment-card" onClick={() => onMoment('window')}>
-            <img src={asset('sunny-nap.png')} alt={`${petName} resting on a yellow background`} />
-            <span className="moment-card-copy"><strong>A sunny window nap</strong><small>Photo · 11:35 AM</small></span>
-          </button>
-        </>}
-        </MomentCarousel>
-      </section>
-
-      <section className="today-section closer-look">
-        <h2>Worth a closer look</h2>
-        <button className="notice-card" onClick={onOpenInsights}>
-          {allChangesLookNormal ? <span className="notice-card-reviewed" aria-hidden="true">✓</span> : <img src={asset('warning.png')} alt="" />}
-          <span><strong>{standoutActivity ? `${standoutActivity.activityLabel} · ${standoutActivity.key === 'duration' ? 'avg duration' : 'avg food/record'} ${standoutActivity.relativeChange > 0 ? '+' : '−'}${Math.round(Math.abs(standoutActivity.relativeChange) * 100)}% today` : allChangesLookNormal ? 'No changes need your attention today' : 'No change recorded today'}</strong><small>{standoutActivity ? `${standoutActivity.current.toFixed(1)} vs ${standoutActivity.previous.toFixed(1)} ${standoutActivity.unit} · ${standoutActivity.meetsThreshold ? 'meets main threshold' : 'small shift'} vs recorded history` : allChangesLookNormal ? `All reviewed changes look normal for ${petName}.` : 'No measured change to compare against prior recorded history.'}</small></span>
-        </button>
-      </section>
-      </>}
+      {!hasDemoMoments && !visibleRecords.length && (noPetYet ? <section className="today-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section>)}
     </>
   );
 }
@@ -4838,7 +4810,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         {sharedId && sharedSync.current.failed && sharedWritePending() && <p className="shared-sync-pending" role="status">Shared sync paused. Your local edits are kept; resolve the sync error before leaving.</p>}
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
-            {view === 'today' && <TodayPage onRemindTask={remindCareTask} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenInsights={() => navigateTo('activityInsights')} onCareTasks={() => navigateTo('careTasks')} onToggleCareTask={toggleCareTask} onSkipCareTask={skipCareTask} careTasks={careTasks} careMembers={displayedCareMembers} insightReviews={insightReviews} currentUserId={activeAccount.id} canAct={canContributeToSharedPet} isPrimary={isPrimaryCaregiver} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
+            {view === 'today' && <TodayPage onRemindTask={remindCareTask} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenInsights={() => navigateTo('activityInsights')} onCareTasks={() => navigateTo('careTasks')} onToggleCareTask={toggleCareTask} onSkipCareTask={skipCareTask} careTasks={careTasks} careMembers={displayedCareMembers} insightReviews={insightReviews} currentUserId={activeAccount.id} canAct={canContributeToSharedPet} isPrimary={isPrimaryCaregiver} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
             {view === 'careTasks' && <CareTasksPage tasks={careTasks} patterns={typicalPatterns} observations={storyObservations} members={displayedCareMembers} currentUserId={activeAccount.id} currentUserName={activeAccount.name} petName={petName} dayOffset={dailyRhythmDayOffset} isPrimary={isPrimaryCaregiver} canAct={canContributeToSharedPet} onBack={() => goBack('today')} onPatterns={() => openPatternKnowledge()} onToggleTask={toggleCareTask} onSkipTask={skipCareTask} onSave={saveCareTasks} />}
             {view === 'activityInsights' && <ActivityInsightsPage records={visibleStoryObservations(storyObservations.filter(observation => !isObservationSkippedForToday(observation, careTasks)), includedStoryMoments)} petName={petName} reviews={insightReviews} canReview={canContributeToSharedPet} onReview={reviewActivityInsight} onBack={() => goBack('today')} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} />}
 
