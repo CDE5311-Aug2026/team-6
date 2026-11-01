@@ -739,8 +739,16 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
     .map(moment => ({ id: `record-${moment.id}`, title: moment.title, at: moment.savedAt, state: 'done' as const, stateLabel: 'Recorded', glyph: activityGlyph(moment), moment }));
   const todayTimelineItems = [...taskTimelineItems, ...unplannedTimelineItems].sort((left, right) => left.at.localeCompare(right.at));
   const todayTrackRef = useRef<HTMLDivElement | null>(null);
+  const todayCardRefs = useRef(new Map<string, HTMLButtonElement>());
   const todayDrag = useRef<{ pointerId: number; startX: number; startScrollLeft: number; moved: boolean } | null>(null);
   const suppressTodayItemClick = useRef(false);
+  useEffect(() => {
+    if (dayOffset !== 0 || !todayTimelineItems.length) return;
+    const targetIndex = todayTimelineItems.findIndex(item => item.state !== 'done');
+    const index = targetIndex < 0 ? todayTimelineItems.length - 1 : Math.max(0, targetIndex - 1);
+    const card = todayCardRefs.current.get(todayTimelineItems[index]?.id);
+    card?.scrollIntoView({ block: 'nearest', inline: 'start', behavior: 'auto' });
+  }, [dayOffset, todayTimelineItems.map(item => `${item.id}:${item.state}`).join('|')]);
   const startTodayDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== 'mouse' || event.button !== 0) return;
     const track = todayTrackRef.current;
@@ -874,7 +882,7 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
     <section className="daily-rhythm-today-lane" aria-label={`${dayTitle.toLowerCase()} activities`}>
       <div className="daily-rhythm-lane-heading"><span>{dayTitle}</span><small>{todayTimelineItems.filter(item => item.state === 'done').length} of {todayTimelineItems.length} complete</small></div>
       {todayTimelineItems.length ? <div className="daily-rhythm-today-scroll-shell">
-        <div className="daily-rhythm-today-track" ref={todayTrackRef} role="list" aria-label={`${dayTitle.toLowerCase()} activity timeline`} onPointerDown={startTodayDrag} onPointerMove={moveTodayDrag} onPointerUp={endTodayDrag} onPointerCancel={endTodayDrag}>{todayTimelineItems.map(item => <button type="button" role="listitem" className={`daily-rhythm-today-item is-${item.state}`} key={item.id} aria-label={`${item.title}, ${timeLabel(new Date(item.at))}, ${item.stateLabel}`} onClick={event => { if (suppressTodayItemClick.current) { event.preventDefault(); event.stopPropagation(); suppressTodayItemClick.current = false; return; } if (item.moment) onOpenActivitySummary(item.moment); else onOpenCareTasks(); }}>
+        <div className="daily-rhythm-today-track" ref={todayTrackRef} role="list" aria-label={`${dayTitle.toLowerCase()} activity timeline`} onPointerDown={startTodayDrag} onPointerMove={moveTodayDrag} onPointerUp={endTodayDrag} onPointerCancel={endTodayDrag}>{todayTimelineItems.map(item => <button type="button" role="listitem" ref={element => { if (element) todayCardRefs.current.set(item.id, element); else todayCardRefs.current.delete(item.id); }} className={`daily-rhythm-today-item is-${item.state}`} key={item.id} aria-label={`${item.title}, ${timeLabel(new Date(item.at))}, ${item.stateLabel}`} onClick={event => { if (suppressTodayItemClick.current) { event.preventDefault(); event.stopPropagation(); suppressTodayItemClick.current = false; return; } if (item.moment) onOpenActivitySummary(item.moment); else onOpenCareTasks(); }}>
           <span className="daily-rhythm-today-glyph" aria-hidden="true">{item.glyph}</span>
           <strong>{item.title}</strong>
           <time>{timeLabel(new Date(item.at))}</time>
