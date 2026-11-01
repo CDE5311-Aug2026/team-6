@@ -80,19 +80,21 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .pet-photo-placeholder { display: grid; place-items: center; background: var(--color-accent-soft); color: #d4a700; font-size: 34px; }
 .today-section { margin-top: 16px; }
 .today-section h2, .section-heading h2 { margin: 0; color: #000; font: 600 20px/28px 'Poppins', sans-serif; letter-spacing: -.3px; }
-.daily-rhythm-card { margin-top: 18px; padding: 15px 14px 13px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 22px; background: #fffcf5; box-shadow: 0 3px 12px #1a29210a; }
+.daily-rhythm-card { margin-top: 18px; padding: 13px 12px 10px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 22px; background: #fffcf5; box-shadow: 0 3px 12px #1a29210a; }
 .daily-rhythm-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .daily-rhythm-header > div:first-child { min-width: 0; }
 .daily-rhythm-header .eyebrow { margin: 0; font-size: 9px; line-height: 14px; }
 .daily-rhythm-header h2 { margin: 2px 0 0; color: var(--color-text-primary); font: 600 20px/27px 'Poppins', sans-serif; letter-spacing: -.25px; }
-.daily-rhythm-toggle { position: relative; flex: none; display: flex; align-items: center; padding: 3px; border: 1px solid #e8e5dd; border-radius: 999px; background: #f2f0ea; }
-.daily-rhythm-toggle::before { position: absolute; inset: 3px auto 3px 3px; width: calc((100% - 6px) / 2); border-radius: 999px; background: #fff; box-shadow: 0 1px 4px #1a29211c; content: ''; transition: transform 220ms cubic-bezier(.2,.75,.25,1); }
-.daily-rhythm-toggle.is-pattern::before { transform: translateX(100%); }
-.daily-rhythm-toggle button { position: relative; z-index: 1; flex: 1 1 0; min-width: 52px; height: 29px; padding: 0 9px; border: 0; border-radius: 999px; background: transparent; color: var(--color-text-secondary); font: 500 11px/16px 'Roboto', sans-serif; transition: color 160ms ease; }
-.daily-rhythm-toggle button.active { background: transparent; color: var(--color-text-primary); box-shadow: none; }
+.daily-rhythm-legend { flex: none; display: flex; align-items: center; gap: 9px; color: #70776f; font: 500 9px/14px 'Roboto', sans-serif; }
+.daily-rhythm-legend span, .daily-rhythm-legend button { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.daily-rhythm-legend button { min-height: 30px; padding: 4px 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.daily-rhythm-legend button:hover { color: #725a19; }
+.daily-rhythm-legend i { display: block; flex: none; }
+.daily-rhythm-legend-recorded { width: 9px; height: 9px; border: 2px solid #fff; border-radius: 50%; background: #efbd24; box-shadow: 0 0 0 1px #dba814; }
+.daily-rhythm-legend-typical { width: 16px; height: 6px; border: 1px solid #d5ad32; border-radius: 999px; background: #ffe48a; }
 .daily-rhythm-go-today { position: absolute; z-index: 2; top: 9px; right: 10px; min-height: 27px; padding: 0 11px; border: 1px solid #eadca9; border-radius: 999px; background: #fffdf5eF; color: #805900; font: 600 11px/1 'Roboto', sans-serif; cursor: pointer; touch-action: pan-y; }
 .daily-rhythm-go-today:focus-visible { outline: 2px solid #e8b51e; outline-offset: 2px; }
-.daily-rhythm-chart { position: relative; width: 100%; margin-top: 5px; overflow: hidden; border-radius: 12px; }
+.daily-rhythm-chart { position: relative; width: 100%; margin-top: 2px; overflow: hidden; border-radius: 12px; }
 .daily-rhythm-selected-banner { position: absolute; z-index: 3; top: 9px; left: 50%; display: flex; align-items: center; justify-content: center; gap: 6px; max-width: calc(100% - 40px); min-height: 36px; padding: 5px 10px 5px 12px; transform: translateX(-50%); border: 1px solid #e5c76b; border-radius: 14px; background: #fffdf5; box-shadow: 0 3px 10px #73591d1a; color: #28452e; cursor: pointer; animation: daily-rhythm-banner-in 220ms ease-out both; }
 .daily-rhythm-selected-banner-icon { flex: 0 0 auto; font: 17px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif; }
 .daily-rhythm-selected-banner-title { overflow: hidden; font: 600 14px/1.2 'Roboto', sans-serif; text-overflow: ellipsis; white-space: nowrap; }
@@ -135,13 +137,13 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-side-glow { fill: #fff7d7; opacity: .9; }
 .daily-rhythm-band-shadow { fill: none; stroke: #e9bf45; stroke-width: 8; opacity: .2; }
 .daily-rhythm-band { fill: none; stroke: url(#rhythm-gradient); stroke-width: 4.5; }
-.daily-rhythm-pattern-band-base { fill: none; stroke: #ffdf79; stroke-width: 97.5px; stroke-linecap: butt; opacity: .48; pointer-events: none; }
+.daily-rhythm-pattern-band-base { fill: none; stroke: #ffedaf; stroke-width: 34px; stroke-linecap: butt; opacity: .42; pointer-events: none; }
 .daily-pattern-segment { cursor: pointer; }
-.daily-pattern-window { fill: none; stroke: #ffd84d; stroke-width: 97.5px; stroke-linecap: butt; transition: stroke 160ms ease, opacity 160ms ease; }
-.daily-pattern-segment:nth-of-type(even) .daily-pattern-window { stroke: #ffc928; opacity: .78; }
-.daily-pattern-segment.is-revealed .daily-pattern-window { stroke: #ffcb1f; opacity: 1; }
+.daily-pattern-window { fill: none; stroke: #e9bd38; stroke-width: 34px; stroke-linecap: butt; opacity: .52; transition: stroke 160ms ease, opacity 160ms ease; }
+.daily-pattern-segment:nth-of-type(even) .daily-pattern-window { stroke: #d9b753; opacity: .46; }
+.daily-pattern-segment.is-revealed .daily-pattern-window { stroke: #dba500; opacity: .86; }
 .daily-pattern-segment:focus-visible { outline: none; filter: drop-shadow(0 0 4px #d19c00); }
-.daily-pattern-icon { fill: #28452e !important; font: 16px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif !important; pointer-events: none; }
+.daily-pattern-midpoint { fill: #fff8dc; stroke: #b98c13; stroke-width: 1.5; pointer-events: none; }
 .daily-rhythm-band-highlight { fill: none; stroke: #fff1bd; stroke-width: 1.5; opacity: .78; }
 .daily-rhythm-leader-line { stroke: #c3a150; stroke-width: 2.4; stroke-linecap: round; opacity: .92; pointer-events: none; }
 .daily-rhythm-horizon-fill { fill: url(#rhythm-horizon); }
@@ -1663,18 +1665,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 
 .ask-thinking-avatar, .ask-thinking-avatar img { display: block; width: 32px; height: 32px; flex: 0 0 32px; object-fit: contain; }
 
-/* Pattern shares Today's dial; the deeper yellow distinguishes usual routines. */
-.daily-rhythm-card.is-pattern { background: #fff8dc; }
-.is-pattern .daily-rhythm-daylight-bg { background: linear-gradient(180deg, #fff4d2 0%, #ffedb4 68%, #f5e3a5 100%); }
-.is-pattern .daily-rhythm-time { font-size: 20px; fill: #916400; }
-.daily-pattern-window { fill: none; stroke: #ffd84d; stroke-width: 97.5px; stroke-linecap: butt; }
-.daily-pattern-segment:nth-of-type(even) .daily-pattern-window { stroke: #ffc928; opacity: .78; }
-.daily-pattern-segment.is-revealed .daily-pattern-window { stroke: #ffcb1f; opacity: 1; }
-.daily-pattern-icon { fill: #28452e !important; font: 16px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif !important; pointer-events: none; }
-.daily-pattern-activity-name { fill: #6e551d; font: 600 18px 'Roboto', sans-serif; }
-.daily-pattern-summary { min-height: 64px; margin-top: 4px; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 10px 14px; border-radius: 22px; border: 1px solid #f1e3aa; background: #fff0bc; color: #73591d; font-size: 11px; line-height: 1.5; }
-.daily-pattern-summary .profile-link { align-self: flex-start; color: #73591d; }
-
 /* Today's care replaces the passive latest-activity banner in the rhythm card. */
 .daily-rhythm-care { position: relative; margin-top: 4px; padding: 12px 14px 10px; border: 1px solid #ead88e; border-radius: 5px 18px 7px 18px; background: linear-gradient(135deg, #fff9e9 0%, #fff5dc 100%); box-shadow: 2px 3px 0 #e9ddaF, 0 7px 14px #73591d12; color: #73591d; }
 .daily-rhythm-care-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -1865,15 +1855,10 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 
 
 
-/* Keep selected pattern names readable alongside their time window. */
-.daily-rhythm-card.is-pattern .daily-rhythm-selected-banner { width: max-content; max-width: calc(100% - 20px); gap: 10px; }
-.daily-rhythm-card.is-pattern .daily-rhythm-chart { padding-top: 0; }
-.daily-rhythm-card.is-pattern .daily-rhythm-selected-banner-title { flex: 0 1 auto; min-width: 0; overflow: visible; text-overflow: clip; white-space: normal; text-align: center; }
-
 .daily-rhythm-activity-label.is-revealed .daily-rhythm-activity-badge { stroke: #ffcf29; stroke-width: 4; }
 
 .daily-rhythm-pattern-current-track { fill: none; stroke: #ffcf29; stroke-width: 2; stroke-opacity: .42; stroke-linecap: round; pointer-events: none; }
-.daily-rhythm-pattern-current-pointer { stroke: #ffcf29; stroke-width: 4; stroke-linecap: round; filter: drop-shadow(0 1px 2px #9a700055); pointer-events: none; }
+.daily-rhythm-pattern-current-pointer { stroke: #d4aa27; stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 3 5; opacity: .7; filter: drop-shadow(0 1px 2px #9a700033); pointer-events: none; }
 
 /* Activity-first moment capture */
 .quick-moment-intro { margin: 20px 20px 0; }
