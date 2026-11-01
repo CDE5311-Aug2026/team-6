@@ -738,6 +738,26 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
     .filter(moment => !moment.careTaskId && !linkedObservationIds.has(moment.id))
     .map(moment => ({ id: `record-${moment.id}`, title: moment.title, at: moment.savedAt, state: 'done' as const, stateLabel: 'Recorded', glyph: activityGlyph(moment), moment }));
   const todayTimelineItems = [...taskTimelineItems, ...unplannedTimelineItems].sort((left, right) => left.at.localeCompare(right.at));
+  const todayTrackRef = useRef<HTMLDivElement | null>(null);
+  const [todayScroll, setTodayScroll] = useState({ canLeft: false, canRight: false });
+  const updateTodayScroll = () => {
+    const track = todayTrackRef.current;
+    if (!track) return;
+    setTodayScroll({
+      canLeft: track.scrollLeft > 2,
+      canRight: track.scrollLeft + track.clientWidth < track.scrollWidth - 2,
+    });
+  };
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(updateTodayScroll);
+    return () => window.cancelAnimationFrame(frame);
+  }, [dayOffset, todayTimelineItems.length]);
+  const scrollTodayActivities = (direction: -1 | 1) => {
+    const track = todayTrackRef.current;
+    if (!track) return;
+    track.scrollBy({ left: direction * Math.max(152, track.clientWidth * .72), behavior: 'smooth' });
+    window.setTimeout(updateTodayScroll, 320);
+  };
   const revealedPatternMoment = patternMoments.find(moment => moment.id === revealedActivityId);
   const revealedSelection = revealedPatternMoment ? { moment: revealedPatternMoment, time: `${clockMinute(patternById.get(revealedPatternMoment.id)!.startMinute!)}–${clockMinute(patternById.get(revealedPatternMoment.id)!.endMinute!)}` } : undefined;
   const goToPreviousDay = () => onDayOffsetChange(dayOffset - 1);
@@ -839,13 +859,15 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
     </svg>
     </div>
     <section className="daily-rhythm-today-lane" aria-label={`${dayTitle.toLowerCase()} activities`}>
-      <div className="daily-rhythm-lane-heading"><span>{dayTitle}</span><small>{todayTimelineItems.filter(item => item.state === 'done').length} of {todayTimelineItems.length} complete</small></div>
-      {todayTimelineItems.length ? <div className="daily-rhythm-today-track" role="list">{todayTimelineItems.map(item => <button type="button" role="listitem" className={`daily-rhythm-today-item is-${item.state}`} key={item.id} aria-label={`${item.title}, ${timeLabel(new Date(item.at))}, ${item.stateLabel}`} onClick={() => item.moment ? onOpenActivitySummary(item.moment) : onOpenCareTasks()}>
-        <span className="daily-rhythm-today-glyph" aria-hidden="true">{item.glyph}</span>
-        <strong>{item.title}</strong>
-        <time>{timeLabel(new Date(item.at))}</time>
-        <small><span aria-hidden="true">{item.state === 'done' ? '✓' : item.state === 'soon' ? '◷' : item.state === 'attention' ? '!' : '○'}</span>{item.stateLabel}</small>
-      </button>)}</div> : <button type="button" className="daily-rhythm-today-empty" onClick={onOpenCareTasks}>No activities planned for this day · View care plan →</button>}
+      <div className="daily-rhythm-lane-heading"><span>{dayTitle}</span><div className="daily-rhythm-today-heading-actions"><small>{todayTimelineItems.filter(item => item.state === 'done').length} of {todayTimelineItems.length} complete</small>{todayTimelineItems.length > 0 && <><button type="button" className="daily-rhythm-today-scroll" aria-label="Show earlier activities" disabled={!todayScroll.canLeft} onClick={() => scrollTodayActivities(-1)}>‹</button><button type="button" className="daily-rhythm-today-scroll" aria-label="Show later activities" disabled={!todayScroll.canRight} onClick={() => scrollTodayActivities(1)}>›</button></>}</div></div>
+      {todayTimelineItems.length ? <div className="daily-rhythm-today-scroll-shell">
+        <div className="daily-rhythm-today-track" ref={todayTrackRef} role="list" aria-label={`${dayTitle.toLowerCase()} activity timeline`} onScroll={updateTodayScroll}>{todayTimelineItems.map(item => <button type="button" role="listitem" className={`daily-rhythm-today-item is-${item.state}`} key={item.id} aria-label={`${item.title}, ${timeLabel(new Date(item.at))}, ${item.stateLabel}`} onClick={() => item.moment ? onOpenActivitySummary(item.moment) : onOpenCareTasks()}>
+          <span className="daily-rhythm-today-glyph" aria-hidden="true">{item.glyph}</span>
+          <strong>{item.title}</strong>
+          <time>{timeLabel(new Date(item.at))}</time>
+          <small><span aria-hidden="true">{item.state === 'done' ? '✓' : item.state === 'soon' ? '◷' : item.state === 'attention' ? '!' : '○'}</span>{item.stateLabel}</small>
+        </button>)}</div>
+      </div> : <button type="button" className="daily-rhythm-today-empty" onClick={onOpenCareTasks}>No activities planned for this day · View care plan →</button>}
     </section>
     </>
   </section>;

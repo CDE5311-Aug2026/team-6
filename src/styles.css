@@ -216,8 +216,14 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-split .daily-rhythm-selected-banner { top: 7px; min-height: 31px; padding-top: 3px; padding-bottom: 3px; }
 .daily-rhythm-today-lane { margin-top: 8px; padding-top: 1px; border-top: 1px solid #eee2ba; }
 .daily-rhythm-today-lane .daily-rhythm-lane-heading { margin: 2px 1px 5px; }
-.daily-rhythm-today-track { display: flex; gap: 8px; overflow-x: auto; padding: 1px 1px 3px; scroll-snap-type: x proximity; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.daily-rhythm-today-heading-actions { display: flex; align-items: center; gap: 4px; }
+.daily-rhythm-today-heading-actions small { margin-right: 2px; }
+.daily-rhythm-today-track { display: flex; gap: 8px; overflow-x: auto; padding: 1px 1px 3px; overscroll-behavior-inline: contain; scroll-behavior: smooth; scroll-snap-type: x proximity; scrollbar-width: none; touch-action: pan-x; -webkit-overflow-scrolling: touch; }
 .daily-rhythm-today-track::-webkit-scrollbar { display: none; }
+.daily-rhythm-today-scroll { width: 23px; height: 23px; display: grid; place-items: center; padding: 0 0 2px; border: 1px solid #d7c78e; border-radius: 50%; background: #fffdf7; color: #805f08; font: 600 17px/1 'Roboto', sans-serif; cursor: pointer; transition: opacity 140ms ease, transform 140ms ease; }
+.daily-rhythm-today-scroll:disabled { border-color: #e7e3d7; background: #f7f5ee; color: #c7c3b6; cursor: default; }
+.daily-rhythm-today-scroll:not(:disabled):hover { transform: scale(1.05); }
+.daily-rhythm-today-scroll:focus-visible { outline: 2px solid #e8b51e; outline-offset: 2px; }
 .daily-rhythm-today-item { width: 80px; min-height: 94px; display: flex; flex: 0 0 80px; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 7px 7px; scroll-snap-align: start; border: 1.5px solid #9fc8ab; border-radius: 14px; background: #f5fbf6; box-sizing: border-box; color: #294d37; font: inherit; text-align: left; cursor: pointer; }
 .daily-rhythm-today-glyph { width: 29px; height: 29px; display: grid; place-items: center; margin-bottom: 2px; border-radius: 10px; background: #e3f2e7; font: 16px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif; }
 .daily-rhythm-today-item strong { width: 100%; overflow: hidden; color: #28452e; font: 600 10px/13px 'Poppins', sans-serif; text-overflow: ellipsis; white-space: nowrap; }
