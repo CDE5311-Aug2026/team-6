@@ -1623,14 +1623,9 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .pattern-time-editor .settings-choice input { width: 20px; }
 .shared-sync-pending { margin: 0; padding: 10px 16px; background: #fff2bb; color: #534719; font-size: 12px; line-height: 1.5; z-index: 20; }
 
-/* Keep the home greeting visible without letting it dominate the dashboard. */
-.home-screen .main-header { height: auto; min-height: 72px; align-items: center; padding-bottom: 4px; }
-.home-screen .main-header .eyebrow { margin: 0; font-size: 9px; line-height: 13px; }
-.home-screen .main-header h1 { margin-top: 1px; font-size: 29px; line-height: 33px; }
-.home-screen .main-subtitle { font-size: 12px; line-height: 17px; }
-.home-screen .header-avatar-button, .home-screen .main-header .avatar { width: 46px; height: 46px; }
-.home-screen .header-avatar-button { margin-top: 0; }
-.home-screen .main-header + .daily-rhythm-card { margin-top: 6px; }
+/* Allow the home greeting to wrap without covering the dashboard. */
+.home-screen .main-header { height: auto; min-height: 89px; padding-bottom: 8px; }
+.home-screen .main-header + .daily-rhythm-card { margin-top: 10px; }
 
 /* Cover the scroll container's top padding behind every top-sticky surface. */
 .screen-scroll :is(
