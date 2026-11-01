@@ -4,7 +4,7 @@
 
 【链接已更新26.10.28 16：40】添加了today care + 站内request + change用户判断[点这里](https://pawsona-team-6.vercel.app/)
 
-【尝试修改中 26.11.1 12：53】添加了my activity功能 + 加了一些动效 + 做了一个美化版的loading界面 是本地版的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
+【尝试修改大失败 已更新 26.11.1 13：43】修了一下主页的时间图 但是不管怎么弄都很挤（目前感觉可以尝试：①对当前时间点进行局部放大 ②缩小两边睡觉之后的空间） 是本地版的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
 
 
 
