@@ -729,14 +729,18 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
   const taskTimelineItems = visibleDayCareTasks.map(task => {
     const linkedMoment = selectedMoments.find(moment => moment.careTaskId === task.id || moment.id === task.sourceObservationId);
     const at = task.status === 'done' ? linkedMoment?.savedAt ?? task.completedAt ?? task.dueAt : task.dueAt;
+    const pattern = task.sourcePatternId ? patternById.get(task.sourcePatternId) : undefined;
+    const timeHint = task.status === 'done'
+      ? timeLabel(new Date(at))
+      : pattern ? `By ${clockMinute(pattern.endMinute!)}` : '';
     const timing = careTaskTiming(task, now);
     const state: 'done' | 'upcoming' | 'soon' | 'attention' = task.status === 'done' ? 'done' : timing === 'due' || timing === 'overdue' ? 'attention' : timing === 'soon' ? 'soon' : 'upcoming';
     const stateLabel = state === 'done' ? 'Done' : state === 'attention' ? timing === 'due' ? 'Due now' : 'Check first' : state === 'soon' ? 'Due soon' : 'Upcoming';
-    return { id: task.id, title: task.title, at, state, stateLabel, glyph: activityGlyphFor(task.title), moment: linkedMoment };
+    return { id: task.id, title: task.title, at, state, stateLabel, glyph: activityGlyphFor(task.title), timeHint, moment: linkedMoment };
   });
   const unplannedTimelineItems = selectedMoments
     .filter(moment => !moment.careTaskId && !linkedObservationIds.has(moment.id))
-    .map(moment => ({ id: `record-${moment.id}`, title: moment.title, at: moment.savedAt, state: 'done' as const, stateLabel: 'Recorded', glyph: activityGlyph(moment), moment }));
+    .map(moment => ({ id: `record-${moment.id}`, title: moment.title, at: moment.savedAt, state: 'done' as const, stateLabel: 'Recorded', glyph: activityGlyph(moment), timeHint: timeLabel(new Date(moment.savedAt)), moment }));
   const todayTimelineItems = [...taskTimelineItems, ...unplannedTimelineItems].sort((left, right) => left.at.localeCompare(right.at));
   const todayTrackRef = useRef<HTMLDivElement | null>(null);
   const todayCardRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -882,10 +886,10 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
     <section className="daily-rhythm-today-lane" aria-label={`${dayTitle.toLowerCase()} activities`}>
       <div className="daily-rhythm-lane-heading"><span>{dayTitle}</span><small>{todayTimelineItems.filter(item => item.state === 'done').length} of {todayTimelineItems.length} complete</small></div>
       {todayTimelineItems.length ? <div className="daily-rhythm-today-scroll-shell">
-        <div className="daily-rhythm-today-track" ref={todayTrackRef} role="list" aria-label={`${dayTitle.toLowerCase()} activity timeline`} onPointerDown={startTodayDrag} onPointerMove={moveTodayDrag} onPointerUp={endTodayDrag} onPointerCancel={endTodayDrag}>{todayTimelineItems.map(item => <button type="button" role="listitem" ref={element => { if (element) todayCardRefs.current.set(item.id, element); else todayCardRefs.current.delete(item.id); }} className={`daily-rhythm-today-item is-${item.state}`} key={item.id} aria-label={`${item.title}, ${timeLabel(new Date(item.at))}, ${item.stateLabel}`} onClick={event => { if (suppressTodayItemClick.current) { event.preventDefault(); event.stopPropagation(); suppressTodayItemClick.current = false; return; } if (item.moment) onOpenActivitySummary(item.moment); else onOpenCareTasks(); }}>
+        <div className="daily-rhythm-today-track" ref={todayTrackRef} role="list" aria-label={`${dayTitle.toLowerCase()} activity timeline`} onPointerDown={startTodayDrag} onPointerMove={moveTodayDrag} onPointerUp={endTodayDrag} onPointerCancel={endTodayDrag}>{todayTimelineItems.map(item => <button type="button" role="listitem" ref={element => { if (element) todayCardRefs.current.set(item.id, element); else todayCardRefs.current.delete(item.id); }} className={`daily-rhythm-today-item is-${item.state}`} key={item.id} aria-label={`${item.title}${item.timeHint ? `, ${item.timeHint}` : ''}, ${item.stateLabel}`} onClick={event => { if (suppressTodayItemClick.current) { event.preventDefault(); event.stopPropagation(); suppressTodayItemClick.current = false; return; } if (item.moment) onOpenActivitySummary(item.moment); else onOpenCareTasks(); }}>
           <span className="daily-rhythm-today-glyph" aria-hidden="true">{item.glyph}</span>
-          <strong>{item.title}</strong>
-          <time>{timeLabel(new Date(item.at))}</time>
+          <span className="daily-rhythm-today-title"><strong>{item.title}</strong><strong aria-hidden="true">{item.title}</strong></span>
+          {item.timeHint && <time>{item.timeHint}</time>}
           <small><span aria-hidden="true">{item.state === 'done' ? '✓' : item.state === 'soon' ? '◷' : item.state === 'attention' ? '!' : '○'}</span>{item.stateLabel}</small>
         </button>)}</div>
       </div> : <button type="button" className="daily-rhythm-today-empty" onClick={onOpenCareTasks}>No activities planned for this day · View care plan →</button>}

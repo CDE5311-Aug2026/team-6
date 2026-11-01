@@ -222,7 +222,15 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-today-track.is-dragging .daily-rhythm-today-item { pointer-events: none; }
 .daily-rhythm-today-item { width: 80px; min-height: 94px; display: flex; flex: 0 0 80px; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 7px 7px; scroll-snap-align: start; border: 1.5px solid #9fc8ab; border-radius: 14px; background: #f5fbf6; box-sizing: border-box; color: #294d37; font: inherit; text-align: left; cursor: pointer; }
 .daily-rhythm-today-glyph { width: 29px; height: 29px; display: grid; place-items: center; margin-bottom: 2px; border-radius: 10px; background: #e3f2e7; font: 16px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif; }
-.daily-rhythm-today-item strong { width: 100%; overflow: hidden; color: #28452e; font: 600 10px/13px 'Poppins', sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.daily-rhythm-today-title { width: 100%; display: block; overflow: hidden; color: #28452e; font: 600 10px/13px 'Poppins', sans-serif; white-space: nowrap; }
+.daily-rhythm-today-title strong { display: inline-block; width: max-content; padding-right: 22px; font: inherit; }
+.daily-rhythm-today-title strong + strong { display: none; }
+.daily-rhythm-today-item:hover .daily-rhythm-today-title strong:first-child,
+.daily-rhythm-today-item:focus-visible .daily-rhythm-today-title strong:first-child { animation: today-title-marquee 5s ease-in-out infinite alternate; }
+.daily-rhythm-today-item:hover .daily-rhythm-today-title strong + strong,
+.daily-rhythm-today-item:focus-visible .daily-rhythm-today-title strong + strong { display: inline-block; animation: today-title-marquee-copy 5s ease-in-out infinite alternate; }
+@keyframes today-title-marquee { to { transform: translateX(calc(-100% + 66px)); } }
+@keyframes today-title-marquee-copy { to { transform: translateX(calc(-100% + 66px)); } }
 .daily-rhythm-today-item time { color: #5f7365; font: 600 9px/12px 'Roboto', sans-serif; }
 .daily-rhythm-today-item small { display: flex; align-items: center; gap: 3px; margin-top: auto; color: #4f755b; font: 600 8px/11px 'Roboto', sans-serif; white-space: nowrap; }
 .daily-rhythm-today-item small span { width: 11px; height: 11px; display: inline-grid; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-size: 7px; line-height: 1; }
@@ -1916,7 +1924,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .owner-profile-page .settings-action { margin-top: 10px; padding-top: 12px; background: var(--color-page-bg); }
 
 @keyframes daily-rhythm-banner-in { from { opacity: 0; translate: 0 -6px; } to { opacity: 1; translate: 0 0; } }
-@media (prefers-reduced-motion: reduce) { .daily-rhythm-selected-banner { animation: none; } .daily-rhythm-activity-label { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .daily-rhythm-selected-banner { animation: none; } .daily-rhythm-activity-label { transition: none; } .daily-rhythm-today-item:hover .daily-rhythm-today-title strong:first-child, .daily-rhythm-today-item:focus-visible .daily-rhythm-today-title strong:first-child, .daily-rhythm-today-item:hover .daily-rhythm-today-title strong + strong, .daily-rhythm-today-item:focus-visible .daily-rhythm-today-title strong + strong { animation: none; } }
 
 
 
