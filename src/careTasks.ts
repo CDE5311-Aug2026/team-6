@@ -78,14 +78,19 @@ export function appendCareTaskEvent(task: CareTask, event: Omit<CareTaskEvent, '
   };
 }
 
+/** Primary caregivers can review the shared history; other members only see events they sent or received. */
+export function canViewCareTaskEvent(event: CareTaskEvent, userId: string, isPrimary: boolean): boolean {
+  return isPrimary || event.actorId === userId || event.targetId === userId;
+}
+
 export function markCareTaskEventsRead(tasks: CareTask[], userId: string): CareTask[] {
   let changed = false;
   const next = tasks.map((task) => {
-    if (!task.events?.some((event) => event.targetId === userId && !(event.readBy ?? []).includes(userId))) return task;
+    if (!task.events?.some((event) => event.targetId === userId && canViewCareTaskEvent(event, userId, false) && !(event.readBy ?? []).includes(userId))) return task;
     changed = true;
     return {
       ...task,
-      events: task.events.map((event) => event.targetId === userId && !(event.readBy ?? []).includes(userId)
+      events: task.events.map((event) => event.targetId === userId && canViewCareTaskEvent(event, userId, false) && !(event.readBy ?? []).includes(userId)
         ? { ...event, readBy: [...(event.readBy ?? []), userId] }
         : event),
     };
@@ -98,7 +103,7 @@ export function careTaskAttentionCount(tasks: CareTask[], userId: string, isPrim
 }
 
 export function careTaskUnreadCount(tasks: CareTask[], userId: string): number {
-  return tasks.flatMap((task) => task.events ?? []).filter((event) => event.targetId === userId && event.actorId !== userId && !(event.readBy ?? []).includes(userId)).length;
+  return tasks.flatMap((task) => task.events ?? []).filter((event) => canViewCareTaskEvent(event, userId, false) && event.targetId === userId && event.actorId !== userId && !(event.readBy ?? []).includes(userId)).length;
 }
 
 export function careTaskInboxCount(tasks: CareTask[], userId: string, isPrimary: boolean): number {
@@ -239,11 +244,11 @@ export function canRemindCareTask(task: CareTask, recipientId: string, now: Date
     && +now - Date.parse(event.createdAt) < 5 * 60000);
 }
 
-/** Reversible completion with the same permissions for the checkbox and command. */
-export function canToggleCareTaskCompletion(task: CareTask, userId: string, isPrimary: boolean): boolean {
+/** Any member who can act in the shared care space can complete or undo a task. */
+export function canToggleCareTaskCompletion(task: CareTask, userId: string, _isPrimary: boolean): boolean {
   if (!userId) return false;
-  if (task.status === 'done') return isPrimary || task.completedBy === userId;
-  return ['open', 'accepted'].includes(task.status) && (!task.assignedTo || task.assignedTo === userId || isPrimary);
+  if (task.status === 'done') return true;
+  return ['open', 'requested', 'accepted', 'declined'].includes(task.status);
 }
 export function toggleCareTaskCompletion(task: CareTask, userId: string, userName: string, isPrimary: boolean, now = new Date()): CareTask | null {
   if (!canToggleCareTaskCompletion(task, userId, isPrimary)) return null;

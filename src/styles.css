@@ -80,19 +80,22 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .pet-photo-placeholder { display: grid; place-items: center; background: var(--color-accent-soft); color: #d4a700; font-size: 34px; }
 .today-section { margin-top: 16px; }
 .today-section h2, .section-heading h2 { margin: 0; color: #000; font: 600 20px/28px 'Poppins', sans-serif; letter-spacing: -.3px; }
-.daily-rhythm-card { margin-top: 18px; padding: 15px 14px 13px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 22px; background: #fffcf5; box-shadow: 0 3px 12px #1a29210a; }
+.daily-rhythm-card { margin-top: 18px; padding: 13px 12px 10px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 22px; background: #fffcf5; box-shadow: 0 3px 12px #1a29210a; }
+.daily-rhythm-card.daily-rhythm-split { position:relative; }
 .daily-rhythm-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .daily-rhythm-header > div:first-child { min-width: 0; }
 .daily-rhythm-header .eyebrow { margin: 0; font-size: 9px; line-height: 14px; }
 .daily-rhythm-header h2 { margin: 2px 0 0; color: var(--color-text-primary); font: 600 20px/27px 'Poppins', sans-serif; letter-spacing: -.25px; }
-.daily-rhythm-toggle { position: relative; flex: none; display: flex; align-items: center; padding: 3px; border: 1px solid #e8e5dd; border-radius: 999px; background: #f2f0ea; }
-.daily-rhythm-toggle::before { position: absolute; inset: 3px auto 3px 3px; width: calc((100% - 6px) / 2); border-radius: 999px; background: #fff; box-shadow: 0 1px 4px #1a29211c; content: ''; transition: transform 220ms cubic-bezier(.2,.75,.25,1); }
-.daily-rhythm-toggle.is-pattern::before { transform: translateX(100%); }
-.daily-rhythm-toggle button { position: relative; z-index: 1; flex: 1 1 0; min-width: 52px; height: 29px; padding: 0 9px; border: 0; border-radius: 999px; background: transparent; color: var(--color-text-secondary); font: 500 11px/16px 'Roboto', sans-serif; transition: color 160ms ease; }
-.daily-rhythm-toggle button.active { background: transparent; color: var(--color-text-primary); box-shadow: none; }
+.daily-rhythm-legend { flex: none; display: flex; align-items: center; gap: 9px; color: #70776f; font: 500 9px/14px 'Roboto', sans-serif; }
+.daily-rhythm-legend span, .daily-rhythm-legend button { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.daily-rhythm-legend button { min-height: 30px; padding: 4px 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.daily-rhythm-legend button:hover { color: #725a19; }
+.daily-rhythm-legend i { display: block; flex: none; }
+.daily-rhythm-legend-recorded { width: 9px; height: 9px; border: 2px solid #fff; border-radius: 50%; background: #efbd24; box-shadow: 0 0 0 1px #dba814; }
+.daily-rhythm-legend-typical { width: 16px; height: 6px; border: 1px solid #d5ad32; border-radius: 999px; background: #ffe48a; }
 .daily-rhythm-go-today { position: absolute; z-index: 2; top: 9px; right: 10px; min-height: 27px; padding: 0 11px; border: 1px solid #eadca9; border-radius: 999px; background: #fffdf5eF; color: #805900; font: 600 11px/1 'Roboto', sans-serif; cursor: pointer; touch-action: pan-y; }
 .daily-rhythm-go-today:focus-visible { outline: 2px solid #e8b51e; outline-offset: 2px; }
-.daily-rhythm-chart { position: relative; width: 100%; margin-top: 5px; overflow: hidden; border-radius: 12px; }
+.daily-rhythm-chart { position: relative; width: 100%; margin-top: 2px; overflow: hidden; border-radius: 12px; }
 .daily-rhythm-selected-banner { position: absolute; z-index: 3; top: 9px; left: 50%; display: flex; align-items: center; justify-content: center; gap: 6px; max-width: calc(100% - 40px); min-height: 36px; padding: 5px 10px 5px 12px; transform: translateX(-50%); border: 1px solid #e5c76b; border-radius: 14px; background: #fffdf5; box-shadow: 0 3px 10px #73591d1a; color: #28452e; cursor: pointer; animation: daily-rhythm-banner-in 220ms ease-out both; }
 .daily-rhythm-selected-banner-icon { flex: 0 0 auto; font: 17px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif; }
 .daily-rhythm-selected-banner-title { overflow: hidden; font: 600 14px/1.2 'Roboto', sans-serif; text-overflow: ellipsis; white-space: nowrap; }
@@ -135,13 +138,13 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-side-glow { fill: #fff7d7; opacity: .9; }
 .daily-rhythm-band-shadow { fill: none; stroke: #e9bf45; stroke-width: 8; opacity: .2; }
 .daily-rhythm-band { fill: none; stroke: url(#rhythm-gradient); stroke-width: 4.5; }
-.daily-rhythm-pattern-band-base { fill: none; stroke: #ffdf79; stroke-width: 97.5px; stroke-linecap: butt; opacity: .48; pointer-events: none; }
+.daily-rhythm-pattern-band-base { fill: none; stroke: #ffedaf; stroke-width: 34px; stroke-linecap: butt; opacity: .42; pointer-events: none; }
 .daily-pattern-segment { cursor: pointer; }
-.daily-pattern-window { fill: none; stroke: #ffd84d; stroke-width: 97.5px; stroke-linecap: butt; transition: stroke 160ms ease, opacity 160ms ease; }
-.daily-pattern-segment:nth-of-type(even) .daily-pattern-window { stroke: #ffc928; opacity: .78; }
-.daily-pattern-segment.is-revealed .daily-pattern-window { stroke: #ffcb1f; opacity: 1; }
+.daily-pattern-window { fill: none; stroke: #e9bd38; stroke-width: 34px; stroke-linecap: butt; opacity: .52; transition: stroke 160ms ease, opacity 160ms ease; }
+.daily-pattern-segment:nth-of-type(even) .daily-pattern-window { stroke: #d9b753; opacity: .46; }
+.daily-pattern-segment.is-revealed .daily-pattern-window { stroke: #dba500; opacity: .86; }
 .daily-pattern-segment:focus-visible { outline: none; filter: drop-shadow(0 0 4px #d19c00); }
-.daily-pattern-icon { fill: #28452e !important; font: 16px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif !important; pointer-events: none; }
+.daily-pattern-midpoint { fill: #fff8dc; stroke: #b98c13; stroke-width: 1.5; pointer-events: none; }
 .daily-rhythm-band-highlight { fill: none; stroke: #fff1bd; stroke-width: 1.5; opacity: .78; }
 .daily-rhythm-leader-line { stroke: #c3a150; stroke-width: 2.4; stroke-linecap: round; opacity: .92; pointer-events: none; }
 .daily-rhythm-horizon-fill { fill: url(#rhythm-horizon); }
@@ -180,6 +183,128 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-chart .daily-rhythm-center-title { fill: var(--color-text-primary); font: 700 17px 'Poppins', sans-serif; letter-spacing: 1px; }
 .daily-rhythm-chart .daily-rhythm-center-date { fill: var(--color-text-muted); font: 500 20px 'Roboto', sans-serif; }
 .daily-rhythm-footnote { margin: -2px 2px 0; color: #87918b; font: 400 10px/15px 'Roboto', sans-serif; text-align: center; }
+.daily-rhythm-split { padding-bottom: 12px; }
+.daily-rhythm-circle-heading { display:flex; align-items:center; justify-content:space-between; margin-top:8px; color:#8a6a18; }
+.daily-rhythm-circle-heading button { border:0; background:transparent; color:#8a6a18; font:600 10px/14px 'Roboto',sans-serif; }
+.daily-rhythm-circle-chart { width:100%; max-width:430px; margin:0 auto; }
+.daily-rhythm-circle-chart.is-half-day { overflow:hidden; touch-action:pan-y; cursor:grab; user-select:none; }
+.daily-rhythm-circle-chart.is-half-day:active { cursor:grabbing; }
+.daily-rhythm-dial-controls { display:flex; align-items:center; gap:5px; }
+.daily-rhythm-dial-controls button { border:0; border-radius:999px; padding:5px 8px; background:#f7f3e8; color:#806000; font:600 9px/1 'Roboto',sans-serif; white-space:nowrap; }
+.daily-rhythm-dial-controls button[aria-pressed="true"] { background:#ffeaa0; }
+.daily-rhythm-view-row { display:flex; justify-content:flex-end; margin-top:1px; }
+.daily-rhythm-view-row button { border:0; padding:2px 8px; background:transparent; color:#8a6a18; font:600 10px/14px 'Roboto',sans-serif; }
+.daily-rhythm-split > .daily-rhythm-lane-heading,
+.daily-rhythm-split > .daily-rhythm-chart,
+.daily-rhythm-split > .daily-rhythm-today-lane { display:none; }
+.daily-rhythm-circle-chart svg { display:block; width:100%; height:auto; overflow:visible; }
+.daily-rhythm-insight-row { position:absolute; right:14px; bottom:10px; z-index:2; display:flex; justify-content:flex-end; margin:0; }
+.daily-rhythm-insight-link { border:0; padding:4px 7px; background:transparent; color:#a15b2f; font:600 10px/14px 'Roboto',sans-serif; }
+.rhythm-circle-guide { fill:none; stroke:#eadfc4; stroke-width:2; }
+.rhythm-circle-guide.outer { stroke:#f1e3bb; }
+.rhythm-circle-guide.inner { stroke:#e8e0cf; }
+.rhythm-circle-tick { stroke:#bda65e; stroke-width:3; stroke-linecap:round; }
+.rhythm-circle-label { fill:#786c4b; font:600 11px 'Roboto',sans-serif; }
+.rhythm-circle-pattern path { fill:none; stroke:#f4d783; stroke-width:18; stroke-linecap:round; opacity:.7; }
+.rhythm-circle-pattern circle { fill:#fffdf7; stroke:#d8a91e; stroke-width:3; filter:drop-shadow(0 2px 3px #73591d24); }
+.rhythm-circle-pattern text { font:18px 'Segoe UI Emoji','Apple Color Emoji',sans-serif; }
+.rhythm-circle-today { cursor:pointer; }
+.rhythm-circle-today-main { fill:#f4f4f0; stroke:#bfc4bf; stroke-width:2.5; }
+.rhythm-circle-today-halo { fill:none; stroke:transparent; stroke-width:2; }
+.rhythm-circle-today text { font:15px 'Segoe UI Emoji','Apple Color Emoji',sans-serif; }
+.rhythm-circle-today.is-done .rhythm-circle-today-main { fill:#f2f8ef; stroke:#80b45e; }
+.rhythm-circle-today.is-upcoming .rhythm-circle-today-main { fill:#f0f0ed; stroke:#c5c7c2; }
+.rhythm-circle-today.is-soon .rhythm-circle-today-main { fill:#fff7dc; stroke:#d9b43e; }
+.rhythm-circle-today.is-attention .rhythm-circle-today-main { fill:#fff0ed; stroke:#df756b; }
+.rhythm-circle-today.has-insight .rhythm-circle-today-halo { stroke:#e96656; stroke-width:2.5; filter:drop-shadow(0 0 4px #e9665666); }
+.rhythm-circle-today.has-insight .rhythm-circle-today-main { stroke:#db594e; stroke-width:3; }
+.rhythm-circle-alert circle { fill:#c9362f; stroke:#fff; stroke-width:2.5; filter:drop-shadow(0 2px 3px #6b1b1b55); }
+.rhythm-circle-alert text { fill:white; font:900 13px 'Roboto',sans-serif; }
+.rhythm-circle-now { stroke:#d5a500; stroke-width:2; opacity:.75; }
+.rhythm-circle-now-dot { fill:#d5a500; stroke:white; stroke-width:2; }
+.rhythm-circle-center-kicker { fill:#7d827b; font:700 13px 'Poppins',sans-serif; letter-spacing:1.5px; }
+.rhythm-circle-center-date { fill:#78644a; font:14px 'Roboto',sans-serif; }
+.rhythm-circle-center-time { fill:#23372c; font:700 25px 'Poppins',sans-serif; }
+.rhythm-circle-legend { display:flex; justify-content:center; flex-wrap:wrap; gap:12px; padding:2px 0 8px; color:#70776f; font:500 9px 'Roboto',sans-serif; }
+.rhythm-circle-legend span { display:flex; align-items:center; gap:4px; }
+.rhythm-circle-legend i { width:9px; height:9px; border-radius:50%; background:#f4d783; }
+.rhythm-circle-legend .done-key { background:#80b45e; }
+.rhythm-circle-legend .upcoming-key { background:#c5c7c2; }
+.daily-rhythm-circle-heading .rhythm-circle-legend { justify-content:flex-start; padding:0; gap:9px; }
+.daily-rhythm-circle-heading .rhythm-circle-legend span { gap:4px; }
+.daily-rhythm-today-button { width:auto!important; min-width:38px; padding:0 8px!important; border-radius:999px!important; font:600 9px/1 'Roboto',sans-serif!important; }
+.daily-rhythm-date-nav { display: flex; flex: none; align-items: center; gap: 6px; }
+.daily-rhythm-date-nav span { min-width: 48px; color: #78644a; font: 600 10px/14px 'Roboto', sans-serif; text-align: center; }
+.daily-rhythm-date-nav button { width: 27px; height: 27px; display: grid; place-items: center; padding: 0 0 2px; border: 1px solid #eadca9; border-radius: 50%; background: #fffdf7; color: #916400; font: 500 20px/1 'Roboto', sans-serif; cursor: pointer; }
+.daily-rhythm-date-nav button:disabled { border-color: #ece9df; background: #f7f6f1; color: #c3c2ba; cursor: default; }
+.daily-rhythm-date-nav button:focus-visible,
+.daily-rhythm-lane-heading button:focus-visible,
+.daily-rhythm-today-item:focus-visible,
+.daily-rhythm-today-empty:focus-visible { outline: 2px solid #e8b51e; outline-offset: 2px; }
+.daily-rhythm-lane-heading { min-height: 26px; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; color: #8a6a18; }
+.daily-rhythm-lane-heading > span { font: 700 9px/14px 'Poppins', sans-serif; letter-spacing: 1.25px; }
+.daily-rhythm-lane-heading button { min-height: 26px; padding: 3px 0; border: 0; background: transparent; color: #8a6a18; font: 600 10px/14px 'Roboto', sans-serif; cursor: pointer; }
+.daily-rhythm-lane-heading small { color: #7b837d; font: 500 9px/14px 'Roboto', sans-serif; }
+.daily-rhythm-split .daily-rhythm-chart { margin-top: -3px; border: 1px solid #f1e7c4; border-radius: 16px; background: #fffaf0; }
+.daily-rhythm-split .daily-rhythm-chart svg { cursor: default; }
+.daily-rhythm-split .daily-rhythm-daylight-bg,
+.daily-rhythm-split .daily-rhythm-landscape,
+.daily-rhythm-split .daily-rhythm-horizon-backdrop,
+.daily-rhythm-split .daily-rhythm-horizon-fill,
+.daily-rhythm-split .daily-rhythm-orb-highlight,
+.daily-rhythm-split .daily-rhythm-inner-arc,
+.daily-rhythm-split .daily-rhythm-band-highlight { display: none; }
+.daily-rhythm-split .daily-rhythm-band-shadow { stroke: #d4af38; stroke-width: 11; opacity: .12; }
+.daily-rhythm-split .daily-rhythm-band { stroke: #e9bd38; stroke-width: 2.5; }
+.daily-rhythm-split .daily-rhythm-pattern-band-base { stroke: #ffefb8; stroke-width: 14px; opacity: .72; }
+.daily-rhythm-split .daily-pattern-window { stroke: #e7c45b; stroke-width: 14px; opacity: .66; }
+.daily-rhythm-split .daily-pattern-segment:nth-of-type(even) .daily-pattern-window { stroke: #d8b54d; opacity: .58; }
+.daily-rhythm-split .daily-pattern-segment.is-revealed .daily-pattern-window { stroke: #dba500; opacity: .9; }
+.daily-rhythm-split .daily-pattern-node { fill: #fffdf7; stroke: #e1bc45; stroke-width: 2; filter: drop-shadow(0 2px 3px #73591d24); pointer-events: none; }
+.daily-rhythm-split .daily-pattern-node-glyph { fill: #28452e !important; font: 18px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif !important; pointer-events: none; }
+.daily-rhythm-split .daily-rhythm-go-today { top: 8px; right: 8px; }
+.daily-rhythm-split .daily-rhythm-selected-banner { top: 7px; min-height: 31px; padding-top: 3px; padding-bottom: 3px; }
+.daily-rhythm-today-lane { margin-top: 8px; padding-top: 1px; border-top: 1px solid #eee2ba; }
+.daily-rhythm-today-lane .daily-rhythm-lane-heading { margin: 2px 1px 5px; }
+.daily-rhythm-today-track { display: flex; gap: 8px; overflow-x: auto; padding: 1px 1px 3px; overscroll-behavior-inline: contain; scroll-behavior: smooth; scroll-snap-type: x proximity; scrollbar-width: none; touch-action: pan-x; -webkit-overflow-scrolling: touch; cursor: grab; user-select: none; }
+.daily-rhythm-today-track.is-dragging { scroll-behavior: auto; scroll-snap-type: none; cursor: grabbing; }
+.daily-rhythm-today-track::-webkit-scrollbar { display: none; }
+.daily-rhythm-today-track.is-dragging .daily-rhythm-today-item { pointer-events: none; }
+.daily-rhythm-today-item { width: 80px; min-height: 94px; display: flex; flex: 0 0 80px; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 7px 7px; scroll-snap-align: start; border: 1.5px solid #9fc8ab; border-radius: 14px; background: #f5fbf6; box-sizing: border-box; color: #294d37; font: inherit; text-align: left; cursor: pointer; }
+.daily-rhythm-today-glyph { width: 29px; height: 29px; display: grid; place-items: center; margin-bottom: 2px; border-radius: 10px; background: #e3f2e7; font: 16px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif; }
+.daily-rhythm-today-title { width: 100%; display: block; overflow: hidden; color: #28452e; font: 600 10px/13px 'Poppins', sans-serif; white-space: nowrap; }
+.daily-rhythm-today-title strong { display: inline-block; width: max-content; padding-right: 22px; font: inherit; }
+.daily-rhythm-today-title strong + strong { display: none; }
+.daily-rhythm-today-item:hover .daily-rhythm-today-title strong:first-child,
+.daily-rhythm-today-item:focus-visible .daily-rhythm-today-title strong:first-child { animation: today-title-marquee 5s ease-in-out infinite alternate; }
+.daily-rhythm-today-item:hover .daily-rhythm-today-title strong + strong,
+.daily-rhythm-today-item:focus-visible .daily-rhythm-today-title strong + strong { display: inline-block; animation: today-title-marquee-copy 5s ease-in-out infinite alternate; }
+@keyframes today-title-marquee { to { transform: translateX(calc(-100% + 66px)); } }
+@keyframes today-title-marquee-copy { to { transform: translateX(calc(-100% + 66px)); } }
+.daily-rhythm-today-item time { color: #5f7365; font: 600 9px/12px 'Roboto', sans-serif; }
+.daily-rhythm-today-item small { display: flex; align-items: center; gap: 3px; margin-top: auto; color: #4f755b; font: 600 8px/11px 'Roboto', sans-serif; white-space: nowrap; }
+.daily-rhythm-today-item small span { width: 11px; height: 11px; display: inline-grid; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-size: 7px; line-height: 1; }
+.daily-rhythm-today-item.is-done { border-color: #d4d9d3; background: #f2f3ef; color: #7d847e; }
+.daily-rhythm-today-item.is-done .daily-rhythm-today-glyph { background: #e4e6e2; filter: grayscale(1); opacity: .7; }
+.daily-rhythm-today-item.is-done strong,
+.daily-rhythm-today-item.is-done time,
+.daily-rhythm-today-item.is-done small { color: #7d847e; }
+.daily-rhythm-today-item.is-soon { border-color: #ddb63e; background: #fff8dd; }
+.daily-rhythm-today-item.is-soon .daily-rhythm-today-glyph { background: #ffedac; }
+.daily-rhythm-today-item.is-soon strong,
+.daily-rhythm-today-item.is-soon time,
+.daily-rhythm-today-item.is-soon small { color: #7c5b00; }
+.daily-rhythm-today-item.is-attention { border-color: #d8796d; background: #fff1ed; }
+.daily-rhythm-today-item.is-attention .daily-rhythm-today-glyph { background: #ffdcd4; }
+.daily-rhythm-today-item.is-attention strong,
+.daily-rhythm-today-item.is-attention time,
+.daily-rhythm-today-item.is-attention small { color: #9b463c; }
+.daily-rhythm-today-empty { width: 100%; min-height: 54px; padding: 10px 12px; border: 1px dashed #c6d5c9; border-radius: 14px; background: #f8fbf7; color: #62736a; font: 500 10px/15px 'Roboto', sans-serif; cursor: pointer; }
+@media (max-width: 380px) {
+  .daily-rhythm-date-nav { gap: 4px; }
+  .daily-rhythm-date-nav span { min-width: 42px; }
+  .daily-rhythm-today-item { width: 76px; flex-basis: 76px; }
+}
 .activity-summary-page { min-height: 100%; display: flex; flex-direction: column; gap: 16px; padding: 4px 20px 32px; }
 .activity-summary-header { display: flex; align-items: center; gap: 10px; min-height: 54px; margin: 0 -20px; padding: 0 20px 10px; border-bottom: 1px solid var(--color-border); }
 .activity-summary-header .back-button { flex: none; }
@@ -328,9 +453,17 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .notice-card { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 72px; margin-top: 14px; padding: 11px 16px; border: 1px solid #f2e39d; border-radius: 14px; background: var(--color-accent-soft); text-align: left; }
 .notice-card img { width: 32px; height: 32px; object-fit: contain; }
 .notice-card .notice-card-reviewed { width: 32px; height: 32px; display: grid; flex: 0 0 32px; place-items: center; border-radius: 50%; background: #dcefe4; color: #39745b; font: 700 18px/1 'Roboto', sans-serif; }
+.notice-card .notice-card-alert { width: 32px; height: 32px; display: grid; flex: 0 0 32px; place-items: center; border: 2px solid #e1804e; border-radius: 50%; color: #d96f3e; font: 700 20px/1 'Roboto', sans-serif; }
 .notice-card span { display: flex; flex-direction: column; }
 .notice-card strong { font: 600 13px/20px 'Poppins', sans-serif; }
 .notice-card small { color: var(--color-text-secondary); font: 400 12px/17px 'Roboto', sans-serif; }
+
+.home-attention-strip { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 58px; margin-top: 10px; padding: 9px 12px; border: 1px solid #efd982; border-radius: 16px; background: #fff4c6; color: var(--color-text-primary); text-align: left; box-shadow: 0 2px 8px #73591d0c; }
+.home-attention-strip img { width: 26px; height: 26px; object-fit: contain; }
+.home-attention-strip > span:not(.home-attention-arrow) { min-width: 0; display: flex; flex-direction: column; }
+.home-attention-strip strong { overflow: hidden; font: 600 12px/18px 'Poppins', sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.home-attention-strip small { overflow: hidden; color: var(--color-text-secondary); font: 400 10px/15px 'Roboto', sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.home-attention-arrow { color: #87660b; font: 600 18px/1 'Roboto', sans-serif; }
 
 .bottom-nav { --nav-slot-width: calc((100% - 20px) / 5); flex: none; height: 68px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); justify-items: center; align-items: flex-start; padding: 5px 10px 0; border-top: 1px solid var(--color-border); background: rgba(250,250,248,.97); position: relative; isolation: isolate; z-index: 4; backdrop-filter: blur(6px); }
 .bottom-nav-slider { position: absolute; z-index: -1; top: 5px; left: 10px; width: var(--nav-slot-width); height: 28px; display: grid; place-items: center; pointer-events: none; transform: translateX(calc(var(--active-nav-index) * 100%)); transition: transform 320ms cubic-bezier(.2,.75,.25,1); }
@@ -1616,7 +1749,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .pattern-time-editor .settings-choice input { width: 20px; }
 .shared-sync-pending { margin: 0; padding: 10px 16px; background: #fff2bb; color: #534719; font-size: 12px; line-height: 1.5; z-index: 20; }
 
-/* Allow the home greeting to wrap without covering the story card. */
+/* Allow the home greeting to wrap without covering the dashboard. */
 .home-screen .main-header { height: auto; min-height: 89px; padding-bottom: 8px; }
 .home-screen .main-header + .daily-rhythm-card { margin-top: 10px; }
 
@@ -1648,25 +1781,16 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .moment-carousel-viewport::-webkit-scrollbar { display: none; }
 .moment-carousel-viewport:active { cursor: grabbing; }
 .moment-carousel-set { flex: none; display: flex; gap: 14px; }
-.moment-carousel-set .moment-card { flex: none; width: calc((var(--moment-carousel-width, 350px) - 14px) / 2); user-select: none; }
+.moment-carousel-set .moment-card { flex: none; width: calc(var(--moment-carousel-width, 350px) * .28); user-select: none; }
+.moment-carousel-set .moment-card img { height: 76px; object-position: center 40%; }
+.moment-carousel-set .moment-card .moment-card-copy { min-height:0; padding:7px 9px; }
+.moment-carousel-set .moment-card .moment-card-copy strong { overflow:hidden; font:600 10px/14px 'Roboto',sans-serif; text-overflow:ellipsis; white-space:nowrap; }
 .moment-carousel-set .moment-card img { pointer-events: none; -webkit-user-drag: none; }
 .moment-carousel-pause { position: absolute; z-index: 2; right: 6px; top: 6px; border: 1px solid var(--color-border); border-radius: 12px; padding: 5px 8px; background: var(--color-surface); color: var(--color-text-primary); font-size: 11px; opacity: 0; }
 .moment-carousel:focus-within .moment-carousel-pause, .moment-carousel:hover .moment-carousel-pause { opacity: 1; }
 @media (hover: none) { .moment-carousel-pause { opacity: 1; } }
 
 .ask-thinking-avatar, .ask-thinking-avatar img { display: block; width: 32px; height: 32px; flex: 0 0 32px; object-fit: contain; }
-
-/* Pattern shares Today's dial; the deeper yellow distinguishes usual routines. */
-.daily-rhythm-card.is-pattern { background: #fff8dc; }
-.is-pattern .daily-rhythm-daylight-bg { background: linear-gradient(180deg, #fff4d2 0%, #ffedb4 68%, #f5e3a5 100%); }
-.is-pattern .daily-rhythm-time { font-size: 20px; fill: #916400; }
-.daily-pattern-window { fill: none; stroke: #ffd84d; stroke-width: 97.5px; stroke-linecap: butt; }
-.daily-pattern-segment:nth-of-type(even) .daily-pattern-window { stroke: #ffc928; opacity: .78; }
-.daily-pattern-segment.is-revealed .daily-pattern-window { stroke: #ffcb1f; opacity: 1; }
-.daily-pattern-icon { fill: #28452e !important; font: 16px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif !important; pointer-events: none; }
-.daily-pattern-activity-name { fill: #6e551d; font: 600 18px 'Roboto', sans-serif; }
-.daily-pattern-summary { min-height: 64px; margin-top: 4px; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 10px 14px; border-radius: 22px; border: 1px solid #f1e3aa; background: #fff0bc; color: #73591d; font-size: 11px; line-height: 1.5; }
-.daily-pattern-summary .profile-link { align-self: flex-start; color: #73591d; }
 
 /* Today's care replaces the passive latest-activity banner in the rhythm card. */
 .daily-rhythm-care { position: relative; margin-top: 4px; padding: 12px 14px 10px; border: 1px solid #ead88e; border-radius: 5px 18px 7px 18px; background: linear-gradient(135deg, #fff9e9 0%, #fff5dc 100%); box-shadow: 2px 3px 0 #e9ddaF, 0 7px 14px #73591d12; color: #73591d; }
@@ -1854,19 +1978,14 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .owner-profile-page .settings-action { margin-top: 10px; padding-top: 12px; background: var(--color-page-bg); }
 
 @keyframes daily-rhythm-banner-in { from { opacity: 0; translate: 0 -6px; } to { opacity: 1; translate: 0 0; } }
-@media (prefers-reduced-motion: reduce) { .daily-rhythm-selected-banner { animation: none; } .daily-rhythm-activity-label { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .daily-rhythm-selected-banner { animation: none; } .daily-rhythm-activity-label { transition: none; } .daily-rhythm-today-item:hover .daily-rhythm-today-title strong:first-child, .daily-rhythm-today-item:focus-visible .daily-rhythm-today-title strong:first-child, .daily-rhythm-today-item:hover .daily-rhythm-today-title strong + strong, .daily-rhythm-today-item:focus-visible .daily-rhythm-today-title strong + strong { animation: none; } }
 
 
-
-/* Keep selected pattern names readable alongside their time window. */
-.daily-rhythm-card.is-pattern .daily-rhythm-selected-banner { width: max-content; max-width: calc(100% - 20px); gap: 10px; }
-.daily-rhythm-card.is-pattern .daily-rhythm-chart { padding-top: 0; }
-.daily-rhythm-card.is-pattern .daily-rhythm-selected-banner-title { flex: 0 1 auto; min-width: 0; overflow: visible; text-overflow: clip; white-space: normal; text-align: center; }
 
 .daily-rhythm-activity-label.is-revealed .daily-rhythm-activity-badge { stroke: #ffcf29; stroke-width: 4; }
 
 .daily-rhythm-pattern-current-track { fill: none; stroke: #ffcf29; stroke-width: 2; stroke-opacity: .42; stroke-linecap: round; pointer-events: none; }
-.daily-rhythm-pattern-current-pointer { stroke: #ffcf29; stroke-width: 4; stroke-linecap: round; filter: drop-shadow(0 1px 2px #9a700055); pointer-events: none; }
+.daily-rhythm-pattern-current-pointer { stroke: #d4aa27; stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 3 5; opacity: .7; filter: drop-shadow(0 1px 2px #9a700033); pointer-events: none; }
 
 /* Activity-first moment capture */
 .quick-moment-intro { margin: 20px 20px 0; }
@@ -1944,7 +2063,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .today-care-checklist { list-style: none; padding: 0; margin: 0; }
 .today-care-item { padding: 0; border: 0; border-radius: 0; background: none; }
 .today-care-item + .today-care-item { border-top: 1px solid #e9e7df; }
-.today-care-row { display: flex; align-items: center; min-height: 65px; gap: 4px; }
+.today-care-row { display: flex; align-items: center; min-height: 55px; gap: 4px; }
 .today-care-check, .today-care-remind { flex: none; display: grid; place-items: center; width: 40px; height: 44px; padding: 0; border: 0; border-radius: 12px; background: transparent; color: #696c61; cursor: pointer; }
 .today-care-check { margin-left: -7px; }
 .today-care-check > span { width: 19px; height: 19px; border: 1.5px solid #c3c5b9; border-radius: 7px; background: #fffefa; transition: background 150ms ease, border-color 150ms ease; }
@@ -1962,7 +2081,33 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .today-care-task-detail { margin: 0 0 12px 35px; padding: 0 4px; }
 .today-care-task-detail p { margin: 5px 0; color: #6b7067; font: 400 11px/17px 'Roboto', sans-serif; }
 .today-care-item .care-help-form { margin: 2px 0 12px 32px; padding: 12px; border: 1px solid #e7e1ce; border-radius: 12px; background: #fffdf6; }
+.today-care-item .care-help-form.is-choosing { margin: 2px 0 12px 32px; padding: 4px 0; border: 0; border-radius: 0; background: transparent; }
 .today-care-item .care-help-form p, .today-care-item .care-help-form small { font: 400 11px/17px 'Roboto', sans-serif; color: #6b7067; }
+.care-helper-choices { display:flex; gap:10px; overflow-x:auto; padding:2px 1px; }
+.care-helper-choices.is-inline { min-width:0; max-width:min(42vw,190px); flex:0 1 auto; align-items:center; gap:6px; padding:0 2px; overflow-x:auto; scrollbar-width:none; touch-action:pan-x; cursor:grab; user-select:none; -webkit-overflow-scrolling:touch; }
+.care-helper-choices.is-inline::-webkit-scrollbar { display:none; }
+.care-helper-choices.is-inline.is-dragging { cursor:grabbing; }
+.care-helper-choices.is-inline.is-dragging .care-helper-choice { pointer-events:none; }
+.care-helper-choices.is-inline .care-helper-choice { min-width:38px; width:38px; padding:0; animation:care-helper-slide-in 260ms ease-out both; }
+.care-helper-choices.is-inline .care-helper-avatar { width:32px; height:32px; }
+.care-helper-choices.is-inline .care-helper-choice strong { display:none; }
+.care-helper-choice { min-width:78px; display:flex; flex-direction:column; align-items:center; gap:4px; padding:8px 6px; border:1px solid #e5e1d4; border-radius:13px; background:#fff; color:#33483a; cursor:pointer; animation: care-helper-slide-in 340ms cubic-bezier(.2,.75,.25,1) both; }
+.care-helper-choice:nth-child(2) { animation-delay:55ms; }
+.care-helper-choice:nth-child(3) { animation-delay:110ms; }
+.care-helper-choice:nth-child(4) { animation-delay:165ms; }
+@keyframes care-helper-slide-in { from { opacity:0; transform:translateX(-32px) scale(.96); } to { opacity:1; transform:translateX(0) scale(1); } }
+.care-helper-choice:hover, .care-helper-choice:focus-visible { border-color:#dcb734; background:#fff8dc; }
+.care-helper-avatar { width:42px; height:42px; display:grid; place-items:center; overflow:hidden; border:2px solid #f1d576; border-radius:50%; background:#f6edcf; color:#69551d; font:600 15px 'Poppins',sans-serif; }
+.care-helper-avatar img { width:100%; height:100%; object-fit:cover; }
+.care-helper-choice strong { max-width:100%; overflow:hidden; font:600 10px/13px 'Poppins',sans-serif; text-overflow:ellipsis; white-space:nowrap; }
+.care-helper-choice { min-width:68px; padding:7px 6px; border-color:transparent; background:transparent; }
+.care-helper-choice:hover, .care-helper-choice:focus-visible { border-color:#ead78f; background:#fff8df; }
+.care-helper-choice .care-helper-avatar { width:40px; height:40px; font-size:13px; }
+.care-helper-choice { min-width:58px; padding:5px 4px; }
+.care-help-confirm { display:flex; align-items:center; gap:10px; }
+.care-help-confirm .care-helper-avatar { flex:none; }
+.care-help-confirm p { color:#34483a!important; font:400 12px/18px 'Roboto',sans-serif!important; }
+@media (prefers-reduced-motion: reduce) { .care-helper-choice { animation:none; } }
 .today-care-actions { display: flex; gap: 8px; margin-top: 10px; }
 .today-care-actions button, .today-care-empty .primary-button { min-height: 36px; padding: 7px 11px; font-size: 11px; width: auto; }
 .today-care-action button:focus-visible, .today-care-action select:focus-visible, .today-care-completed summary:focus-visible { outline: 2px solid #546c57; outline-offset: 2px; }
@@ -1971,6 +2116,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .today-care-empty > button { margin-right: 10px; }
 .today-care-message { margin: 7px 0; color: #596d53; font: 400 11px/17px 'Roboto', sans-serif; }
 .today-care-all-done { margin: 12px 0; color: #496549; font: 400 12px/18px 'Roboto', sans-serif; }
+.today-care-more { width: 100%; min-height: 34px; padding: 5px 2px; border: 0; border-top: 1px solid #e9e7df; background: transparent; color: #706746; font: 500 10px/16px 'Poppins', sans-serif; text-align: left; }
 .today-care-last-done, .today-care-done-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 2px; color: #6a7c63; }
 .today-care-last-done { border-top: 1px solid #e9e7df; }
 .today-care-last-done > span, .today-care-done-row > span { margin: 2px 0 0 3px; font-size: 13px; }
