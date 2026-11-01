@@ -211,7 +211,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-split .daily-pattern-segment:nth-of-type(even) .daily-pattern-window { stroke: #d8b54d; opacity: .58; }
 .daily-rhythm-split .daily-pattern-segment.is-revealed .daily-pattern-window { stroke: #dba500; opacity: .9; }
 .daily-rhythm-split .daily-pattern-node { fill: #fffdf7; stroke: #e1bc45; stroke-width: 2; filter: drop-shadow(0 2px 3px #73591d24); pointer-events: none; }
-.daily-rhythm-split .daily-pattern-node-glyph { fill: #28452e !important; font: 14px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif !important; pointer-events: none; }
+.daily-rhythm-split .daily-pattern-node-glyph { fill: #28452e !important; font: 18px/1 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif !important; pointer-events: none; }
 .daily-rhythm-split .daily-rhythm-go-today { top: 8px; right: 8px; }
 .daily-rhythm-split .daily-rhythm-selected-banner { top: 7px; min-height: 31px; padding-top: 3px; padding-bottom: 3px; }
 .daily-rhythm-today-lane { margin-top: 8px; padding-top: 1px; border-top: 1px solid #eee2ba; }

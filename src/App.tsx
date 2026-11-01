@@ -875,7 +875,7 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
             const patternMoment = patternMoments.find(moment => moment.id === p.id);
             return <g key={`${p.id}-window`} className={`daily-pattern-segment ${revealedActivityId === p.id ? 'is-revealed' : ''}`} data-moment-trigger={p.id} role="button" tabIndex={0} aria-label={`${p.activity} · ${clockMinute(p.startMinute!)}–${clockMinute(p.endMinute!)}`} aria-pressed={revealedActivityId === p.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (patternMoment) openActivity(patternMoment); } }}>
               <path className="daily-pattern-window" d={path} strokeWidth={patternTrackWidth}><title>{p.activity} · {clockMinute(p.startMinute!)}–{clockMinute(p.endMinute!)}</title></path>
-              <circle className="daily-pattern-node" cx={middle.x} cy={middle.y} r="15" aria-hidden="true" />
+              <circle className="daily-pattern-node" cx={middle.x} cy={middle.y} r="19" aria-hidden="true" />
               {patternMoment && <text className="daily-pattern-node-glyph" x={middle.x} y={middle.y + 1} textAnchor="middle" dominantBaseline="middle" aria-hidden="true">{activityGlyph(patternMoment)}</text>}
             </g>;
           })}
