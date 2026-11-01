@@ -674,15 +674,16 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
   const isPattern = view === 'pattern';
   const timedPatterns = patterns.filter(p => p.status === 'confirmed' && p.activity && Number.isFinite(p.startMinute) && Number.isFinite(p.endMinute) && p.startMinute! >= 0 && p.endMinute! <= 1440 && p.startMinute! < p.endMinute!);
   const patternById = new Map(timedPatterns.map(p => [p.id, p]));
-  const rhythm = careRhythmForDate(moments, careTasks, selectedDate, now, Object.fromEntries(careMembers.map(member => [member.id,member.name])));
-  const completedMoments: StoryObservation[] = rhythm.completions.map(marker => ({ ...marker, image: '', momentCount: 0, context: '', privateRecord: false, sourceKind: 'care-task' }));
-  const selectedMoments: StoryObservation[] = isPattern ? timedPatterns.map(p => {
+  const patternMoments: StoryObservation[] = timedPatterns.map(p => {
     const at = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, (p.startMinute! + p.endMinute!) / 2);
     return { id: p.id, title: p.activity!, note: p.detail, image: '', momentCount: 0, context: '', privateRecord: false, savedAt: at.toISOString(), observationKind: /Breakfast|Lunch|Dinner/.test(p.activity!) ? 'meal' : p.activity!.toLowerCase() };
-  }) : [...rhythm.records, ...completedMoments];
+  });
+  const rhythm = careRhythmForDate(moments, careTasks, selectedDate, now, Object.fromEntries(careMembers.map(member => [member.id,member.name])));
+  const completedMoments: StoryObservation[] = rhythm.completions.map(marker => ({ ...marker, image: '', momentCount: 0, context: '', privateRecord: false, sourceKind: 'care-task' }));
+  const selectedMoments: StoryObservation[] = isPattern ? patternMoments : [...rhythm.records, ...completedMoments];
   const openActivity = (moment: StoryObservation) => {
     if (revealedActivityId !== moment.id) { setRevealedActivityId(moment.id); return; }
-    if (isPattern) onPatterns(moment.id); else if (moment.careTaskId) onOpenCareTasks(); else onOpenActivitySummary(moment);
+    if (patternById.has(moment.id)) onPatterns(moment.id); else if (moment.careTaskId) onOpenCareTasks(); else onOpenActivitySummary(moment);
   };
   const displayTime = (moment: StoryObservation, date: Date) => isPattern ? `${clockMinute(patternById.get(moment.id)!.startMinute!)}–${clockMinute(patternById.get(moment.id)!.endMinute!)}` : timeLabel(date);
   const routineTasks = careTasksForDate(patterns, scheduledMoments, careTasks, selectedDate, now, displayName);
@@ -701,67 +702,51 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
     const clampedMinutes = Math.max(0, Math.min(1440, minutes));
     return clampedMinutes / 1440;
   };
+  // Today and Pattern share one angular scale and a common circle center below
+  // the visible chart, so their arcs remain genuinely concentric.
+  const dialCenter = { x: 300, y: 450 };
+  const todayTrackRadius = 350;
+  const patternTrackOuterRadius = 317.5;
+  const patternTrackInnerRadius = 220;
+  const patternTrackRadius = (patternTrackOuterRadius + patternTrackInnerRadius) / 2;
+  const patternTrackWidth = patternTrackOuterRadius - patternTrackInnerRadius;
+  const dialStartAngle = Math.acos(-300 / todayTrackRadius);
+  const dialEndAngle = Math.acos(300 / todayTrackRadius);
+  const dialAngle = (progress: number) => dialStartAngle + (dialEndAngle - dialStartAngle) * Math.max(0, Math.min(1, progress));
   const pointAtProgress = (progress: number, radius: number) => {
-    const angle = Math.PI - Math.max(0, Math.min(1, progress)) * Math.PI;
-    return { x: 300 + radius * Math.cos(angle), y: 390 - radius * Math.sin(angle) };
+    const angle = dialAngle(progress);
+    return { x: dialCenter.x + radius * Math.cos(angle), y: dialCenter.y - radius * Math.sin(angle) };
   };
+  const dialArcPath = (radius: number, startProgress = 0, endProgress = 1) => {
+    const start = pointAtProgress(startProgress, radius);
+    const end = pointAtProgress(endProgress, radius);
+    return `M${start.x} ${start.y} A${radius} ${radius} 0 0 1 ${end.x} ${end.y}`;
+  };
+  const arcBetweenAngles = (radius: number, startAngle: number, endAngle: number, sweep: 0 | 1) => {
+    const start = { x: dialCenter.x + radius * Math.cos(startAngle), y: dialCenter.y - radius * Math.sin(startAngle) };
+    const end = { x: dialCenter.x + radius * Math.cos(endAngle), y: dialCenter.y - radius * Math.sin(endAngle) };
+    return `M${start.x} ${start.y} A${radius} ${radius} 0 0 ${sweep} ${end.x} ${end.y}`;
+  };
+  const patternBandBasePath = arcBetweenAngles(patternTrackRadius, Math.acos(-300 / patternTrackOuterRadius), Math.acos(300 / patternTrackOuterRadius), 1);
+  const pageArrowRadius = 190;
+  const pageArrowStartAngle = 1.96;
+  const pageArrowEndAngle = 2.35;
+  const previousDayArrowPath = arcBetweenAngles(pageArrowRadius, pageArrowStartAngle, pageArrowEndAngle, 0);
+  const newerDayArrowPath = arcBetweenAngles(pageArrowRadius, Math.PI - pageArrowStartAngle, Math.PI - pageArrowEndAngle, 1);
   const pointOnDial = (minutes: number, radius: number) => pointAtProgress(dayProgress(minutes), radius);
   const timeLabel = (date: Date) => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
-  const chronologicalMoments = selectedMoments.map(moment => {
-    const date = new Date(moment.savedAt);
-    const minutes = date.getHours() * 60 + date.getMinutes();
-    return { moment, minutes, progress: dayProgress(minutes), time: displayTime(moment, date) };
-  }).sort((left, right) => left.minutes - right.minutes);
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const nowProgress = dayProgress(nowMinutes);
-  const beforeNow = isToday ? chronologicalMoments.filter(entry => entry.minutes < nowMinutes) : [];
-  const afterNow = isToday ? chronologicalMoments.filter(entry => entry.minutes >= nowMinutes) : [];
-  const allMoments = isToday ? [] : chronologicalMoments;
-  const maxProgressGap = 14 / 180;
-  const progressGap = isToday
-    ? Math.min(maxProgressGap, beforeNow.length ? nowProgress / beforeNow.length : maxProgressGap, afterNow.length ? (1 - nowProgress) / afterNow.length : maxProgressGap)
-    : Math.min(maxProgressGap, allMoments.length > 1 ? 1 / (allMoments.length - 1) : maxProgressGap);
-  const fitProgressGroup = (entries: typeof chronologicalMoments, lower: number, upper: number) => {
-    if (!entries.length) return new Map<string, number>();
-    const blocks: Array<{ start: number; end: number; sum: number; count: number }> = [];
-    entries.forEach((entry, index) => {
-      blocks.push({ start: index, end: index, sum: entry.progress - index * progressGap, count: 1 });
-      while (blocks.length > 1) {
-        const right = blocks[blocks.length - 1];
-        const left = blocks[blocks.length - 2];
-        if (left.sum / left.count <= right.sum / right.count) break;
-        blocks.splice(-2, 2, { start: left.start, end: right.end, sum: left.sum + right.sum, count: left.count + right.count });
-      }
-    });
-    const positions = new Map<string, number>();
-    blocks.forEach(block => {
-      const fittedProgress = Math.max(lower, Math.min(upper, block.sum / block.count));
-      for (let index = block.start; index <= block.end; index += 1) {
-        positions.set(entries[index].moment.id, fittedProgress + index * progressGap);
-      }
-    });
-    return positions;
-  };
-  const adjustedProgress = isToday
-    ? new Map([
-      ...fitProgressGroup(beforeNow, 0, nowProgress - beforeNow.length * progressGap),
-      ...fitProgressGroup(afterNow, nowProgress + progressGap, 1 - Math.max(0, afterNow.length - 1) * progressGap),
-    ])
-    : fitProgressGroup(allMoments, 0, 1 - Math.max(0, allMoments.length - 1) * progressGap);
   const momentPoints = selectedMoments.map(moment => {
     const date = new Date(moment.savedAt);
     const minutes = date.getHours() * 60 + date.getMinutes();
-    const labelProgress = adjustedProgress.get(moment.id) ?? dayProgress(minutes);
-    return { moment, ...pointAtProgress(moment.careTaskId ? dayProgress(minutes) : labelProgress, 220), labelProgress, minutes, time: displayTime(moment, date) };
+    const labelProgress = dayProgress(minutes);
+    return { moment, ...pointAtProgress(labelProgress, todayTrackRadius), labelProgress, minutes, time: displayTime(moment, date) };
   });
-  const activityLabelRadius = 270;
+  const activityLabelRadius = 390;
   const activityMarkers = momentPoints.map(point => {
-    // Keep completion dots at their true clock angle; spread only labels for legibility.
-    const labelAnchor = point.moment.careTaskId ? pointAtProgress(point.labelProgress, 220) : point;
-    const radialX = (labelAnchor.x - 300) / 220;
-    const radialY = (labelAnchor.y - 390) / 220;
-    const iconX = 300 + radialX * activityLabelRadius;
-    const iconY = 390 + radialY * activityLabelRadius;
+    // Keep activity markers on the strict 24-hour time scale.
+    const labelAngle = dialAngle(point.labelProgress);
+    const iconX = Math.max(28, Math.min(572, dialCenter.x + activityLabelRadius * Math.cos(labelAngle)));
+    const iconY = dialCenter.y - activityLabelRadius * Math.sin(labelAngle);
     return { ...point, iconX, iconY };
   });
   const placedTimeBoxes: Array<{ id: string; left: number; right: number; top: number; bottom: number }> = [];
@@ -789,8 +774,11 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
   });
   const labeledMomentPoints = activityMarkers.map(point => ({ ...point, label: { iconX: point.iconX, iconY: point.iconY, ...timeLabelPositions.get(point.moment.id)! } }));
   const timeLabelLeaders = labeledMomentPoints.map(({ moment, x, y, label }) => {
-    const radialX = (x - 300) / 220;
-    const radialY = (y - 390) / 220;
+    const savedAt = new Date(moment.savedAt);
+    const progress = dayProgress(savedAt.getHours() * 60 + savedAt.getMinutes());
+    const angle = dialAngle(progress);
+    const radialX = Math.cos(angle);
+    const radialY = -Math.sin(angle);
     return {
       id: moment.id,
       x1: x + radialX * 9,
@@ -807,9 +795,11 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
             : /walk/i.test(moment.title) ? '🐾'
               : /rest|sleep/i.test(moment.title) ? '💤' : /play|toy|fetch/i.test(moment.title) ? '🎾' : '✨';
   const currentMinute = now.getHours() * 60 + now.getMinutes();
-  const currentPoint = pointOnDial(currentMinute, isPattern ? 180 : 220);
-  const patternPointerOuter = pointOnDial(currentMinute, 207);
+  const currentPoint = pointOnDial(currentMinute, todayTrackRadius);
+  const patternPointerOuter = pointOnDial(currentMinute, todayTrackRadius + 24);
   const revealedMarker = labeledMomentPoints.find(point => point.moment.id === revealedActivityId);
+  const revealedPatternMoment = !isPattern ? patternMoments.find(moment => moment.id === revealedActivityId) : undefined;
+  const revealedSelection = revealedMarker ?? (revealedPatternMoment ? { moment: revealedPatternMoment, time: `${clockMinute(patternById.get(revealedPatternMoment.id)!.startMinute!)}–${clockMinute(patternById.get(revealedPatternMoment.id)!.endMinute!)}` } : undefined);
   const activityLabelsOnTop = revealedMarker
     ? [...labeledMomentPoints.filter(point => point.moment.id !== revealedActivityId), revealedMarker]
     : labeledMomentPoints;
@@ -841,13 +831,13 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
     <>
     <div className="daily-rhythm-chart">
       {!isPattern && dayOffset < 0 && <button type="button" className="daily-rhythm-go-today" onPointerDown={event => { todayButtonDragStart.current = event.clientX; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerUp={event => { const startX = todayButtonDragStart.current; todayButtonDragStart.current = null; if (startX === null) return; const deltaX = event.clientX - startX; if (deltaX > 32 || deltaX < -32) { suppressTodayClick.current = true; if (deltaX > 32) goToPreviousDay(); else goToNewerDay(); window.setTimeout(() => { suppressTodayClick.current = false; }, 0); } }} onPointerCancel={() => { todayButtonDragStart.current = null; }} onClick={() => { if (suppressTodayClick.current) { suppressTodayClick.current = false; return; } onDayOffsetChange(0); }}>Today</button>}
-      {revealedMarker && <button type="button" className="daily-rhythm-selected-banner" aria-label={`Open details for ${revealedMarker.moment.title} at ${revealedMarker.time}`} onClick={() => openActivity(revealedMarker.moment)}>
-        <span className="daily-rhythm-selected-banner-icon" aria-hidden="true">{activityGlyph(revealedMarker.moment)}</span>
-        <span className="daily-rhythm-selected-banner-title">{revealedMarker.moment.title}</span>
-        <span className="daily-rhythm-selected-banner-time">{revealedMarker.time}</span>
+      {revealedSelection && <button type="button" className="daily-rhythm-selected-banner" aria-label={`Open details for ${revealedSelection.moment.title} at ${revealedSelection.time}`} onClick={() => openActivity(revealedSelection.moment)}>
+        <span className="daily-rhythm-selected-banner-icon" aria-hidden="true">{activityGlyph(revealedSelection.moment)}</span>
+        <span className="daily-rhythm-selected-banner-title">{revealedSelection.moment.title}</span>
+        <span className="daily-rhythm-selected-banner-time">{revealedSelection.time}</span>
         <span className="daily-rhythm-selected-banner-arrow" aria-hidden="true">→</span>
       </button>}
-      <svg viewBox="0 0 600 424" role="application" tabIndex={0} aria-label={isPattern ? `Confirmed daily patterns for ${displayName}. Select an activity to reveal its time window, then select again for details.` : `Daily moments for ${dayTitle.toLowerCase()} on a true 24-hour scale. Select an activity to reveal its time, then select again for details. Swipe right to view the previous day or swipe left to view a newer day.`}
+      <svg viewBox="0 0 600 384" role="application" tabIndex={0} aria-label={isPattern ? `Confirmed daily patterns for ${displayName}. Select an activity to reveal its time window, then select again for details.` : `Daily moments and confirmed patterns for ${dayTitle.toLowerCase()} on a true 24-hour scale. Select an activity or pattern to reveal details. Swipe right to view the previous day or swipe left to view a newer day.`}
         onPointerDown={event => {
           const target = event.target as Element;
           dragStart.current = event.clientX;
@@ -868,7 +858,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
             if (deltaX > 32) { suppressNavClick.current = true; goToPreviousDay(); window.setTimeout(() => { suppressNavClick.current = false; }, 0); }
             else if (deltaX < -32) { suppressNavClick.current = true; goToNewerDay(); window.setTimeout(() => { suppressNavClick.current = false; }, 0); }
             else if (clickedMomentId) {
-              const selected = selectedMoments.find(moment => moment.id === clickedMomentId);
+            const selected = selectedMoments.find(moment => moment.id === clickedMomentId) ?? patternMoments.find(moment => moment.id === clickedMomentId);
               if (selected) openActivity(selected);
             }
             else if (clickedNav) { suppressNavClick.current = true; if (clickedNav === 'previous') goToPreviousDay(); else if (!isToday) goToNewerDay(); window.setTimeout(() => { suppressNavClick.current = false; }, 0); }
@@ -884,12 +874,12 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
           <radialGradient id="rhythm-orb-gloss" cx="36%" cy="20%" r="78%"><stop offset="0" stopColor="#fff" stopOpacity=".62"/><stop offset=".3" stopColor="#fff" stopOpacity=".22"/><stop offset="1" stopColor="#fff" stopOpacity="0"/></radialGradient>
           <marker id="rhythm-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M2 1.5 7 5 2 8.5" fill="none" stroke="#ffcf29" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></marker>
           <clipPath id="rhythm-current-avatar-clip" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath>
-          <clipPath id="rhythm-upper-half"><rect x="0" y="0" width="600" height="390"/></clipPath>
+          <clipPath id="rhythm-upper-half"><rect x="0" y="0" width="600" height="350"/></clipPath>
         </defs>
         <g clipPath="url(#rhythm-upper-half)">
-        <foreignObject x="0" y="0" width="600" height="390" aria-hidden="true"><div className="daily-rhythm-daylight-bg" /></foreignObject>
-        <circle className="daily-rhythm-horizon-backdrop" cx="300" cy="390" r="156" aria-hidden="true"/>
-        <g className="daily-rhythm-landscape" aria-hidden="true">
+        <foreignObject x="0" y="0" width="600" height="350" aria-hidden="true"><div className="daily-rhythm-daylight-bg" /></foreignObject>
+          <circle className="daily-rhythm-horizon-backdrop" cx="300" cy="450" r="156" aria-hidden="true"/>
+        <g className="daily-rhythm-landscape" transform="translate(0 -40)" aria-hidden="true">
           <path className="daily-rhythm-landscape-hill-back" d="M18 350 Q76 315 138 346 Q198 318 256 347 Q310 318 368 346 Q430 315 490 346 Q542 318 582 348 L600 390 L0 390 Z"/>
           <path className="daily-rhythm-landscape-hill-front" d="M0 369 Q68 333 132 365 Q194 342 248 365 Q300 343 352 365 Q416 337 476 365 Q540 336 600 367 L600 390 L0 390 Z"/>
           <path className="daily-rhythm-landscape-ray" d="M300 302 V292 M276 310 L269 302 M324 310 L331 302"/>
@@ -900,17 +890,29 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
           <ellipse className="daily-rhythm-landscape-tree" cx="505" cy="338" rx="12" ry="18"/>
           <ellipse className="daily-rhythm-landscape-tree" cx="529" cy="346" rx="10" ry="15"/>
         </g>
-        <g ref={wheelRef} className="daily-rhythm-wheel">
-          <circle className="daily-rhythm-band-shadow" cx="300" cy="390" r="220"/>
-          <circle className="daily-rhythm-band" cx="300" cy="390" r="220"/>
-          <circle className="daily-rhythm-horizon-fill" cx="300" cy="390" r="156"/>
-          <circle className="daily-rhythm-orb-highlight" cx="300" cy="390" r="156"/>
-          <circle className="daily-rhythm-inner-arc" cx="300" cy="390" r="156"/>
-          <circle className="daily-rhythm-inner-arc inner-arc-two" cx="300" cy="390" r="136"/>
-          {isPattern && <path className="daily-rhythm-pattern-current-track" d="M120 390 A180 180 0 0 1 480 390" aria-hidden="true"/>}
-          {isPattern && timedPatterns.map(p => { const start = pointOnDial(p.startMinute!, 220), end = pointOnDial(p.endMinute!, 220); return <path key={`${p.id}-window`} className="daily-pattern-window" d={`M${start.x} ${start.y} A220 220 0 0 1 ${end.x} ${end.y}`}>{revealedActivityId === p.id && <title>{p.activity} · {clockMinute(p.startMinute!)}–{clockMinute(p.endMinute!)}</title>}</path>; })}
-          {timeLabelLeaders.map(line => <line key={`${line.id}-leader`} className="daily-rhythm-leader-line" x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} aria-hidden="true"/>)}
-          {momentPoints.map(({ moment, x, y, time }) => <g className="daily-rhythm-point" key={moment.id} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
+        <g className="daily-rhythm-wheel">
+          <path className="daily-rhythm-band-shadow" d={dialArcPath(todayTrackRadius)}/>
+          <path className="daily-rhythm-band" d={dialArcPath(todayTrackRadius)}/>
+          <circle className="daily-rhythm-horizon-fill" cx="300" cy="450" r="156"/>
+          <circle className="daily-rhythm-orb-highlight" cx="300" cy="450" r="156"/>
+          <path className="daily-rhythm-inner-arc" d={dialArcPath(156)}/>
+          <path className="daily-rhythm-inner-arc inner-arc-two" d={dialArcPath(136)}/>
+          <path className="daily-rhythm-pattern-band-base" d={patternBandBasePath} strokeWidth={patternTrackWidth} aria-hidden="true"/>
+          {timedPatterns.map(p => {
+            const startProgress = dayProgress(p.startMinute!);
+            const endProgress = dayProgress(p.endMinute!);
+            const middle = pointAtProgress((startProgress + endProgress) / 2, patternTrackRadius);
+            const path = dialArcPath(patternTrackRadius, startProgress, endProgress);
+            const patternMoment = patternMoments.find(moment => moment.id === p.id);
+            return <g key={`${p.id}-window`} className={`daily-pattern-segment ${revealedActivityId === p.id ? 'is-revealed' : ''}`} data-moment-trigger={p.id} role="button" tabIndex={0} aria-label={`${p.activity} · ${clockMinute(p.startMinute!)}–${clockMinute(p.endMinute!)}`} aria-pressed={revealedActivityId === p.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (patternMoment) openActivity(patternMoment); } }}>
+              <path className="daily-pattern-window" d={path} strokeWidth={patternTrackWidth}><title>{p.activity} · {clockMinute(p.startMinute!)}–{clockMinute(p.endMinute!)}</title></path>
+              {patternMoment && <text className="daily-pattern-icon" x={middle.x} y={middle.y} textAnchor="middle" dominantBaseline="middle">{activityGlyph(patternMoment)}</text>}
+            </g>;
+          })}
+        </g>
+        <g ref={wheelRef} className="daily-rhythm-moments">
+          {!isPattern && timeLabelLeaders.map(line => <line key={`${line.id}-leader`} className="daily-rhythm-leader-line" x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} aria-hidden="true"/>)}
+          {!isPattern && momentPoints.map(({ moment, x, y, time }) => <g className="daily-rhythm-point" key={moment.id} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
             <circle className="daily-rhythm-point-hit" cx={x} cy={y} r="28"/>
             <circle className="daily-rhythm-point-marker" cx={x} cy={y} r="7"/>
             <circle className="daily-rhythm-point-core" cx={x} cy={y} r="2.5"/>
@@ -922,7 +924,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
             <circle className="daily-rhythm-current-avatar-inner" cx={currentPoint.x} cy={currentPoint.y} r="20"/>
             <image href={currentPetAvatar} x={currentPoint.x - 18.5} y={currentPoint.y - 18.5} width="37" height="37" preserveAspectRatio="xMidYMid slice" clipPath="url(#rhythm-current-avatar-clip)"/>
           </g>}
-          {activityLabelsOnTop.map(({ moment, label, time }) => <g className={`daily-rhythm-time-trigger daily-rhythm-activity-label ${moment.observationKind ?? 'other'} ${moment.careTaskId ? 'is-care-completion' : ''} ${revealedActivityId === moment.id ? 'is-revealed' : ''}`} key={`${moment.id}-label`} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
+          {!isPattern && activityLabelsOnTop.map(({ moment, label, time }) => <g className={`daily-rhythm-time-trigger daily-rhythm-activity-label ${moment.observationKind ?? 'other'} ${moment.careTaskId ? 'is-care-completion' : ''} ${revealedActivityId === moment.id ? 'is-revealed' : ''}`} key={`${moment.id}-label`} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
             <rect className="daily-rhythm-time-hit" x={label.iconX - 37} y={label.iconY - 37} width="74" height="88"/>
             <circle className="daily-rhythm-activity-badge" cx={label.iconX} cy={label.iconY} r="27"/>
             <text className="daily-rhythm-activity-glyph" x={label.iconX} y={label.iconY + 1} textAnchor="middle" dominantBaseline="middle">{activityGlyph(moment)}</text>
@@ -933,15 +935,15 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
         <text className="daily-rhythm-time daily-rhythm-end-time" x="52" y="410" textAnchor="middle" dominantBaseline="middle">00:00</text>
         <text className="daily-rhythm-time daily-rhythm-end-time" x="548" y="410" textAnchor="middle" dominantBaseline="middle">00:00</text>
         {!isPattern && <><g className="daily-rhythm-nav-arrow" data-day-nav="previous" role="button" tabIndex={0} aria-label="Show previous day" onClick={() => { if (!suppressNavClick.current) goToPreviousDay(); }} onKeyDown={event => handleNavKey(event, 'previous')}>
-          <path className="daily-rhythm-arrow-hit" d="M230 276 A136 136 0 0 0 176 336"/>
-          <path className="daily-rhythm-arrow" d="M230 276 A136 136 0 0 0 176 336" markerEnd="url(#rhythm-arrow)"/>
+          <path className="daily-rhythm-arrow-hit" d={previousDayArrowPath}/>
+          <path className="daily-rhythm-arrow" d={previousDayArrowPath} markerEnd="url(#rhythm-arrow)"/>
         </g>
         <g className={`daily-rhythm-nav-arrow ${isToday ? 'disabled' : ''}`} data-day-nav="newer" role="button" tabIndex={isToday ? -1 : 0} aria-disabled={isToday} aria-label="Show newer day" onClick={() => { if (!suppressNavClick.current && !isToday) goToNewerDay(); }} onKeyDown={event => { if (!isToday) handleNavKey(event, 'newer'); }}>
-          <path className="daily-rhythm-arrow-hit" d="M370 276 A136 136 0 0 1 424 336"/>
-          <path className="daily-rhythm-arrow" d="M370 276 A136 136 0 0 1 424 336" markerEnd="url(#rhythm-arrow)"/>
+          <path className="daily-rhythm-arrow-hit" d={newerDayArrowPath}/>
+          <path className="daily-rhythm-arrow" d={newerDayArrowPath} markerEnd="url(#rhythm-arrow)"/>
         </g>
         </>}
-        <g className="daily-rhythm-center-selection" {...(revealedMarker ? { role: 'button', tabIndex: 0, 'data-moment-trigger': revealedMarker.moment.id, 'aria-label': `Open details for ${revealedMarker.moment.title}`, onKeyDown: (event: React.KeyboardEvent<SVGGElement>) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(revealedMarker.moment); } } } : {})}>
+        <g className="daily-rhythm-center-selection" {...(revealedSelection ? { role: 'button', tabIndex: 0, 'data-moment-trigger': revealedSelection.moment.id, 'aria-label': `Open details for ${revealedSelection.moment.title}`, onKeyDown: (event: React.KeyboardEvent<SVGGElement>) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(revealedSelection.moment); } } } : {})}>
           <text className="daily-rhythm-center-title" x="300" y="306" textAnchor="middle">{isPattern ? 'PATTERN' : dayTitle}</text>
           <text className="daily-rhythm-center-date" x="300" y="332" textAnchor="middle">{isPattern ? 'Select an activity' : selectedDateLabel}</text>
         </g>
