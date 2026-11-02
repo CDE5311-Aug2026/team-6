@@ -4,7 +4,7 @@
 
 【链接已更新26.11.2 10：55】修改了today页面，加了双轴可旋转表盘 + 亿点细节 + 站内信功能 [补药点这里](https://pawsona-team-6.vercel.app/)
 
-【已更新 26.11.2 23：31】修了一下主页的时间图 但是不管怎么弄都很挤（目前感觉可以尝试：①对当前时间点进行局部放大 ②缩小两边睡觉之后的空间） 是本地版的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
+【已更新 26.11.2 23：31】修了一下主页的时间图 是本地版的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
 
 
 
