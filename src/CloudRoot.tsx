@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import App, { createCloudSession, type PrototypeSession } from './App';
 import Welcome from './Welcome';
-import { createCloudAccount, registerCloudAccount, loginCloudAccount, logoutCloudAccount, readCloudWorkspace, supabase, verifiedUser, writeCloudWorkspace, saveCloudProfile, initializeCloudWorkspace, listCloudCareGroups, listCloudCareInvitations, sendCloudCareInvitation, respondToCloudCareInvitation, cancelCloudCareInvitation, removeCloudCareMember, updateCloudCareMember, saveCloudCareGroup } from './cloud';
+import { SESSION_REPLACED, SessionReplacedError, activeSessionStatus, createCloudAccount, registerCloudAccount, loginCloudAccount, logoutCloudAccount, readCloudWorkspace, supabase, verifiedUser, writeCloudWorkspace, saveCloudProfile, initializeCloudWorkspace, listCloudCareGroups, listCloudCareInvitations, sendCloudCareInvitation, respondToCloudCareInvitation, cancelCloudCareInvitation, removeCloudCareMember, updateCloudCareMember, saveCloudCareGroup } from './cloud';
 import { CloudMedia } from './cloudMedia';
 import { CloudSync, type SyncState } from './cloudSync';
 import { isSyntheticSunnyProfile } from './storySimulation';
@@ -14,6 +14,50 @@ type Workspace = {
 };
 
 type DeviceCloudAccount = { username: string; name: string; avatar?: string };
+
+function CloudAccountPreloader({ loading, onFinish }: { loading: boolean; onFinish: () => void }) {
+  const [progress, setProgress] = useState(0);
+  const [opened, setOpened] = useState(false);
+
+  useEffect(() => {
+    const timers: number[] = [];
+    if (loading) {
+      setProgress(0);
+      setOpened(false);
+      let value = 0;
+      const advance = () => {
+        value = Math.min(94, value + (Math.random() < 0.18 ? 0 : 2 + Math.floor(Math.random() * (value > 78 ? 4 : 9))));
+        setProgress(value);
+        if (value < 94) timers.push(window.setTimeout(advance, Math.random() < 0.12 ? 260 : 45));
+      };
+      timers.push(window.setTimeout(advance, 60));
+    } else {
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      setProgress(100);
+      if (reducedMotion) {
+        setOpened(true);
+        timers.push(window.setTimeout(onFinish, 20));
+      } else {
+        timers.push(window.setTimeout(() => setOpened(true), 260));
+        timers.push(window.setTimeout(onFinish, 1180));
+      }
+    }
+    return () => timers.forEach(window.clearTimeout);
+  }, [loading, onFinish]);
+
+  return <div className="cloud-preloader-backdrop">
+    <div className={`cloud-preloader${opened ? ' is-open' : ''}`} role="status" aria-label="Loading your account">
+      <div className="cloud-preloader-panel top" aria-hidden="true" />
+      <div className="cloud-preloader-panel bottom" aria-hidden="true" />
+      <div className="cloud-preloader-brand" aria-hidden="true"><i /><span>PAWSONA</span></div>
+      <div className="cloud-preloader-progress" role="progressbar" aria-label="Loading your account" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+        <small>Loading your account</small>
+        <div className="cloud-preloader-number"><span>{progress}</span><i>%</i></div>
+        <div className="cloud-preloader-track"><i style={{ width: `${progress}%` }} /></div>
+      </div>
+    </div>
+  </div>;
+}
 
 async function decodeCareGroups(groups: Awaited<ReturnType<typeof listCloudCareGroups>>, media: CloudMedia) {
   return Promise.all(groups.map(async (group) => {
@@ -192,7 +236,10 @@ export default function CloudRoot() {
   const [accountLoginUsername, setAccountLoginUsername] = useState('');
   const [deviceAccounts, setDeviceAccounts] = useState<DeviceCloudAccount[]>(readDeviceAccounts);
   const [loading, setLoading] = useState(!!supabase);
+  const [preloaderVisible, setPreloaderVisible] = useState(!!supabase);
   const [error, setError] = useState('');
+  const [sessionNotice, setSessionNotice] = useState('');
+  const [entryPage, setEntryPage] = useState<'welcome'|'login'>('welcome');
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [syncState, setSyncState] = useState<SyncState>('saved');
   const [syncError, setSyncError] = useState('');
@@ -209,6 +256,31 @@ export default function CloudRoot() {
   const choice = useRef<'guest' | null>(null);
   const latest = useRef<PrototypeSession | null>(null);
   const rememberedAccountProfile = useRef('');
+  const finishPreloader = useCallback(() => setPreloaderVisible(false), []);
+  const endReplacedSession = useCallback(() => {
+    ++generation.current;
+    current.current?.sync.stop(); current.current?.media.dispose(); current.current=null; latest.current=null;
+    setWorkspace(null); setMode('entry'); setAccountLoginOpen(false); setLoading(false); setPreloaderVisible(false);
+    setError(''); setEntryPage('login'); setSessionNotice('Your account was signed in on another device. This device has been signed out to protect your records. Unsynced edits were not uploaded.');
+    void logoutCloudAccount().catch(()=>{});
+  }, []);
+  useEffect(() => {
+    if(mode!=='cloud' || !workspace) return;
+    let checking=false, active=true;
+    const check = async () => {
+      if(checking || !active) return; checking=true;
+      try { if(!await activeSessionStatus() && active) endReplacedSession(); }
+      catch { /* A network failure is not evidence of another login. Server-side fencing remains in force. */ }
+      finally { checking=false; }
+    };
+    const focus=()=>{void check();};
+    const visible=()=>{if(document.visibilityState==='visible') void check();};
+    const timer=window.setInterval(focus,5000);
+    window.addEventListener('focus',focus); window.addEventListener(SESSION_REPLACED,focus);
+    document.addEventListener('visibilitychange',visible); void check();
+    return ()=>{active=false;window.clearInterval(timer);window.removeEventListener('focus',focus);window.removeEventListener(SESSION_REPLACED,focus);document.removeEventListener('visibilitychange',visible);};
+  },[mode,workspace?.id,endReplacedSession]);
+
 
   const openCloud = useCallback(async (expectedId?: string) => {
     if (!supabase || choice.current === 'guest') return;
@@ -216,7 +288,7 @@ export default function CloudRoot() {
     setAccountLoginOpen(false);
     if (current.current) { current.current.sync.stop(); current.current.media.dispose(); current.current = null; setWorkspace(null); setMode('entry'); }
     const ticket = ++generation.current;
-    setLoading(true); setError('');
+    setPreloaderVisible(true); setLoading(true); setError('');
     let media: CloudMedia | null = null;
     try {
       const user = await verifiedUser();
@@ -254,10 +326,11 @@ export default function CloudRoot() {
       current.current = next; latest.current = initialSession;
       setWorkspace(next); setSyncState('saved'); setSyncError(''); setMode('cloud');
     } catch (cause) {
+      if (cause instanceof SessionReplacedError && ticket === generation.current) { endReplacedSession(); media?.dispose(); return; }
       if (ticket === generation.current) { setError(cause instanceof Error ? cause.message : 'Could not load your cloud records.'); setMode('entry'); }
       media?.dispose();
     } finally { if (ticket === generation.current) setLoading(false); }
-  }, []);
+  }, [endReplacedSession]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -396,9 +469,10 @@ export default function CloudRoot() {
       onRegister={async (_name, username, password) => { await registerCloudAccount(username, password); return ''; }}
       onLogin={async (username, password) => { await loginCloudAccount(username, password); await openCloud(); return ''; }} />
     </div>}
+    {preloaderVisible && <CloudAccountPreloader loading={loading} onFinish={finishPreloader} />}
   </>;
-  return <>{loading && <div className="cloud-loading" role="status">Loading your account…</div>}
-    <Welcome cloud error={error}
+  return <>{preloaderVisible && <CloudAccountPreloader loading={loading} onFinish={finishPreloader} />}
+    <Welcome cloud initialPage={entryPage} error={error}
       onGuest={() => { choice.current = 'guest'; ++generation.current; setLoading(false); setError(''); setMode('guest'); }}
       onRegister={async (_name, username, password) => {
         if (!supabase) return 'Cloud accounts are not configured yet. Continue as guest.';
@@ -407,6 +481,7 @@ export default function CloudRoot() {
         return '';
       }}
       onLogin={async (username, password) => { await loginCloudAccount(username, password); await openCloud(); return ''; }} />
+    {sessionNotice && <div className="session-replaced-backdrop"><section className="session-replaced-dialog" role="alertdialog" aria-modal="true" aria-labelledby="session-replaced-title"><span aria-hidden="true">↗</span><h2 id="session-replaced-title">Signed in somewhere else</h2><p>{sessionNotice}</p><button autoFocus className="primary-button" onClick={()=>setSessionNotice('')}>Back to log in</button></section></div>}
     {error && <div className="cloud-entry-recovery"><button onClick={() => { void openCloud(); }}>Retry loading</button><button onClick={() => { void logoutCloudAccount().catch(() => {}); }}>Sign out</button></div>}
   </>;
 }

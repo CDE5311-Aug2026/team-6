@@ -33,7 +33,7 @@ test('preserves image follow-up history; disables storage; rejects incomplete re
   assert.match(body.instructions, /not have camera access/);
   assert.throws(() => extractAnswer({ status: 'incomplete', output: [] }), /incomplete/);
 });
-async function handler({ configured = true, user = 'user-1', owned = true, workspace = {}, shared = false, member = true, quota = true, upstreamStatus = 200 } = {}) {
+async function handler({ configured = true, user = 'user-1', owned = true, workspace = {}, shared = false, member = true, currentSession = true, quota = true, upstreamStatus = 200 } = {}) {
   let serve; const calls = []; const quotas = [];
   const admin = {
     auth: { getUser: async token => ({ data: { user: token === 'valid' ? { id: user } : null }, error: null }) },
@@ -43,7 +43,7 @@ async function handler({ configured = true, user = 'user-1', owned = true, works
       if (table === 'care_groups') return { data: { workspace }, error: null };
       return { data: { payload: { accounts: [{ id: 'user-1', pets: owned ? [{ id: 'pet-1', name: 'Luna', breed: 'Mixed', age: '3', workspace, ...(shared ? { sharedGroupId: 'group-1' } : {}) }] : [] }] } }, error: null };
     } }; return query; } }),
-    rpc: async (name, params) => { quotas.push({ name, params }); return { data: quota, error: null }; },
+    rpc: async (name, params) => { if (name === 'pawsona_session_status') return { data: currentSession, error: null }; quotas.push({ name, params }); return { data: quota, error: null }; },
   };
   const raw = readFileSync(new URL('../supabase/functions/ask-ai/index.ts', import.meta.url), 'utf8').replace(/^import .*;\n/gm, '');
   const context = vm.createContext({ createClient: () => admin, ...core, ...historyModule,
@@ -117,4 +117,12 @@ test('conversation budget stays fixed as history grows and preserves the current
   assert.equal(body.input.length, 12);
   assert.equal(body.input.at(-1).content[0].text.length, 4000);
   assert.equal(body.input[0].content.length, 1500);
+});
+
+test('a replaced session cannot read pet history, consume quota or call OpenAI', async () => {
+  const app = await handler({ currentSession: false });
+  const response = await app.send();
+  assert.equal(response.status, 401);
+  assert.equal(app.calls.length, 0);
+  assert.equal(app.quotas.length, 0);
 });

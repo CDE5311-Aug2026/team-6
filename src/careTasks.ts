@@ -1,6 +1,6 @@
 export type CareTaskStatus = 'open' | 'requested' | 'accepted' | 'declined' | 'done' | 'skipped';
 
-export type CareTaskEventType = 'assigned' | 'requested' | 'reassigned' | 'accepted' | 'declined' | 'released' | 'taken_over' | 'completed' | 'reopened' | 'skipped' | 'restored' | 'auto_completed';
+export type CareTaskEventType = 'assigned' | 'requested' | 'reassigned' | 'accepted' | 'declined' | 'released' | 'taken_over' | 'completed' | 'reopened' | 'skipped' | 'restored' | 'auto_completed' | 'reminded';
 
 export type CareTaskEvent = {
   id: string;
@@ -16,6 +16,7 @@ export type CareTask = {
   title: string;
   note: string;
   dueAt: string;
+  windowEndAt?: string;
   assignedTo: string;
   assignedBy: string;
   status: CareTaskStatus;
@@ -30,6 +31,7 @@ export type CareTask = {
   sourceObservationId?: string;
   occurrenceDate?: string;
   autoCompleted?: boolean;
+  completionOverridden?: boolean;
   skippedAt?: string;
   skippedBy?: string;
   requestNote?: string;
@@ -47,7 +49,7 @@ type CarePattern = {
 type SimulatedActivity = {
   id: string;
   title: string;
-  note: string;
+  note?: string;
   savedAt: string;
   synthetic?: boolean;
   simulationKey?: string;
@@ -76,14 +78,19 @@ export function appendCareTaskEvent(task: CareTask, event: Omit<CareTaskEvent, '
   };
 }
 
+/** Primary caregivers can review the shared history; other members only see events they sent or received. */
+export function canViewCareTaskEvent(event: CareTaskEvent, userId: string, isPrimary: boolean): boolean {
+  return isPrimary || event.actorId === userId || event.targetId === userId;
+}
+
 export function markCareTaskEventsRead(tasks: CareTask[], userId: string): CareTask[] {
   let changed = false;
   const next = tasks.map((task) => {
-    if (!task.events?.some((event) => event.targetId === userId && !(event.readBy ?? []).includes(userId))) return task;
+    if (!task.events?.some((event) => event.targetId === userId && canViewCareTaskEvent(event, userId, false) && !(event.readBy ?? []).includes(userId))) return task;
     changed = true;
     return {
       ...task,
-      events: task.events.map((event) => event.targetId === userId && !(event.readBy ?? []).includes(userId)
+      events: task.events.map((event) => event.targetId === userId && canViewCareTaskEvent(event, userId, false) && !(event.readBy ?? []).includes(userId)
         ? { ...event, readBy: [...(event.readBy ?? []), userId] }
         : event),
     };
@@ -96,7 +103,7 @@ export function careTaskAttentionCount(tasks: CareTask[], userId: string, isPrim
 }
 
 export function careTaskUnreadCount(tasks: CareTask[], userId: string): number {
-  return tasks.flatMap((task) => task.events ?? []).filter((event) => event.targetId === userId && event.actorId !== userId && !(event.readBy ?? []).includes(userId)).length;
+  return tasks.flatMap((task) => task.events ?? []).filter((event) => canViewCareTaskEvent(event, userId, false) && event.targetId === userId && event.actorId !== userId && !(event.readBy ?? []).includes(userId)).length;
 }
 
 export function careTaskInboxCount(tasks: CareTask[], userId: string, isPrimary: boolean): number {
@@ -118,15 +125,16 @@ export function careTaskSummaryTasks(tasks: CareTask[], now: Date): CareTask[] {
   return completed.slice(0, 1);
 }
 
-function completeWhenRecorded(task: CareTask, now: Date, recordedBy = 'simulation', recordedByName?: string): CareTask {
-  if (task.status === 'skipped' || task.status === 'done' || new Date(task.dueAt).getTime() > now.getTime()) return task;
-  const responsibleId = task.assignedTo && (task.status === 'accepted' || task.status === 'open') ? task.assignedTo : recordedBy;
+function completeWhenRecorded(task: CareTask, now: Date): CareTask {
+  if (task.status === 'skipped' || task.status === 'done' || task.completionOverridden || task.events?.some(event => event.type === 'reopened') || new Date(task.dueAt).getTime() > now.getTime()) return task;
+  // A simulation or record author cannot establish who actually provided care.
+  const responsibleId = 'simulation';
   const completed: CareTask = {
     ...task,
     status: 'done',
     completedAt: task.dueAt,
     completedBy: responsibleId,
-    completedByName: responsibleId === recordedBy ? recordedByName : undefined,
+    completedByName: 'Pawsona simulation',
     autoCompleted: true,
   };
   if (task.events?.some((event) => event.type === 'auto_completed')) return completed;
@@ -142,7 +150,7 @@ function simulatedCareTasksForDate(observations: SimulatedActivity[], savedTasks
       const generated: CareTask = {
         id,
         title: observation.title,
-        note: observation.note,
+        note: observation.note ?? '',
         dueAt: observation.savedAt,
         assignedTo: '',
         assignedBy: 'simulation',
@@ -151,7 +159,7 @@ function simulatedCareTasksForDate(observations: SimulatedActivity[], savedTasks
         sourceObservationId: observation.id,
         occurrenceDate: localDayKey(date),
       };
-      return completeWhenRecorded(saved ?? generated, now, observation.authorId || 'simulation', observation.authorName);
+      return completeWhenRecorded(saved ?? generated, now);
     })
     .sort((left, right) => left.dueAt.localeCompare(right.dueAt));
 }
@@ -168,7 +176,7 @@ function patternCareTasksForDate(patterns: CarePattern[], savedTasks: CareTask[]
       const due = new Date(date.getFullYear(), date.getMonth(), date.getDate(), Math.floor(start / 60), start % 60);
       const generated: CareTask = {
         id,
-        title: `${petName}’s ${pattern.activity!.toLowerCase()}`,
+        title: pattern.activity === 'Walk' ? `Walk ${petName}` : pattern.activity === 'Play' ? `Play with ${petName}` : `Feed ${petName} ${pattern.activity!.toLowerCase()}`,
         note: `Usual window ${clockMinute(pattern.startMinute!)}–${clockMinute(pattern.endMinute!)}`,
         dueAt: due.toISOString(),
         assignedTo: '',
@@ -178,7 +186,9 @@ function patternCareTasksForDate(patterns: CarePattern[], savedTasks: CareTask[]
         sourcePatternId: pattern.id,
         occurrenceDate: key,
       };
-      return saved ?? generated;
+      const end = pattern.endMinute!;
+      const windowEndAt = new Date(date.getFullYear(), date.getMonth(), date.getDate(), Math.floor(end / 60), end % 60).toISOString();
+      return { ...(saved ?? generated), windowEndAt };
     })
     .sort((left, right) => left.dueAt.localeCompare(right.dueAt));
 }
@@ -214,4 +224,67 @@ export function releaseAcceptedCareTask(task: CareTask, currentUserId: string, d
 
 export function isObservationSkippedForToday(observation: Pick<SimulatedActivity, 'id'>, tasks: CareTask[]) {
   return tasks.some((task) => task.sourceObservationId === observation.id && task.status === 'skipped');
+}
+
+/** Timing describes a plan, never evidence that care was missed. */
+export function careTaskTiming(task: CareTask, now: Date): 'upcoming' | 'soon' | 'due' | 'overdue' | 'closed' {
+  if (task.status === 'done' || task.status === 'skipped') return 'closed';
+  const start = Date.parse(task.dueAt);
+  const end = task.windowEndAt ? Date.parse(task.windowEndAt) : start;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return 'upcoming';
+  if (+now > end) return 'overdue';
+  if (+now >= start) return 'due';
+  return start - +now <= 15 * 60000 ? 'soon' : 'upcoming';
+}
+
+/** One reminder per task and recipient per five minutes, preserving responsibility. */
+export function canRemindCareTask(task: CareTask, recipientId: string, now: Date): boolean {
+  if (!recipientId || ['done', 'skipped'].includes(task.status)) return false;
+  return !(task.events ?? []).some(event => event.type === 'reminded' && event.targetId === recipientId
+    && +now - Date.parse(event.createdAt) < 5 * 60000);
+}
+
+/** Any member who can act in the shared care space can complete or undo a task. */
+export function canToggleCareTaskCompletion(task: CareTask, userId: string, _isPrimary: boolean): boolean {
+  if (!userId) return false;
+  if (task.status === 'done') return true;
+  return ['open', 'requested', 'accepted', 'declined'].includes(task.status);
+}
+export function toggleCareTaskCompletion(task: CareTask, userId: string, userName: string, isPrimary: boolean, now = new Date()): CareTask | null {
+  if (!canToggleCareTaskCompletion(task, userId, isPrimary)) return null;
+  const reopening = task.status === 'done';
+  const stamp = now.toISOString();
+  const next: CareTask = reopening
+    ? { ...task, status: task.assignedTo && task.acceptedAt ? 'accepted' : 'open', completedBy: undefined, completedByName: undefined, completedAt: undefined, autoCompleted: undefined, completionOverridden: true }
+    : { ...task, status: 'done', completedBy: userId, completedByName: userName, completedAt: stamp, autoCompleted: undefined, completionOverridden: false };
+  const targetId = task.assignedTo && task.assignedTo !== userId ? task.assignedTo : task.assignedBy && task.assignedBy !== userId ? task.assignedBy : undefined;
+  return appendCareTaskEvent(next, { type: reopening ? 'reopened' : 'completed', actorId: userId, targetId, createdAt: stamp });
+}
+
+type RhythmRecord = { id: string; title: string; savedAt: string; privateRecord?: boolean; synthetic?: boolean };
+export type CareCompletionMarker = { id: string; title: string; note: string; savedAt: string; authorId?: string; authorName: string; careTaskId: string; observationKind: 'meal' | 'walk' | 'play' | 'rest' | 'other' };
+
+/** View-only markers: no invented Story record, no planned-time completion, no duplicate simulation. */
+export function careRhythmForDate<T extends RhythmRecord>(records: T[], tasks: CareTask[], date: Date, now: Date, names: Record<string,string> = {}): { records: T[]; completions: CareCompletionMarker[] } {
+  const bySource = new Map(tasks.filter(task => task.sourceObservationId).map(task => [task.sourceObservationId!, task]));
+  const visible = records.filter(record => {
+    if (record.privateRecord || !isSameLocalDay(record.savedAt,date) || Date.parse(record.savedAt) > +now) return false;
+    const task = bySource.get(record.id);
+    // Real observations remain independent evidence when a task is corrected.
+    return !record.synthetic || !task || !(task.completionOverridden || (task.status === 'done' && !task.autoCompleted) || task.events?.some(event => event.type === 'reopened'));
+  });
+  const unique = new Map(tasks.map(task => [task.id, task]));
+  const completions: CareCompletionMarker[] = [...unique.values()].filter(task =>
+    task.status === 'done' && !task.autoCompleted && !!task.completedAt &&
+    Number.isFinite(Date.parse(task.completedAt)) && Date.parse(task.completedAt) <= +now && isSameLocalDay(task.completedAt,date)
+  ).map(task => {
+    const authorName = task.completedByName ?? names[task.completedBy ?? ''] ?? 'Caregiver';
+    const title = task.title.toLowerCase();
+    const observationKind = /\b(feed|fed|food|meal|breakfast|lunch|dinner)\b/.test(title) ? 'meal' as const
+      : /\b(walk|walking)\b/.test(title) ? 'walk' as const : /\b(play|playing|fetch|toy)\b/.test(title) ? 'play' as const
+        : /\b(rest|sleep|nap)\b/.test(title) ? 'rest' as const : 'other' as const;
+    return { id: 'completed-care-' + task.id, careTaskId: task.id, title: task.title, note: 'Done by ' + authorName,
+      savedAt: task.completedAt!, authorId: task.completedBy, authorName, observationKind };
+  });
+  return { records: visible, completions };
 }

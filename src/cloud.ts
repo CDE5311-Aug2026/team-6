@@ -47,9 +47,27 @@ function client() {
   return supabase;
 }
 
+let authReady: Promise<void> | null = null;
+export const SESSION_REPLACED = 'pawsona:session-replaced';
+export class SessionReplacedError extends Error {
+  constructor() { super('Your account was signed in on another device. Please log in again.'); this.name='SessionReplacedError'; }
+}
+export async function activeSessionStatus(): Promise<boolean> {
+  const { data, error } = await client().rpc('pawsona_session_status');
+  if (error) throw new Error('Could not verify your active login. Please reconnect and try again.');
+  return data === true;
+}
+export async function assertActiveSession() {
+  if (!await activeSessionStatus()) {
+    window.dispatchEvent(new Event(SESSION_REPLACED));
+    throw new SessionReplacedError();
+  }
+}
 export async function verifiedUser() {
+  if (authReady) await authReady;
   const { data, error } = await client().auth.getUser();
   if (error || !data.user) throw new Error('Please log in again before accessing cloud data.');
+  await assertActiveSession();
   return data.user;
 }
 
@@ -74,8 +92,15 @@ export async function createCloudAccount(username: string, password: string) {
 }
 
 export async function loginCloudAccount(username: string, password: string) {
-  const { error } = await client().auth.signInWithPassword({ email: usernameEmail(username), password });
-  if (error) throw new Error(error.code === 'invalid_credentials' ? 'Incorrect username or password.' : error.message);
+  const ready = (async () => {
+    const { error } = await client().auth.signInWithPassword({ email: usernameEmail(username), password });
+    if (error) throw new Error(error.code === 'invalid_credentials' ? 'Incorrect username or password.' : error.message);
+    const result = await client().rpc('pawsona_claim_session');
+    if (result.error) throw new Error('Could not activate this login. Please reconnect and log in again.');
+    if (result.data !== true) { window.dispatchEvent(new Event(SESSION_REPLACED)); throw new SessionReplacedError(); }
+  })();
+  authReady = ready;
+  try { await ready; } finally { if (authReady === ready) authReady = null; }
 }
 
 export async function logoutCloudAccount() {

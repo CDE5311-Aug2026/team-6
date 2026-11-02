@@ -21,6 +21,10 @@ Deno.serve(async (req: Request) => {
   if (!token) return reply(401, { error: 'Log in to use Ask AI.' });
   const { data: auth, error: authError } = await admin.auth.getUser(token);
   if (authError || !auth.user) return reply(401, { error: 'Your session expired. Please log in again.' });
+  const caller = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: 'Bearer ' + token } }, auth: { persistSession: false, autoRefreshToken: false } });
+  const sessionCheck = await caller.rpc('pawsona_session_status');
+  if (sessionCheck.error) return reply(503, { error: 'Could not verify your active login. Please try again.' });
+  if (sessionCheck.data !== true) return reply(401, { error: 'Your account was signed in on another device. Please log in again.' });
   const apiKey = Deno.env.get('OPENAI_API_KEY');
   if (!apiKey) return reply(503, { error: 'Ask AI is not configured yet. The project owner needs to add OPENAI_API_KEY in Supabase Edge Function Secrets.' });
   try {

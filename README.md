@@ -2,9 +2,9 @@
 
 **Click here to explore our interactive prototype: https://pawsona-team6.vercel.app/**
 
-【链接已更新26.10.28 16：40】添加了today care + 站内request + change用户判断[点这里](https://pawsona-team-6.vercel.app/)
+【链接已更新26.11.2 10：55】修改了today页面，加了双轴可旋转表盘 + 亿点细节 + 站内信功能 [补药点这里](https://pawsona-team-6.vercel.app/)
 
-【已更新26.10.28 19：08】添加了my activity功能 是本地版的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
+【正在修改。。。 26.11.2 19:17】修了一下主页的时间图 但是不管怎么弄都很挤（目前感觉可以尝试：①对当前时间点进行局部放大 ②缩小两边睡觉之后的空间） 是本地版的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
 
 
 
@@ -107,3 +107,25 @@ Pet details uses compact name/type/breed/age/sex controls. Each species has eigh
 
 Apply `supabase/pet_profile_sex.sql` before deploying this version. Personal pets store optional `sex` in the existing private workspace JSON; legacy values normalize to Unknown. Shared circles store canonical `pet_sex` constrained to Female/Male/Unknown. The checked-save RPC copies it from owner-authored workspace metadata, and keeps the canonical value for non-owner writes. New circles initialize it from the owner's metadata. Existing records are not assigned a guessed sex. Shared pet species is also read back when switching or refreshing accounts.
 
+
+
+## Getting started and single active login (2026-10-29)
+
+New accounts open an optional three-step setup (display name/relationship, optional pet basics, and care goals plus device preferences), followed by a skippable seven-step tour starting on Today. You > Help & getting started contains the help guide, Review getting-started guide and Edit basics & preferences. Existing accounts can open these manually. Setup/guide status and care goals are saved with the account; display/history preferences retain their documented device scope. Quick questions in Ask AI now include routine, records, engagement, handover and vet-note prompts; selecting a prompt only fills the composer.
+
+Apply `supabase/single_active_session.sql` before deploying the frontend. It introduces a private active-session registry keyed by user, claims Auth-issued session IDs using Auth-created timestamps, and never allows an older session to reclaim ownership after a later login or logout. Existing sessions are seeded from the latest Auth session. Authenticated personal/shared/storage access is fenced with restrictive RLS; existing care-group RPC checks are preserved and augmented. Write guards hold a shared registry lock to serialize writes with login takeover. Service-role jobs retain their existing authorization. Existing revision checks remain in place.
+
+The frontend checks the server on cloud access, every five seconds while signed in, and on focus/visibility restoration. A confirmed replacement stops pending sync, closes the workspace, signs out locally, shows an alert, and returns to Log in. Network failure alone does not classify a session as replaced. Background-tab timers may be throttled: server writes are still fenced immediately, while the visible notice is shown on the next check/resume. Previously issued media URLs remain subject to their existing expiry.
+
+The deployed ask-ai function also checks the caller's active session before reading the workspace or consuming quota. Deploy it with its existing explicit Bearer authentication and existing CORS configuration; preserve its prior `verify_jwt=false` setting because it validates the user and current session in the handler.
+
+Validation: TypeScript; automated tests; SQL transactional smoke test of takeover, rejected old-session RPC/direct writes and non-resurrection after logout. UI checks use the deployed preview/production and a dedicated QA account; credentials are not committed. See `supabase/tests/single_active_session.sql` for the rollback-only database test.
+
+
+## Reversible care completion and Daily Rhythm (2026-10-29)
+
+The recent-completion row and Completed history both expose an accessible checked button to undo a mistaken completion. The care-plan archive also offers Undo completion. Completion is reversible for its author or the primary caregiver; viewers remain read-only. Reopening an accepted assignment restores its accepted status and preserves the event history. Rechecking records a fresh actual completion time.
+
+Daily Rhythm merges independent visible Story observations with view-only task completion markers. Human-completed tasks use completedAt, an activity-specific icon, and Done by attribution. Opening a task marker leads to the care plan, not fabricated Story evidence. Reopening removes only the task-derived marker; independent real observations remain. Linked simulated activity is replaced rather than duplicated, and an explicit undo persists across refreshes and future simulated recordings. Pattern view remains the confirmed routine, separate from actual completion.
+
+Validation: TypeScript and 72 automated tests, including completion/undo/recheck, authorization, simulation override persistence after reminders, actual timestamps, overnight completion, deduplication and independent/private evidence handling.

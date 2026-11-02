@@ -2,6 +2,10 @@ import { createClient } from '@supabase/supabase-js';
 import { normalizeUsername, usernameEmail } from '../_shared/username.ts';
 
 const origins = new Set(['https://pawsona-team6-preview.vercel.app', 'https://pawsona-cloud-preview.vercel.app', 'https://pawsona-username-preview.vercel.app', 'https://pawsona-accounts-preview.vercel.app', 'http://127.0.0.1:5178']);
+// Approved app entry points and this bounded QA preview; never all vercel.app sites.
+origins.add('https://pawsona-team6.vercel.app');
+origins.add('https://pawsona-team-6.vercel.app');
+origins.add('https://pawsona-team6-ellov8g5q-pawsona1.vercel.app');
 // Public project key, not an admin credential. This route intentionally allows
 // unauthenticated registration, with a fixed operation and server-side quotas.
 const projectPublishableKey = 'sb_publishable_MfofWQ_pJZhFgaQ_WnghEg_2GhsWdhG';

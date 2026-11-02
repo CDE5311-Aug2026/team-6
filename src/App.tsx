@@ -1,7 +1,10 @@
+import { SetupWizard, GuidedTour, HelpPage } from './Onboarding';
+import { QUICK_QUESTIONS, TOUR_STEPS, type SetupValues } from './gettingStarted';
+import TodayCare from './TodayCare';
+import MomentCarousel from './MomentCarousel';
 import BreedPicker from './BreedPicker';
 import { breedAvatar, normalizePetSex, type PetSex } from './petBreeds';
 import ThinkingAvatar from './ThinkingAvatar';
-import MomentCarousel from './MomentCarousel';
 import PatternSuggestions from './PatternSuggestions';
 import SettingsPanels, { readPreferences } from './SettingsPanels';
 import { activityCategoryLabel, activityCategoryRecords, activityInsightReviewFor, activityInsightReviewId, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, attentionActivityInsights, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight, type ActivityInsightReview, type ActivityInsightReviewStatus, type ActivityPeriod, type RankedDailyActivityInsight } from './activitySummary';
@@ -12,10 +15,11 @@ import { searchCareAccounts, type CareAccountSearchResult, type CloudCareGroup, 
 import { visibleStoryObservations } from './storyVisibility';
 import { buildRollingStorySimulation, isSyntheticSunnyProfile } from './storySimulation';
 import { mergeSharedStoryObservations } from './sharedStoryObservations';
-import { appendCareTaskEvent, careTaskAttentionCount, careTaskSummaryTasks, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask, type CareTask, type CareTaskEvent, type CareTaskEventType } from './careTasks';
-import { useEffect, useRef, useState, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
+import { careRhythmForDate, careTaskTiming, canToggleCareTaskCompletion, toggleCareTaskCompletion, appendCareTaskEvent, canViewCareTaskEvent, careTaskAttentionCount, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask, type CareTask, type CareTaskEvent, type CareTaskEventType } from './careTasks';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
 
 type View =
+  | 'help'
   | 'today'
   | 'story'
   | 'ask'
@@ -244,7 +248,7 @@ function saveCareMembersToStorage(members: CareMember[]) {
 }
 type StoryMedia = { name: string; type: string; url: string };
 type StorySourceNote = { id: string; text: string; label: string };
-type StoryObservation = { id: string; note: string; title: string; image: string; mediaType?: string; relatedPhotos?: StoryMedia[]; momentCount: number; momentIds?: string[]; sourceNotes?: StorySourceNote[]; context: string; privateRecord: boolean; sourceKind?: string; savedAt: string; authorId?: string; authorName?: string; authorAvatar?: string; synthetic?: boolean; observationKind?: 'meal' | 'walk' | 'play' | 'rest' | string; simulationKey?: string; metrics?: Record<string, number> };
+type StoryObservation = { careTaskId?: string; id: string; note: string; title: string; image: string; mediaType?: string; relatedPhotos?: StoryMedia[]; momentCount: number; momentIds?: string[]; sourceNotes?: StorySourceNote[]; context: string; privateRecord: boolean; sourceKind?: string; savedAt: string; authorId?: string; authorName?: string; authorAvatar?: string; synthetic?: boolean; observationKind?: 'meal' | 'walk' | 'play' | 'rest' | string; simulationKey?: string; metrics?: Record<string, number> };
 type StoryDraft = { id: string; selectedMoments: string[]; note: string; title?: string; momentAt?: string; relatedPhotos?: StoryMedia[]; context: string; savedAt: string; privateRecord?: boolean; uploadedMedia?: StoryMedia };
 type AskAttachment = { url: string; name: string; kind: 'image' | 'audio'; type: string };
 type AskMessage = { role: 'user' | 'assistant'; text: string; attachment?: AskAttachment };
@@ -297,6 +301,9 @@ type PrototypeAccount = {
   avatar: string;
   preference: string;
   careProfile?: OwnerCareProfile;
+  setupStatus?: 'pending' | 'completed' | 'skipped';
+  guideStatus?: 'pending' | 'completed' | 'skipped';
+  careGoals?: string[];
   pets: PrototypePet[];
   activePetId: string;
 };
@@ -324,12 +331,19 @@ function observationBelongsToAccount(pet: PrototypePet, observation: StoryObserv
   return observation.authorId === accountId || (!observation.authorId && (!pet.sharedGroupId || pet.sharedOwnerAccountId === accountId));
 }
 
-function observationCompletedByAccount(pet: PrototypePet, observationId: string, accountId: string) {
-  return pet.workspace.careTasks.some((task) => task.sourceObservationId === observationId && task.status === 'done' && task.completedBy === accountId);
+function observationCompletedByAccount(pet: PrototypePet, observation: StoryObservation, accountId: string, accountName?: string) {
+  const normalizedAccountName = accountName?.trim().toLocaleLowerCase();
+  const task = pet.workspace.careTasks.find((entry) => entry.sourceObservationId === observation.id);
+  if (task?.status === 'skipped') return false;
+  if (task?.status === 'done') return task.completedBy === accountId || (task.autoCompleted === true && !!normalizedAccountName && task.completedByName?.trim().toLocaleLowerCase() === normalizedAccountName);
+  if (!observation.synthetic || new Date(observation.savedAt).getTime() > Date.now()) return false;
+  const completerId = task?.assignedTo && ['open', 'accepted'].includes(task.status) ? task.assignedTo : observation.authorId || 'simulation';
+  const completerName = completerId === (observation.authorId || 'simulation') ? observation.authorName : undefined;
+  return completerId === accountId || (!observation.authorId && !!normalizedAccountName && completerName?.trim().toLocaleLowerCase() === normalizedAccountName);
 }
 
-function itemCountForPet(pet: PrototypePet, category: ProfileActivityCategory, accountId: string) {
-  if (category === 'records') return pet.workspace.observations.filter((entry) => observationCompletedByAccount(pet, entry.id, accountId) && (!entry.privateRecord || observationBelongsToAccount(pet, entry, accountId))).length;
+function itemCountForPet(pet: PrototypePet, category: ProfileActivityCategory, accountId: string, accountName?: string) {
+  if (category === 'records') return pet.workspace.observations.filter((entry) => observationCompletedByAccount(pet, entry, accountId, accountName) && (!entry.privateRecord || observationBelongsToAccount(pet, entry, accountId))).length;
   if (category === 'contexts') return pet.workspace.contexts.filter((context) => context.authorId === accountId).length;
   return Object.values(pet.workspace.momentEngagement ?? {}).filter((entry) => (category === 'likes' ? entry.likes : entry.favorites).includes(accountId)).length;
 }
@@ -581,8 +595,10 @@ function BottomNav({ active, onNavigate, unreadCareCount = 0 }: { active: View; 
     { id: 'pets', label: 'Pets', icon: 'paw' },
     { id: 'you', label: 'You' },
   ];
+  const activeIndex = Math.max(0, items.findIndex((item) => item.id === active));
   return (
-    <nav className="bottom-nav" aria-label="Main navigation">
+    <nav className="bottom-nav" aria-label="Main navigation" style={{ '--active-nav-index': activeIndex } as CSSProperties}>
+      <span className="bottom-nav-slider" aria-hidden="true" />
       {items.map((item) => (
         <button
           key={item.id}
@@ -640,192 +656,343 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
 }
 
 
-function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpenActivitySummary, patterns, careTasks, careMembers, currentUserId, canAct, isPrimary, onToggleCareTask, onSkipCareTask, onOpenCareTasks, onPatterns, dayOffset, onDayOffsetChange }: { petName: string; petAvatar: string; moments: StoryObservation[]; scheduledMoments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; patterns: TypicalPattern[]; careTasks: CareTask[]; careMembers: CareMember[]; currentUserId: string; canAct: boolean; isPrimary: boolean; onToggleCareTask: (task: CareTask) => void; onSkipCareTask: (task: CareTask) => void; onOpenCareTasks: () => void; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
-  const [view, setView] = useState<'today' | 'pattern'>('today');
+function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySummary, onOpenInsights, standoutActivity, patterns, careTasks, careMembers, onOpenCareTasks, onPatterns, dayOffset, onDayOffsetChange }: { petName: string; moments: StoryObservation[]; scheduledMoments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; standoutActivity?: RankedDailyActivityInsight; patterns: TypicalPattern[]; careTasks: CareTask[]; careMembers: CareMember[]; onOpenCareTasks: () => void; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void }) {
   const [revealedActivityId, setRevealedActivityId] = useState<string | null>(null);
-  const wheelRef = useRef<SVGGElement | null>(null);
-  useEffect(() => setRevealedActivityId(null), [view, dayOffset]);
+  const [fullDayDial, setFullDayDial] = useState(false);
+  const [isRevealingFullDay, setIsRevealingFullDay] = useState(false);
+  const [isRevealingHalfDay, setIsRevealingHalfDay] = useState(false);
+  const [isCenterCopyHidden, setIsCenterCopyHidden] = useState(false);
+  const centerCopyTimer = useRef<number | null>(null);
+  const dialChartRef = useRef<HTMLDivElement | null>(null);
+  const previousDayOffset = useRef(dayOffset);
+  const [dialRotationOverride, setDialRotationOverride] = useState<number | null>(null);
+  const dialRotationFrame = useRef<number | null>(null);
+  const [dialTimeOffset, setDialTimeOffset] = useState(0);
+  const dialDrag = useRef<{ x: number; offset: number; timer: number; active: boolean; pointerId: number; target: HTMLDivElement } | null>(null);
+  useLayoutEffect(() => {
+    const changedDay = previousDayOffset.current !== dayOffset;
+    const revealFullDay = previousDayOffset.current === 0 && dayOffset < 0;
+    const revealHalfDay = previousDayOffset.current < 0 && dayOffset === 0;
+    previousDayOffset.current = dayOffset;
+    if (changedDay) {
+      if (centerCopyTimer.current !== null) window.clearTimeout(centerCopyTimer.current);
+      setIsCenterCopyHidden(true);
+      centerCopyTimer.current = window.setTimeout(() => {
+        centerCopyTimer.current = null;
+        setIsCenterCopyHidden(false);
+      }, 760);
+    }
+    setRevealedActivityId(null);
+    setFullDayDial(revealHalfDay ? true : dayOffset !== 0);
+    setIsRevealingFullDay(revealFullDay);
+    setIsRevealingHalfDay(revealHalfDay);
+    if (revealFullDay || revealHalfDay) {
+      const timeout = window.setTimeout(() => {
+        setIsRevealingFullDay(false);
+        setIsRevealingHalfDay(false);
+        if (revealHalfDay) setFullDayDial(false);
+      }, 760);
+      return () => window.clearTimeout(timeout);
+    }
+  }, [dayOffset]);
+  useLayoutEffect(() => {
+    const chart = dialChartRef.current;
+    if (!isRevealingHalfDay || !chart) return;
+    const fullHeight = chart.getBoundingClientRect().height;
+    chart.style.height = `${fullHeight}px`;
+    void chart.offsetHeight;
+    const frame = requestAnimationFrame(() => {
+    chart.style.height = `${chart.clientWidth * 300 / 600}px`;
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      chart.style.height = '';
+    };
+  }, [isRevealingHalfDay]);
   const dragStart = useRef<number | null>(null);
-  const todayButtonDragStart = useRef<number | null>(null);
-  const suppressTodayClick = useRef(false);
   const navStart = useRef<'previous' | 'newer' | null>(null);
   const pressedMomentId = useRef<string | null>(null);
   const suppressNavClick = useRef(false);
-  const now = useCurrentTime();
+  const clockTick = useCurrentTime();
+  const now = new Date(Math.max(clockTick.getTime(), Date.now()));
   const displayName = petName.replace(/\s*[（(]test[^）)]*[）)]$/i, '');
   const selectedDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset);
-  const isPattern = view === 'pattern';
   const timedPatterns = patterns.filter(p => p.status === 'confirmed' && p.activity && Number.isFinite(p.startMinute) && Number.isFinite(p.endMinute) && p.startMinute! >= 0 && p.endMinute! <= 1440 && p.startMinute! < p.endMinute!);
   const patternById = new Map(timedPatterns.map(p => [p.id, p]));
-  const selectedMoments: StoryObservation[] = isPattern ? timedPatterns.map(p => {
+  const patternMoments: StoryObservation[] = timedPatterns.map(p => {
     const at = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, (p.startMinute! + p.endMinute!) / 2);
     return { id: p.id, title: p.activity!, note: p.detail, image: '', momentCount: 0, context: '', privateRecord: false, savedAt: at.toISOString(), observationKind: /Breakfast|Lunch|Dinner/.test(p.activity!) ? 'meal' : p.activity!.toLowerCase() };
-  }) : moments.filter(moment => isSameLocalDay(moment.savedAt, selectedDate));
+  });
+  const rhythm = careRhythmForDate(moments, careTasks, selectedDate, now, Object.fromEntries(careMembers.map(member => [member.id,member.name])));
+  const completedMoments: StoryObservation[] = rhythm.completions.map(marker => ({ ...marker, image: '', momentCount: 0, context: '', privateRecord: false, sourceKind: 'care-task' }));
+  const selectedMoments: StoryObservation[] = [...rhythm.records, ...completedMoments];
   const openActivity = (moment: StoryObservation) => {
     if (revealedActivityId !== moment.id) { setRevealedActivityId(moment.id); return; }
-    if (isPattern) onPatterns(moment.id); else onOpenActivitySummary(moment);
+    if (patternById.has(moment.id)) onPatterns(moment.id); else if (moment.careTaskId) onOpenCareTasks(); else onOpenActivitySummary(moment);
   };
-  const displayTime = (moment: StoryObservation, date: Date) => isPattern ? `${clockMinute(patternById.get(moment.id)!.startMinute!)}–${clockMinute(patternById.get(moment.id)!.endMinute!)}` : timeLabel(date);
   const routineTasks = careTasksForDate(patterns, scheduledMoments, careTasks, selectedDate, now, displayName);
   const datedTasks = careTasks.filter(task => !task.sourcePatternId && !task.sourceObservationId && isSameLocalDay(task.dueAt, selectedDate) && task.status !== 'declined');
   const dayCareTasks = [...routineTasks, ...datedTasks].sort((left, right) => left.dueAt.localeCompare(right.dueAt));
-  const summaryCareTasks = careTaskSummaryTasks(dayCareTasks, now);
-  const allCareTasksComplete = dayCareTasks.length > 0 && dayCareTasks.every(task => task.status === 'done');
-  const memberName = (id: string, fallback?: string) => id === 'simulation' ? 'Pawsona' : careMembers.find(member => member.id === id)?.name ?? fallback ?? 'Caregiver';
-  const requestAttentionCount = careTaskAttentionCount(careTasks, currentUserId, isPrimary);
-  const unreadRequestCount = careTaskUnreadCount(careTasks, currentUserId);
-  const isToday = !isPattern && dayOffset === 0;
+  const isToday = dayOffset === 0;
   const dayTitle = isToday ? 'TODAY' : dayOffset === -1 ? 'YESTERDAY' : new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(selectedDate).toUpperCase();
   const selectedDateLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(selectedDate);
-  const currentPetAvatar = petAvatar || asset('luna-avatar.png');
   const dayProgress = (minutes: number) => {
     const clampedMinutes = Math.max(0, Math.min(1440, minutes));
     return clampedMinutes / 1440;
   };
+  // Today and Pattern share one angular scale and a common circle center below
+  // the visible chart, so their arcs remain genuinely concentric.
+  const dialCenter = { x: 300, y: 450 };
+  const todayTrackRadius = 350;
+  const patternTrackOuterRadius = 350;
+  const patternTrackInnerRadius = 336;
+  const patternTrackRadius = (patternTrackOuterRadius + patternTrackInnerRadius) / 2;
+  const patternTrackWidth = patternTrackOuterRadius - patternTrackInnerRadius;
+  const dialStartAngle = Math.acos(-300 / todayTrackRadius);
+  const dialEndAngle = Math.acos(300 / todayTrackRadius);
+  const dialAngle = (progress: number) => dialStartAngle + (dialEndAngle - dialStartAngle) * Math.max(0, Math.min(1, progress));
   const pointAtProgress = (progress: number, radius: number) => {
-    const angle = Math.PI - Math.max(0, Math.min(1, progress)) * Math.PI;
-    return { x: 300 + radius * Math.cos(angle), y: 390 - radius * Math.sin(angle) };
+    const angle = dialAngle(progress);
+    return { x: dialCenter.x + radius * Math.cos(angle), y: dialCenter.y - radius * Math.sin(angle) };
   };
-  const pointOnDial = (minutes: number, radius: number) => pointAtProgress(dayProgress(minutes), radius);
-  const timeLabel = (date: Date) => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
-  const chronologicalMoments = selectedMoments.map(moment => {
-    const date = new Date(moment.savedAt);
-    const minutes = date.getHours() * 60 + date.getMinutes();
-    return { moment, minutes, progress: dayProgress(minutes), time: displayTime(moment, date) };
-  }).sort((left, right) => left.minutes - right.minutes);
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const nowProgress = dayProgress(nowMinutes);
-  const beforeNow = isToday ? chronologicalMoments.filter(entry => entry.minutes < nowMinutes) : [];
-  const afterNow = isToday ? chronologicalMoments.filter(entry => entry.minutes >= nowMinutes) : [];
-  const allMoments = isToday ? [] : chronologicalMoments;
-  const maxProgressGap = 14 / 180;
-  const progressGap = isToday
-    ? Math.min(maxProgressGap, beforeNow.length ? nowProgress / beforeNow.length : maxProgressGap, afterNow.length ? (1 - nowProgress) / afterNow.length : maxProgressGap)
-    : Math.min(maxProgressGap, allMoments.length > 1 ? 1 / (allMoments.length - 1) : maxProgressGap);
-  const fitProgressGroup = (entries: typeof chronologicalMoments, lower: number, upper: number) => {
-    if (!entries.length) return new Map<string, number>();
-    const blocks: Array<{ start: number; end: number; sum: number; count: number }> = [];
-    entries.forEach((entry, index) => {
-      blocks.push({ start: index, end: index, sum: entry.progress - index * progressGap, count: 1 });
-      while (blocks.length > 1) {
-        const right = blocks[blocks.length - 1];
-        const left = blocks[blocks.length - 2];
-        if (left.sum / left.count <= right.sum / right.count) break;
-        blocks.splice(-2, 2, { start: left.start, end: right.end, sum: left.sum + right.sum, count: left.count + right.count });
-      }
-    });
-    const positions = new Map<string, number>();
-    blocks.forEach(block => {
-      const fittedProgress = Math.max(lower, Math.min(upper, block.sum / block.count));
-      for (let index = block.start; index <= block.end; index += 1) {
-        positions.set(entries[index].moment.id, fittedProgress + index * progressGap);
-      }
-    });
-    return positions;
+  const dialArcPath = (radius: number, startProgress = 0, endProgress = 1) => {
+    const start = pointAtProgress(startProgress, radius);
+    const end = pointAtProgress(endProgress, radius);
+    return `M${start.x} ${start.y} A${radius} ${radius} 0 0 1 ${end.x} ${end.y}`;
   };
-  const adjustedProgress = isToday
-    ? new Map([
-      ...fitProgressGroup(beforeNow, 0, nowProgress - beforeNow.length * progressGap),
-      ...fitProgressGroup(afterNow, nowProgress + progressGap, 1 - Math.max(0, afterNow.length - 1) * progressGap),
-    ])
-    : fitProgressGroup(allMoments, 0, 1 - Math.max(0, allMoments.length - 1) * progressGap);
-  const momentPoints = selectedMoments.map(moment => {
-    const date = new Date(moment.savedAt);
-    const minutes = date.getHours() * 60 + date.getMinutes();
-    return { moment, ...pointAtProgress(adjustedProgress.get(moment.id) ?? dayProgress(minutes), 220), minutes, time: displayTime(moment, date) };
-  });
-  const activityLabelRadius = 270;
-  const activityMarkers = momentPoints.map(point => {
-    const radialX = (point.x - 300) / 220;
-    const radialY = (point.y - 390) / 220;
-    const iconX = 300 + radialX * activityLabelRadius;
-    const iconY = 390 + radialY * activityLabelRadius;
-    return { ...point, iconX, iconY };
-  });
-  const placedTimeBoxes: Array<{ id: string; left: number; right: number; top: number; bottom: number }> = [];
-  const timeLabelPositions = new Map<string, { timeX: number; timeY: number }>();
-  [...activityMarkers].sort((left, right) => left.minutes - right.minutes).forEach(marker => {
-    const outward = marker.iconX < 300 ? -1 : 1;
-    const offsets = [outward * 28, outward * 56, 0, -outward * 28, outward * 84, -outward * 56, -outward * 84];
-    const verticalOffsets = [0, -18, 18, -36, 36];
-    const candidates = offsets.flatMap(offset => verticalOffsets.map(verticalOffset => {
-      const timeX = Math.max(34, Math.min(566, marker.iconX + offset));
-      const timeY = marker.iconY - 40 + verticalOffset;
-      const halfWidth = Math.max(29, marker.time.length * 5.8);
-      return { timeX, timeY, halfWidth, cost: Math.abs(offset - outward * 28) + Math.abs(verticalOffset) * 1.5 };
-    })).sort((left, right) => left.cost - right.cost);
-    const isClear = (candidate: typeof candidates[number]) => {
-      const box = { left: candidate.timeX - candidate.halfWidth, right: candidate.timeX + candidate.halfWidth, top: candidate.timeY - 12, bottom: candidate.timeY + 12 };
-      if (box.left < 4 || box.right > 596 || box.top < 20 || box.bottom > 382) return false;
-      if (placedTimeBoxes.some(placed => box.left < placed.right + 8 && box.right + 8 > placed.left && box.top < placed.bottom + 6 && box.bottom + 6 > placed.top)) return false;
-      return activityMarkers.every(other => other.moment.id === marker.moment.id ||
-        !(box.left < other.iconX + 23 && box.right > other.iconX - 23 && box.top < other.iconY + 23 && box.bottom > other.iconY - 23));
-    };
-    const chosen = candidates.find(isClear) ?? candidates[0];
-    timeLabelPositions.set(marker.moment.id, { timeX: chosen.timeX, timeY: chosen.timeY });
-    placedTimeBoxes.push({ left: chosen.timeX - chosen.halfWidth, right: chosen.timeX + chosen.halfWidth, top: chosen.timeY - 12, bottom: chosen.timeY + 12, id: marker.moment.id });
-  });
-  const labeledMomentPoints = activityMarkers.map(point => ({ ...point, label: { iconX: point.iconX, iconY: point.iconY, ...timeLabelPositions.get(point.moment.id)! } }));
-  const timeLabelLeaders = labeledMomentPoints.map(({ moment, x, y, label }) => {
-    const radialX = (x - 300) / 220;
-    const radialY = (y - 390) / 220;
-    return {
-      id: moment.id,
-      x1: x + radialX * 9,
-      y1: y + radialY * 9,
-      x2: label.iconX - radialX * 26,
-      y2: label.iconY - radialY * 26,
-    };
-  });
-  const activityGlyph = (moment: StoryObservation) => moment.observationKind === 'meal' ? '🥣'
-    : moment.observationKind === 'walk' ? '🐾'
-      : moment.observationKind === 'rest' ? '💤'
-        : moment.observationKind === 'play' ? '🎾'
-          : /food|dinner|breakfast|lunch/i.test(moment.title) ? '🥣'
-            : /walk/i.test(moment.title) ? '🐾'
-              : /rest|sleep/i.test(moment.title) ? '💤' : /play|toy|fetch/i.test(moment.title) ? '🎾' : '✨';
+  const arcBetweenAngles = (radius: number, startAngle: number, endAngle: number, sweep: 0 | 1) => {
+    const start = { x: dialCenter.x + radius * Math.cos(startAngle), y: dialCenter.y - radius * Math.sin(startAngle) };
+    const end = { x: dialCenter.x + radius * Math.cos(endAngle), y: dialCenter.y - radius * Math.sin(endAngle) };
+    return `M${start.x} ${start.y} A${radius} ${radius} 0 0 ${sweep} ${end.x} ${end.y}`;
+  };
+  const patternBandBasePath = arcBetweenAngles(patternTrackRadius, Math.acos(-300 / patternTrackOuterRadius), Math.acos(300 / patternTrackOuterRadius), 1);
+  const circleCenter = { x: 300, y: 300 };
+  const circlePoint = (minute: number, radius: number) => {
+    const angle = minute / 1440 * Math.PI * 2 - Math.PI / 2;
+    return { x: circleCenter.x + Math.cos(angle) * radius, y: circleCenter.y + Math.sin(angle) * radius };
+  };
+  const circleArcPath = (startMinute: number, endMinute: number, radius: number) => {
+    const start = circlePoint(startMinute, radius);
+    const end = circlePoint(endMinute, radius);
+    const span = endMinute - startMinute;
+    return `M${start.x} ${start.y} A${radius} ${radius} 0 ${span > 720 ? 1 : 0} 1 ${end.x} ${end.y}`;
+  };
   const currentMinute = now.getHours() * 60 + now.getMinutes();
-  const currentPoint = pointOnDial(currentMinute, isPattern ? 180 : 220);
-  const patternPointerOuter = pointOnDial(currentMinute, 207);
-  const revealedMarker = labeledMomentPoints.find(point => point.moment.id === revealedActivityId);
-  const activityLabelsOnTop = revealedMarker
-    ? [...labeledMomentPoints.filter(point => point.moment.id !== revealedActivityId), revealedMarker]
-    : labeledMomentPoints;
-  const animateWheel = (direction: 'clockwise' | 'counterclockwise') => {
-    const wheel = wheelRef.current;
-    if (!wheel || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    wheel.getAnimations().forEach(animation => animation.cancel());
-    const endingAngle = direction === 'counterclockwise' ? -360 : 360;
-    wheel.animate(
-      [{ transform: 'rotate(0deg)' }, { transform: `rotate(${endingAngle}deg)` }],
-      { duration: 720, easing: 'cubic-bezier(.2,.7,.25,1)' },
-    );
+  const pointerTip = circlePoint(currentMinute, 258);
+  const dialRotation = (((isToday ? 1320 - currentMinute : 720) - dialTimeOffset) / 4 + 360) % 360;
+  const wheelRotation = dialRotationOverride ?? (isToday && !fullDayDial ? dialRotation : 0);
+  const navigateToDay = (nextOffset: number) => {
+    if (dialRotationFrame.current !== null) cancelAnimationFrame(dialRotationFrame.current);
+    const startAngle = wheelRotation;
+    const targetAngle = nextOffset === 0 ? (((1320 - currentMinute - dialTimeOffset) / 4) % 360 + 360) % 360 : 0;
+    const delta = ((targetAngle - startAngle + 540) % 360) - 180;
+    const startedAt = performance.now();
+    const duration = 720;
+    setDialRotationOverride(startAngle);
+    const tick = (time: number) => {
+      const progress = Math.min(1, (time - startedAt) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDialRotationOverride(startAngle + delta * eased);
+      if (progress < 1) dialRotationFrame.current = requestAnimationFrame(tick);
+      else {
+        dialRotationFrame.current = null;
+        if (nextOffset === 0) setFullDayDial(false);
+        setDialRotationOverride(null);
+      }
+    };
+    dialRotationFrame.current = requestAnimationFrame(tick);
+    onDayOffsetChange(nextOffset);
   };
-  const goToPreviousDay = () => { if (!isPattern) { animateWheel('clockwise'); onDayOffsetChange(dayOffset - 1); } };
-  const goToNewerDay = () => { if (!isPattern && dayOffset < 0) { animateWheel('counterclockwise'); onDayOffsetChange(dayOffset + 1); } };
-  const handleNavKey = (event: React.KeyboardEvent<SVGGElement>, direction: 'previous' | 'newer') => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
+  const transitionDialMode = (nextFullDay: boolean) => {
+    const isReturningToNow = !nextFullDay && !fullDayDial && dialTimeOffset !== 0;
+    const isSwitchingToNow = fullDayDial && !nextFullDay;
+    if (fullDayDial === nextFullDay && !isReturningToNow) return;
+    if (dialRotationFrame.current !== null) cancelAnimationFrame(dialRotationFrame.current);
+    const startAngle = wheelRotation;
+    const targetAngle = nextFullDay ? 0 : (((1320 - currentMinute) / 4 + 360) % 360);
+    const delta = ((targetAngle - startAngle + 540) % 360) - 180;
+    const startedAt = performance.now();
+    const duration = 740;
+    setDialRotationOverride(startAngle);
+    if (nextFullDay) {
+      setFullDayDial(true);
+      setIsRevealingFullDay(true);
+    } else if (isSwitchingToNow) {
+      setIsRevealingHalfDay(true);
+    }
+    setDialTimeOffset(0);
+    const tick = (time: number) => {
+      const progress = Math.min(1, (time - startedAt) / duration);
+      const eased = (1 - Math.cos(progress * Math.PI)) / 2;
+      setDialRotationOverride(startAngle + delta * eased);
+      if (progress < 1) dialRotationFrame.current = requestAnimationFrame(tick);
+      else {
+        dialRotationFrame.current = null;
+        if (isSwitchingToNow) setFullDayDial(false);
+        setIsRevealingFullDay(false);
+        setIsRevealingHalfDay(false);
+        setDialRotationOverride(null);
+      }
+    };
+    dialRotationFrame.current = requestAnimationFrame(tick);
+  };
+  useEffect(() => () => {
+    if (dialRotationFrame.current !== null) cancelAnimationFrame(dialRotationFrame.current);
+    if (centerCopyTimer.current !== null) window.clearTimeout(centerCopyTimer.current);
+  }, []);
+  const startDialDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (fullDayDial) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const target = event.currentTarget;
+    const drag = { x: event.clientX, offset: dialTimeOffset, timer: 0, active: false, pointerId: event.pointerId, target };
+    drag.timer = window.setTimeout(() => {
+      if (dialDrag.current !== drag) return;
+      drag.active = true;
+      target.setPointerCapture(drag.pointerId);
+    }, 180);
+    dialDrag.current = drag;
+  };
+  const moveDialDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dialDrag.current;
+    if (!drag) return;
+    const distance = event.clientX - drag.x;
+    if (!drag.active) return;
     event.preventDefault();
-    if (direction === 'previous') goToPreviousDay(); else goToNewerDay();
+    setDialTimeOffset(drag.offset + Math.round(distance * 3));
   };
-  return <section className={`daily-rhythm-card ${isPattern ? 'is-pattern' : ''}`} aria-labelledby="daily-rhythm-title">
+  const endDialDrag = () => {
+    const drag = dialDrag.current;
+    if (drag) window.clearTimeout(drag.timer);
+    dialDrag.current = null;
+    if (drag?.target.hasPointerCapture(drag.pointerId)) drag.target.releasePointerCapture(drag.pointerId);
+  };
+  const centerTimeLabel = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(now);
+  const timeLabel = (date: Date) => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
+  const activityGlyphFor = (title: string, kind?: string) => kind === 'meal' ? '🥣'
+    : kind === 'walk' ? '🐾'
+      : kind === 'rest' ? '💤'
+        : kind === 'play' ? '🎾'
+          : /food|dinner|breakfast|lunch/i.test(title) ? '🥣'
+            : /walk/i.test(title) ? '🐾'
+              : /rest|sleep/i.test(title) ? '💤' : /play|toy|fetch/i.test(title) ? '🎾' : '✨';
+  const activityGlyph = (moment: StoryObservation) => activityGlyphFor(moment.title, moment.observationKind);
+  const visibleDayCareTasks = dayCareTasks.filter(task => task.status !== 'skipped');
+  const linkedObservationIds = new Set(visibleDayCareTasks.flatMap(task => task.sourceObservationId ? [task.sourceObservationId] : []));
+  const taskTimelineItems = visibleDayCareTasks.map(task => {
+    const linkedMoment = selectedMoments.find(moment => moment.careTaskId === task.id || moment.id === task.sourceObservationId);
+    const at = task.status === 'done' ? linkedMoment?.savedAt ?? task.completedAt ?? task.dueAt : task.dueAt;
+    const pattern = task.sourcePatternId ? patternById.get(task.sourcePatternId) : undefined;
+    const timeHint = task.status === 'done'
+      ? timeLabel(new Date(at))
+      : pattern ? `By ${clockMinute(pattern.endMinute!)}` : '';
+    const timing = careTaskTiming(task, now);
+    const state: 'done' | 'upcoming' | 'soon' | 'attention' = task.status === 'done' ? 'done' : timing === 'due' || timing === 'overdue' ? 'attention' : timing === 'soon' ? 'soon' : 'upcoming';
+    const stateLabel = state === 'done' ? 'Done' : state === 'attention' ? timing === 'due' ? 'Due now' : 'Check first' : state === 'soon' ? 'Due soon' : 'Upcoming';
+    return { id: task.id, title: task.title, at, state, stateLabel, glyph: activityGlyphFor(task.title), timeHint, moment: linkedMoment };
+  });
+  const unplannedTimelineItems = selectedMoments
+    .filter(moment => !moment.careTaskId && !linkedObservationIds.has(moment.id))
+    .map(moment => ({ id: `record-${moment.id}`, title: moment.title, at: moment.savedAt, state: 'done' as const, stateLabel: 'Recorded', glyph: activityGlyph(moment), timeHint: timeLabel(new Date(moment.savedAt)), moment }));
+  const todayTimelineItems = [...taskTimelineItems, ...unplannedTimelineItems].sort((left, right) => left.at.localeCompare(right.at));
+  const todayTrackRef = useRef<HTMLDivElement | null>(null);
+  const todayCardRefs = useRef(new Map<string, HTMLButtonElement>());
+  const todayDrag = useRef<{ pointerId: number; startX: number; startScrollLeft: number; moved: boolean } | null>(null);
+  const suppressTodayItemClick = useRef(false);
+  useEffect(() => {
+    if (dayOffset !== 0 || !todayTimelineItems.length) return;
+    const targetIndex = todayTimelineItems.findIndex(item => item.state !== 'done');
+    const index = targetIndex < 0 ? todayTimelineItems.length - 1 : Math.max(0, targetIndex - 1);
+    const card = todayCardRefs.current.get(todayTimelineItems[index]?.id);
+    card?.scrollIntoView({ block: 'nearest', inline: 'start', behavior: 'auto' });
+  }, [dayOffset, todayTimelineItems.map(item => `${item.id}:${item.state}`).join('|')]);
+  const startTodayDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== 'mouse' || event.button !== 0) return;
+    const track = todayTrackRef.current;
+    if (!track) return;
+    todayDrag.current = { pointerId: event.pointerId, startX: event.clientX, startScrollLeft: track.scrollLeft, moved: false };
+  };
+  const moveTodayDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = todayDrag.current;
+    const track = todayTrackRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !track) return;
+    const distance = event.clientX - drag.startX;
+    if (Math.abs(distance) > 4) {
+      drag.moved = true;
+      suppressTodayItemClick.current = true;
+      track.classList.add('is-dragging');
+      track.setPointerCapture(event.pointerId);
+    }
+    if (drag.moved) track.scrollLeft = drag.startScrollLeft - distance;
+  };
+  const endTodayDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = todayDrag.current;
+    const track = todayTrackRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (drag.moved) {
+      track?.classList.remove('is-dragging');
+      if (track?.hasPointerCapture(event.pointerId)) track.releasePointerCapture(event.pointerId);
+      window.setTimeout(() => { suppressTodayItemClick.current = false; }, 0);
+    }
+    todayDrag.current = null;
+  };
+  const revealedPatternMoment = patternMoments.find(moment => moment.id === revealedActivityId);
+  const revealedSelection = revealedPatternMoment ? { moment: revealedPatternMoment, time: `${clockMinute(patternById.get(revealedPatternMoment.id)!.startMinute!)}–${clockMinute(patternById.get(revealedPatternMoment.id)!.endMinute!)}` } : undefined;
+  const goToPreviousDay = () => navigateToDay(dayOffset - 1);
+  const goToNewerDay = () => { if (dayOffset < 0) navigateToDay(dayOffset + 1); };
+  return <section className="daily-rhythm-card daily-rhythm-split" aria-labelledby="daily-rhythm-title">
     <header className="daily-rhythm-header">
       <div><p className="eyebrow">DAILY RHYTHM</p><h2 id="daily-rhythm-title">{displayName}’s day</h2></div>
-      <div className={`daily-rhythm-toggle ${isPattern ? 'is-pattern' : ''}`} role="tablist" aria-label="Daily rhythm view">
-        <button type="button" role="tab" aria-selected={view === 'today'} className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}>Today</button>
-        <button type="button" role="tab" aria-selected={view === 'pattern'} className={view === 'pattern' ? 'active' : ''} onClick={() => setView('pattern')}>Pattern</button>
+      <div className="daily-rhythm-date-nav" aria-label="Selected day">
+        {!isToday && <button type="button" className="daily-rhythm-today-button" onClick={() => navigateToDay(0)}>Today</button>}
+        <button type="button" aria-label="Show previous day" onClick={goToPreviousDay}>‹</button>
+        <span>{selectedDateLabel}</span>
+        <button type="button" aria-label="Show newer day" disabled={isToday} onClick={goToNewerDay}>›</button>
       </div>
     </header>
     <>
+    <div className="daily-rhythm-circle-heading"><span className="rhythm-circle-legend"><span><i className="pattern-key"/>Typical window</span><span><i className="done-key"/>Done</span><span><i className="upcoming-key"/>Upcoming</span></span><span className="daily-rhythm-dial-controls">{isToday ? <span className={`daily-rhythm-dial-toggle ${fullDayDial && !isRevealingHalfDay ? 'is-full-day' : ''} ${isRevealingHalfDay ? 'is-instant' : ''}`} role="group" aria-label="Dial view"><span className="daily-rhythm-dial-toggle-thumb" aria-hidden="true"/><button type="button" aria-pressed={!fullDayDial || isRevealingHalfDay} onClick={() => transitionDialMode(false)}>Now</button><button type="button" aria-pressed={fullDayDial && !isRevealingHalfDay} onClick={() => transitionDialMode(true)}>Full day</button></span> : <span className="daily-rhythm-dial-toggle-spacer" aria-hidden="true"/>}<button type="button" onClick={() => onPatterns()}>{timedPatterns.length ? 'View →' : 'Set up →'}</button></span></div>
+    <div ref={dialChartRef} className={`daily-rhythm-circle-chart ${fullDayDial ? 'is-full-day' : 'is-half-day'} ${isRevealingFullDay ? 'is-revealing-full-day' : ''} ${isRevealingHalfDay ? 'is-revealing-half-day' : ''}`} onPointerDown={startDialDrag} onPointerMove={moveDialDrag} onPointerUp={endDialDrag} onPointerCancel={endDialDrag}>
+      <svg viewBox={fullDayDial ? '0 0 600 600' : '0 0 600 300'} role="img" aria-label={`${displayName}’s ${fullDayDial ? 'full-day' : '12-hour'} activity timeline`}>
+      <defs>
+        <clipPath id="daily-rhythm-dial-clip"><rect x="0" y="0" width="600" height={fullDayDial ? 600 : 300}/></clipPath>
+        <radialGradient id="daily-rhythm-atmosphere-fade" cx="300" cy="300" r="245" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="white" stopOpacity="1"/>
+          <stop offset=".3" stopColor="white" stopOpacity=".98"/>
+          <stop offset=".5" stopColor="white" stopOpacity=".9"/>
+          <stop offset=".7" stopColor="white" stopOpacity=".74"/>
+          <stop offset=".85" stopColor="white" stopOpacity=".52"/>
+          <stop offset=".95" stopColor="white" stopOpacity=".22"/>
+          <stop offset="1" stopColor="white" stopOpacity="0"/>
+        </radialGradient>
+        <mask id="daily-rhythm-atmosphere-mask" x="0" y="0" width="600" height="600" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse"><rect width="600" height="600" fill="url(#daily-rhythm-atmosphere-fade)"/></mask>
+        <linearGradient id="daily-rhythm-now-hand" x1="300" y1="300" x2={circlePoint(currentMinute,258).x} y2={circlePoint(currentMinute,258).y} gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#e5a900" stopOpacity="0"/>
+          <stop offset=".22" stopColor="#e5a900" stopOpacity=".12"/>
+          <stop offset=".52" stopColor="#e5a900" stopOpacity=".55"/>
+          <stop offset="1" stopColor="#e5a900" stopOpacity="1"/>
+        </linearGradient>
+      </defs>
+      <g clipPath="url(#daily-rhythm-dial-clip)"><g transform={`rotate(${wheelRotation} 300 300)`}>
+      <image className="daily-rhythm-atmosphere" href="/assets/dial-atmosphere.png" x="85" y="85" width="430" height="430" preserveAspectRatio="xMidYMid meet" mask="url(#daily-rhythm-atmosphere-mask)" aria-hidden="true"/>
+      <circle className="rhythm-circle-guide outer" cx="300" cy="300" r="238"/><circle className="rhythm-circle-guide inner" cx="300" cy="300" r="165"/>
+      {[0,360,720,1080].map(minute => { const point = circlePoint(minute, 290); const label = minute === 0 ? ['12', 'AM'] : minute === 360 ? ['6', 'AM'] : minute === 720 ? ['12', 'PM'] : ['6', 'PM']; const radians = wheelRotation * Math.PI / 180; const shownX = 300 + (point.x - 300) * Math.cos(radians) - (point.y - 300) * Math.sin(radians); const shownY = 300 + (point.x - 300) * Math.sin(radians) + (point.y - 300) * Math.cos(radians); const anchor = shownX < 60 ? 'start' : shownX > 540 ? 'end' : 'middle'; const labelY = point.y + (shownY < 40 ? 14 : -6); return <g key={minute}><line className="rhythm-circle-tick" x1={circlePoint(minute,242).x} y1={circlePoint(minute,242).y} x2={circlePoint(minute,258).x} y2={circlePoint(minute,258).y}/><text className="rhythm-circle-label" x={point.x} y={labelY} textAnchor={anchor} transform={wheelRotation ? `rotate(${-wheelRotation} ${point.x} ${point.y})` : undefined}><tspan className="rhythm-circle-label-hour">{label[0]}</tspan><tspan className="rhythm-circle-label-period">{' ' + label[1]}</tspan></text></g>; })}
+      {timedPatterns.map(pattern => { const middle = (pattern.startMinute! + pattern.endMinute!) / 2; const point = circlePoint(middle,238); const icon = activityGlyphFor(pattern.activity!); return <g key={pattern.id} className="rhythm-circle-pattern" role="button" tabIndex={0} aria-label={`${pattern.activity}, ${clockMinute(pattern.startMinute!)} to ${clockMinute(pattern.endMinute!)}`} onClick={() => onPatterns(pattern.id)}><path d={circleArcPath(pattern.startMinute!,pattern.endMinute!,238)}/><circle cx={point.x} cy={point.y} r="20"/><text x={point.x} y={point.y+1} textAnchor="middle" dominantBaseline="middle" transform={wheelRotation ? `rotate(${-wheelRotation} ${point.x} ${point.y})` : undefined}>{icon}</text></g>; })}
+      {todayTimelineItems.map(item => { const date = new Date(item.at); const minute = date.getHours()*60+date.getMinutes(); const point = circlePoint(minute,165); const hasInsight = isToday && Boolean(standoutActivity && item.moment && activitySummaryIdentity(item.moment).key === standoutActivity.activityKey); const counterRotation = wheelRotation ? `rotate(${-wheelRotation} ${point.x} ${point.y})` : undefined; return <g key={item.id} className={`rhythm-circle-today is-${item.state} ${hasInsight ? 'has-insight' : ''}`} role="button" tabIndex={0} aria-label={`${item.title}${item.timeHint ? `, ${item.timeHint}` : ''}, ${item.stateLabel}${hasInsight ? ', worth a closer look' : ''}`} onClick={() => item.moment ? onOpenActivitySummary(item.moment) : onOpenCareTasks()} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.moment ? onOpenActivitySummary(item.moment) : onOpenCareTasks(); } }}><circle className="rhythm-circle-today-halo" cx={point.x} cy={point.y} r="22"/>{hasInsight && <circle className="rhythm-circle-insight-pulse" cx={point.x} cy={point.y} r="22" aria-hidden="true"/>}<circle className="rhythm-circle-today-main" cx={point.x} cy={point.y} r="16"/><text x={point.x} y={point.y+1} textAnchor="middle" dominantBaseline="middle" transform={counterRotation}>{item.glyph}</text>{hasInsight && <g className="rhythm-circle-alert is-insight" role="button" tabIndex={0} aria-label="Worth a closer look" transform={counterRotation} onClick={event => { event.stopPropagation(); onOpenInsights(); }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onOpenInsights(); } }}><circle cx={point.x+13} cy={point.y-13} r="10"/><text x={point.x+13} y={point.y-9} textAnchor="middle">!</text></g>}<title>{item.title} · {item.timeHint || item.stateLabel}{hasInsight ? ' · Worth a closer look' : ''}</title></g>; })}
+      {isToday && <><line className="rhythm-circle-now" stroke="url(#daily-rhythm-now-hand)" x1="300" y1="300" x2={pointerTip.x} y2={pointerTip.y}/><circle className="rhythm-circle-now-dot" cx={pointerTip.x} cy={pointerTip.y} r="5"/></>}
+      </g><g className={`rhythm-circle-center-copy ${isCenterCopyHidden ? 'is-hidden' : ''}`} aria-hidden={isCenterCopyHidden}><text className="rhythm-circle-center-kicker" x="300" y={fullDayDial ? isToday ? 277 : 290 : 238} textAnchor="middle">{dayTitle}</text><text className="rhythm-circle-center-date" x="300" y={fullDayDial ? isToday ? 303 : 320 : 260} textAnchor="middle">{selectedDateLabel}</text>{isToday && !isRevealingHalfDay && <text className="rhythm-circle-center-time" x="300" y={fullDayDial ? 354 : 288} textAnchor="middle">{centerTimeLabel}</text>}</g>
+      </g>
+    </svg></div>
+    {isToday && (!fullDayDial || isRevealingHalfDay) && standoutActivity && <div className="daily-rhythm-insight-row"><button type="button" className="daily-rhythm-insight-link" onClick={onOpenInsights}>Worth a closer look →</button></div>}
+    <div className="daily-rhythm-lane-heading"><span>TYPICAL PATTERN</span><button type="button" onClick={() => onPatterns()}>{timedPatterns.length ? 'View →' : 'Set up →'}</button></div>
     <div className="daily-rhythm-chart">
-      {!isPattern && dayOffset < 0 && <button type="button" className="daily-rhythm-go-today" onPointerDown={event => { todayButtonDragStart.current = event.clientX; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerUp={event => { const startX = todayButtonDragStart.current; todayButtonDragStart.current = null; if (startX === null) return; const deltaX = event.clientX - startX; if (deltaX > 32 || deltaX < -32) { suppressTodayClick.current = true; if (deltaX > 32) goToPreviousDay(); else goToNewerDay(); window.setTimeout(() => { suppressTodayClick.current = false; }, 0); } }} onPointerCancel={() => { todayButtonDragStart.current = null; }} onClick={() => { if (suppressTodayClick.current) { suppressTodayClick.current = false; return; } onDayOffsetChange(0); }}>Today</button>}
-      {revealedMarker && <button type="button" className="daily-rhythm-selected-banner" aria-label={`Open details for ${revealedMarker.moment.title} at ${revealedMarker.time}`} onClick={() => openActivity(revealedMarker.moment)}>
-        <span className="daily-rhythm-selected-banner-icon" aria-hidden="true">{activityGlyph(revealedMarker.moment)}</span>
-        <span className="daily-rhythm-selected-banner-title">{revealedMarker.moment.title}</span>
-        <span className="daily-rhythm-selected-banner-time">{revealedMarker.time}</span>
+      {dayOffset < 0 && <button type="button" className="daily-rhythm-go-today" onClick={() => navigateToDay(0)}>Today</button>}
+      {revealedSelection && <button type="button" className="daily-rhythm-selected-banner" aria-label={`Open details for ${revealedSelection.moment.title} at ${revealedSelection.time}`} onClick={() => openActivity(revealedSelection.moment)}>
+        <span className="daily-rhythm-selected-banner-icon" aria-hidden="true">{activityGlyph(revealedSelection.moment)}</span>
+        <span className="daily-rhythm-selected-banner-title">{revealedSelection.moment.title}</span>
+        <span className="daily-rhythm-selected-banner-time">{revealedSelection.time}</span>
         <span className="daily-rhythm-selected-banner-arrow" aria-hidden="true">→</span>
       </button>}
-      <svg viewBox="0 0 600 424" role="application" tabIndex={0} aria-label={isPattern ? `Confirmed daily patterns for ${displayName}. Select an activity to reveal its time window, then select again for details.` : `Daily moments for ${dayTitle.toLowerCase()} on a true 24-hour scale. Select an activity to reveal its time, then select again for details. Swipe right to view the previous day or swipe left to view a newer day.`}
+      <svg viewBox="0 48 600 235" role="application" tabIndex={0} aria-label={`${displayName}’s confirmed typical activity times. Select a pattern to reveal its time window.`}
         onPointerDown={event => {
           const target = event.target as Element;
           dragStart.current = event.clientX;
@@ -846,7 +1013,7 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
             if (deltaX > 32) { suppressNavClick.current = true; goToPreviousDay(); window.setTimeout(() => { suppressNavClick.current = false; }, 0); }
             else if (deltaX < -32) { suppressNavClick.current = true; goToNewerDay(); window.setTimeout(() => { suppressNavClick.current = false; }, 0); }
             else if (clickedMomentId) {
-              const selected = selectedMoments.find(moment => moment.id === clickedMomentId);
+            const selected = selectedMoments.find(moment => moment.id === clickedMomentId) ?? patternMoments.find(moment => moment.id === clickedMomentId);
               if (selected) openActivity(selected);
             }
             else if (clickedNav) { suppressNavClick.current = true; if (clickedNav === 'previous') goToPreviousDay(); else if (!isToday) goToNewerDay(); window.setTimeout(() => { suppressNavClick.current = false; }, 0); }
@@ -862,12 +1029,12 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
           <radialGradient id="rhythm-orb-gloss" cx="36%" cy="20%" r="78%"><stop offset="0" stopColor="#fff" stopOpacity=".62"/><stop offset=".3" stopColor="#fff" stopOpacity=".22"/><stop offset="1" stopColor="#fff" stopOpacity="0"/></radialGradient>
           <marker id="rhythm-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M2 1.5 7 5 2 8.5" fill="none" stroke="#ffcf29" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></marker>
           <clipPath id="rhythm-current-avatar-clip" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath>
-          <clipPath id="rhythm-upper-half"><rect x="0" y="0" width="600" height="390"/></clipPath>
+          <clipPath id="rhythm-upper-half"><rect x="0" y="0" width="600" height="350"/></clipPath>
         </defs>
         <g clipPath="url(#rhythm-upper-half)">
-        <foreignObject x="0" y="0" width="600" height="390" aria-hidden="true"><div className="daily-rhythm-daylight-bg" /></foreignObject>
-        <circle className="daily-rhythm-horizon-backdrop" cx="300" cy="390" r="156" aria-hidden="true"/>
-        <g className="daily-rhythm-landscape" aria-hidden="true">
+        <foreignObject x="0" y="0" width="600" height="350" aria-hidden="true"><div className="daily-rhythm-daylight-bg" /></foreignObject>
+          <circle className="daily-rhythm-horizon-backdrop" cx="300" cy="450" r="156" aria-hidden="true"/>
+        <g className="daily-rhythm-landscape" transform="translate(0 -40)" aria-hidden="true">
           <path className="daily-rhythm-landscape-hill-back" d="M18 350 Q76 315 138 346 Q198 318 256 347 Q310 318 368 346 Q430 315 490 346 Q542 318 582 348 L600 390 L0 390 Z"/>
           <path className="daily-rhythm-landscape-hill-front" d="M0 369 Q68 333 132 365 Q194 342 248 365 Q300 343 352 365 Q416 337 476 365 Q540 336 600 367 L600 390 L0 390 Z"/>
           <path className="daily-rhythm-landscape-ray" d="M300 302 V292 M276 310 L269 302 M324 310 L331 302"/>
@@ -878,63 +1045,41 @@ function DailyRhythmCard({ petName, petAvatar, moments, scheduledMoments, onOpen
           <ellipse className="daily-rhythm-landscape-tree" cx="505" cy="338" rx="12" ry="18"/>
           <ellipse className="daily-rhythm-landscape-tree" cx="529" cy="346" rx="10" ry="15"/>
         </g>
-        <g ref={wheelRef} className="daily-rhythm-wheel">
-          <circle className="daily-rhythm-band-shadow" cx="300" cy="390" r="220"/>
-          <circle className="daily-rhythm-band" cx="300" cy="390" r="220"/>
-          <circle className="daily-rhythm-horizon-fill" cx="300" cy="390" r="156"/>
-          <circle className="daily-rhythm-orb-highlight" cx="300" cy="390" r="156"/>
-          <circle className="daily-rhythm-inner-arc" cx="300" cy="390" r="156"/>
-          <circle className="daily-rhythm-inner-arc inner-arc-two" cx="300" cy="390" r="136"/>
-          {isPattern && <path className="daily-rhythm-pattern-current-track" d="M120 390 A180 180 0 0 1 480 390" aria-hidden="true"/>}
-          {isPattern && timedPatterns.map(p => { const start = pointOnDial(p.startMinute!, 220), end = pointOnDial(p.endMinute!, 220); return <path key={`${p.id}-window`} className="daily-pattern-window" d={`M${start.x} ${start.y} A220 220 0 0 1 ${end.x} ${end.y}`}>{revealedActivityId === p.id && <title>{p.activity} · {clockMinute(p.startMinute!)}–{clockMinute(p.endMinute!)}</title>}</path>; })}
-          {timeLabelLeaders.map(line => <line key={`${line.id}-leader`} className="daily-rhythm-leader-line" x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} aria-hidden="true"/>)}
-          {momentPoints.map(({ moment, x, y, time }) => <g className="daily-rhythm-point" key={moment.id} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
-            <circle className="daily-rhythm-point-hit" cx={x} cy={y} r="28"/>
-            <circle className="daily-rhythm-point-marker" cx={x} cy={y} r="7"/>
-            <circle className="daily-rhythm-point-core" cx={x} cy={y} r="2.5"/>
-          </g>)}
-          {(isToday || isPattern) && <g className="daily-rhythm-current-point" aria-label={`Current time ${timeLabel(now)}`}>
-            <title>Now · {timeLabel(now)}</title>
-            {isPattern && <line className="daily-rhythm-pattern-current-pointer" x1={currentPoint.x} y1={currentPoint.y} x2={patternPointerOuter.x} y2={patternPointerOuter.y} aria-hidden="true"/>}
-            <circle className="daily-rhythm-current-avatar-outer" cx={currentPoint.x} cy={currentPoint.y} r="23"/>
-            <circle className="daily-rhythm-current-avatar-inner" cx={currentPoint.x} cy={currentPoint.y} r="20"/>
-            <image href={currentPetAvatar} x={currentPoint.x - 18.5} y={currentPoint.y - 18.5} width="37" height="37" preserveAspectRatio="xMidYMid slice" clipPath="url(#rhythm-current-avatar-clip)"/>
-          </g>}
-          {activityLabelsOnTop.map(({ moment, label, time }) => <g className={`daily-rhythm-time-trigger daily-rhythm-activity-label ${moment.observationKind ?? 'other'} ${revealedActivityId === moment.id ? 'is-revealed' : ''}`} key={`${moment.id}-label`} data-moment-trigger={moment.id} role="button" tabIndex={0} aria-label={revealedActivityId === moment.id ? `Open details for ${moment.title} at ${time}` : `Show time for ${moment.title}`} aria-pressed={revealedActivityId === moment.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(moment); } }}>
-            <rect className="daily-rhythm-time-hit" x={label.iconX - 37} y={label.iconY - 37} width="74" height="88"/>
-            <circle className="daily-rhythm-activity-badge" cx={label.iconX} cy={label.iconY} r="27"/>
-            <text className="daily-rhythm-activity-glyph" x={label.iconX} y={label.iconY + 1} textAnchor="middle" dominantBaseline="middle">{activityGlyph(moment)}</text>
-
-          </g>)}
+        <g className="daily-rhythm-wheel">
+          <path className="daily-rhythm-band-shadow" d={dialArcPath(todayTrackRadius)}/>
+          <path className="daily-rhythm-band" d={dialArcPath(todayTrackRadius)}/>
+          <circle className="daily-rhythm-horizon-fill" cx="300" cy="450" r="156"/>
+          <circle className="daily-rhythm-orb-highlight" cx="300" cy="450" r="156"/>
+          <path className="daily-rhythm-inner-arc" d={dialArcPath(156)}/>
+          <path className="daily-rhythm-inner-arc inner-arc-two" d={dialArcPath(136)}/>
+          {timedPatterns.length > 0 && <path className="daily-rhythm-pattern-band-base" d={patternBandBasePath} strokeWidth={patternTrackWidth} aria-hidden="true"/>}
+          {timedPatterns.map(p => {
+            const startProgress = dayProgress(p.startMinute!);
+            const endProgress = dayProgress(p.endMinute!);
+            const middle = pointAtProgress((startProgress + endProgress) / 2, patternTrackRadius);
+            const path = dialArcPath(patternTrackRadius, startProgress, endProgress);
+            const patternMoment = patternMoments.find(moment => moment.id === p.id);
+            return <g key={`${p.id}-window`} className={`daily-pattern-segment ${revealedActivityId === p.id ? 'is-revealed' : ''}`} data-moment-trigger={p.id} role="button" tabIndex={0} aria-label={`${p.activity} · ${clockMinute(p.startMinute!)}–${clockMinute(p.endMinute!)}`} aria-pressed={revealedActivityId === p.id} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (patternMoment) openActivity(patternMoment); } }}>
+              <path className="daily-pattern-window" d={path} strokeWidth={patternTrackWidth}><title>{p.activity} · {clockMinute(p.startMinute!)}–{clockMinute(p.endMinute!)}</title></path>
+              <circle className="daily-pattern-node" cx={middle.x} cy={middle.y} r="19" aria-hidden="true" />
+              {patternMoment && <text className="daily-pattern-node-glyph" x={middle.x} y={middle.y + 1} textAnchor="middle" dominantBaseline="middle" aria-hidden="true">{activityGlyph(patternMoment)}</text>}
+            </g>;
+          })}
         </g>
-        </g>
-        <text className="daily-rhythm-time daily-rhythm-end-time" x="52" y="410" textAnchor="middle" dominantBaseline="middle">00:00</text>
-        <text className="daily-rhythm-time daily-rhythm-end-time" x="548" y="410" textAnchor="middle" dominantBaseline="middle">00:00</text>
-        {!isPattern && <><g className="daily-rhythm-nav-arrow" data-day-nav="previous" role="button" tabIndex={0} aria-label="Show previous day" onClick={() => { if (!suppressNavClick.current) goToPreviousDay(); }} onKeyDown={event => handleNavKey(event, 'previous')}>
-          <path className="daily-rhythm-arrow-hit" d="M230 276 A136 136 0 0 0 176 336"/>
-          <path className="daily-rhythm-arrow" d="M230 276 A136 136 0 0 0 176 336" markerEnd="url(#rhythm-arrow)"/>
-        </g>
-        <g className={`daily-rhythm-nav-arrow ${isToday ? 'disabled' : ''}`} data-day-nav="newer" role="button" tabIndex={isToday ? -1 : 0} aria-disabled={isToday} aria-label="Show newer day" onClick={() => { if (!suppressNavClick.current && !isToday) goToNewerDay(); }} onKeyDown={event => { if (!isToday) handleNavKey(event, 'newer'); }}>
-          <path className="daily-rhythm-arrow-hit" d="M370 276 A136 136 0 0 1 424 336"/>
-          <path className="daily-rhythm-arrow" d="M370 276 A136 136 0 0 1 424 336" markerEnd="url(#rhythm-arrow)"/>
-        </g>
-        </>}
-        <g className="daily-rhythm-center-selection" {...(revealedMarker ? { role: 'button', tabIndex: 0, 'data-moment-trigger': revealedMarker.moment.id, 'aria-label': `Open details for ${revealedMarker.moment.title}`, onKeyDown: (event: React.KeyboardEvent<SVGGElement>) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openActivity(revealedMarker.moment); } } } : {})}>
-          <text className="daily-rhythm-center-title" x="300" y="306" textAnchor="middle">{isPattern ? 'PATTERN' : dayTitle}</text>
-          <text className="daily-rhythm-center-date" x="300" y="332" textAnchor="middle">{isPattern ? 'Select an activity' : selectedDateLabel}</text>
         </g>
     </svg>
     </div>
-    {isPattern ? <div className="daily-pattern-summary"><span>{timedPatterns.length ? `${timedPatterns.length} confirmed daily patterns · Usual time windows` : 'No confirmed activity times yet.'}</span><button type="button" className="profile-link" onClick={() => onPatterns()}>{timedPatterns.length ? 'View pattern evidence →' : 'Set up typical patterns →'}</button></div> : <section className="daily-rhythm-care" aria-label="Care tasks for selected day">
-      <div className="daily-rhythm-care-heading"><div><strong><svg className="daily-rhythm-care-title-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg><span>{isToday ? 'Today’s care' : `Care · ${selectedDateLabel}`}</span></strong><small>{dayCareTasks.length ? `${dayCareTasks.filter(task => task.status === 'done').length} of ${dayCareTasks.length} done${dayCareTasks.some(task => task.status === 'skipped') ? ` · ${dayCareTasks.filter(task => task.status === 'skipped').length} not today` : ''}` : 'Based on today’s planned activities'}</small></div><button type="button" onClick={onOpenCareTasks}>{unreadRequestCount > 0 && <span className="care-request-unread-dot" aria-label={`${unreadRequestCount} unread care ${unreadRequestCount === 1 ? 'notification' : 'notifications'}`} />}{requestAttentionCount ? `Requests · ${requestAttentionCount}` : unreadRequestCount ? 'Requests' : 'View all →'}</button></div>
-      {dayCareTasks.length ? <div className="daily-rhythm-care-list">{summaryCareTasks.map(task => {
-        const canComplete = canAct && !task.autoCompleted && task.status !== 'requested' && task.status !== 'skipped' && (task.status === 'done' ? isPrimary || task.completedBy === currentUserId : !task.assignedTo || task.assignedTo === currentUserId);
-        const time = task.sourcePatternId ? task.note.replace(/^Usual window /, '') : new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(task.dueAt));
-        const detail = task.status === 'skipped' ? 'Not today · hidden from Story' : task.autoCompleted ? `Activity recorded · Completed by ${memberName(task.completedBy ?? 'simulation', task.completedByName)}` : task.status === 'done' ? `Completed by ${memberName(task.completedBy ?? '', task.completedByName)}` : task.status === 'requested' ? `Waiting for ${memberName(task.assignedTo)}` : task.assignedTo ? `Assigned to ${memberName(task.assignedTo)}` : task.sourceObservationId ? 'Planned simulated activity' : 'Shared routine';
-        return <div className={`daily-rhythm-care-row ${task.status === 'done' ? 'is-done' : ''} ${task.status === 'skipped' ? 'is-skipped' : ''}`} key={task.id}><button type="button" className={`daily-rhythm-care-check ${task.status === 'done' ? 'is-done' : ''} ${task.status === 'skipped' ? 'is-skipped' : ''}`} aria-label={task.status === 'done' ? `${task.title} completed` : task.status === 'skipped' ? `${task.title} is not planned today` : `Mark ${task.title} complete`} disabled={!canComplete} onClick={() => onToggleCareTask(task)}>{task.status === 'done' ? '✓' : task.status === 'skipped' ? '—' : ''}</button><span className="daily-rhythm-care-copy"><strong>{task.title}</strong><small>{time} · {detail}</small></span>{canAct && task.sourceObservationId && (task.status === 'open' || task.status === 'skipped') && <button type="button" className="daily-rhythm-care-skip" onClick={() => onSkipCareTask(task)}>{task.status === 'skipped' ? 'Add back' : 'Not today'}</button>}</div>;
-      })}</div> : <p className="daily-rhythm-care-empty">No planned activities for this day.</p>}
-      {(!dayCareTasks.length || allCareTasksComplete || dayCareTasks.length > summaryCareTasks.length) && <div className="daily-rhythm-care-footer">{!dayCareTasks.length && <button type="button" onClick={() => setView('pattern')}>Review Pattern →</button>}{allCareTasksComplete ? <span>All activities completed</span> : dayCareTasks.length > summaryCareTasks.length && <span>+{dayCareTasks.length - summaryCareTasks.length} more activities</span>}</div>}
-    </section>}
+    <section className="daily-rhythm-today-lane" aria-label={`${dayTitle.toLowerCase()} activities`}>
+      <div className="daily-rhythm-lane-heading"><span>{dayTitle}</span><small>{todayTimelineItems.filter(item => item.state === 'done').length} of {todayTimelineItems.length} complete</small></div>
+      {todayTimelineItems.length ? <div className="daily-rhythm-today-scroll-shell">
+        <div className="daily-rhythm-today-track" ref={todayTrackRef} role="list" aria-label={`${dayTitle.toLowerCase()} activity timeline`} onPointerDown={startTodayDrag} onPointerMove={moveTodayDrag} onPointerUp={endTodayDrag} onPointerCancel={endTodayDrag}>{todayTimelineItems.map(item => <button type="button" role="listitem" ref={element => { if (element) todayCardRefs.current.set(item.id, element); else todayCardRefs.current.delete(item.id); }} className={`daily-rhythm-today-item is-${item.state}`} key={item.id} aria-label={`${item.title}${item.timeHint ? `, ${item.timeHint}` : ''}, ${item.stateLabel}`} onClick={event => { if (suppressTodayItemClick.current) { event.preventDefault(); event.stopPropagation(); suppressTodayItemClick.current = false; return; } if (item.moment) onOpenActivitySummary(item.moment); else onOpenCareTasks(); }}>
+          <span className="daily-rhythm-today-glyph" aria-hidden="true">{item.glyph}</span>
+          <span className="daily-rhythm-today-title"><strong>{item.title}</strong><strong aria-hidden="true">{item.title}</strong></span>
+          {item.timeHint && <time>{item.timeHint}</time>}
+          <small><span aria-hidden="true">{item.state === 'done' ? '✓' : item.state === 'soon' ? '◷' : item.state === 'attention' ? '!' : '○'}</span>{item.stateLabel}</small>
+        </button>)}</div>
+      </div> : <button type="button" className="daily-rhythm-today-empty" onClick={onOpenCareTasks}>No activities planned for this day · View care plan →</button>}
+    </section>
     </>
   </section>;
 }
@@ -1240,52 +1385,43 @@ function ActivityInsightsPage({ records, petName, reviews, canReview, onReview, 
   </section>;
 }
 
-function TodayPage({ onStory, onMoment, onPetsNavigate, onAddPet, onActivitySummary, onOpenInsights, onCareTasks, onToggleCareTask, onSkipCareTask, careTasks, careMembers, insightReviews, currentUserId, canAct, isPrimary, petName, petAvatar, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, dayOffset, onDayOffsetChange }: { onStory: () => void; onMoment: (momentId: string) => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; onCareTasks: () => void; onToggleCareTask: (task: CareTask) => void; onSkipCareTask: (task: CareTask) => void; careTasks: CareTask[]; careMembers: CareMember[]; insightReviews: ActivityInsightReview[]; currentUserId: string; canAct: boolean; isPrimary: boolean; petName: string; petAvatar: string; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
+function TodayPage({ onRequestCareTask, onStory, onPetsNavigate, onAddPet, onActivitySummary, onOpenMomentDetail, onOpenInsights, onCareTasks, onToggleCareTask, careTasks, careMembers, insightReviews, currentUserId, canAct, isPrimary, petName, petAvatar, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, dayOffset, onDayOffsetChange }: { onRequestCareTask: (task: CareTask, recipientId: string) => boolean; onStory: () => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; onOpenMomentDetail: (momentId: string) => void; onOpenInsights: () => void; onCareTasks: () => void; onToggleCareTask: (task: CareTask) => void; careTasks: CareTask[]; careMembers: CareMember[]; insightReviews: ActivityInsightReview[]; currentUserId: string; canAct: boolean; isPrimary: boolean; petName: string; petAvatar: string; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
   const now = useCurrentTime();
   const displayName = petName.replace(/\s*[（(]test[^）)]*[）)]$/i, '');
   const visibleRecords = visibleStoryObservations(observations.filter(record => !isObservationSkippedForToday(record, careTasks)), includedMoments)
     .filter(record => new Date(record.savedAt).getTime() <= now.getTime())
     .sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime());
-  const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
-  const featured = todayRecords.length ? todayRecords : visibleRecords.filter(record => new Date(record.savedAt).toDateString() === new Date(visibleRecords[0]?.savedAt).toDateString());
-  const clock = (value: string) => formatObservationTime(value).split('\n').at(-1);
   const rankedActivities = rankDailyActivityInsights(visibleRecords, now);
   const standoutActivity = attentionActivityInsights(rankedActivities, insightReviews)[0];
+  const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
+  const featuredRecords = todayRecords.slice(0, 8);
   const allChangesLookNormal = rankedActivities.length > 0 && !standoutActivity;
 
   return (
     <>
       <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
-      {!hasDemoMoments && !visibleRecords.length ? noPetYet ? <section className="today-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section> : <>
-      <DailyRhythmCard petName={petName} petAvatar={petAvatar} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} patterns={patterns} careTasks={careTasks} careMembers={careMembers} currentUserId={currentUserId} canAct={canAct} isPrimary={isPrimary} onToggleCareTask={onToggleCareTask} onSkipCareTask={onSkipCareTask} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
-      <section className="today-section">
+      {!noPetYet && <>
+      <section className="today-rhythm-care-group">
+        <DailyRhythmCard petName={petName} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} onOpenInsights={onOpenInsights} standoutActivity={standoutActivity} patterns={patterns} careTasks={careTasks} careMembers={careMembers} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
+        <TodayCare key={currentUserId + petName} petName={petName} patterns={patterns} observations={observations} tasks={careTasks} members={careMembers} currentUserId={currentUserId} canAct={canAct && dayOffset === 0} isPrimary={isPrimary} dayOffset={dayOffset} onDone={onToggleCareTask} onRequestHelp={onRequestCareTask} onOpenPlan={onCareTasks} onPatterns={() => onPatterns()} />
+      </section>
+      {featuredRecords.length > 0 && <section className="today-section">
         <h2>Moments you might love</h2>
         <MomentCarousel>
-          {!hasDemoMoments ? featured.map(record => <button className="moment-card" key={record.id} onClick={() => onMoment(record.id)}>
-            {observationHasPrimaryMedia(record) ? <StoryMediaView src={record.image} type={record.mediaType} alt={record.title} /> : <span className="moment-text-preview" aria-hidden="true">✦</span>}
-            <span className="moment-card-copy"><strong>{record.title}</strong><small>{observationHasPrimaryMedia(record) ? record.mediaType?.startsWith('video/') ? 'Video' : record.mediaType?.startsWith('audio/') ? 'Audio' : 'Photo' : 'Written observation'} · {clock(record.savedAt)}</small></span>
-          </button>) : <>
-
-          <button className="moment-card" onClick={() => onMoment('toy')}>
-            <img src={asset('toy-chase.png')} alt={`${petName} with a toy on a blue background`} />
-            <span className="moment-card-copy"><strong>The toy chase</strong><small>Video · 0:18 · 4:20 PM</small></span>
-          </button>
-          <button className="moment-card" onClick={() => onMoment('window')}>
-            <img src={asset('sunny-nap.png')} alt={`${petName} resting on a yellow background`} />
-            <span className="moment-card-copy"><strong>A sunny window nap</strong><small>Photo · 11:35 AM</small></span>
-          </button>
-        </>}
+          {featuredRecords.map(record => <button className="moment-card" key={record.id} type="button" onClick={() => onOpenMomentDetail(record.id)}>
+            <span className="moment-card-media">{observationHasPrimaryMedia(record) ? <StoryMediaView src={record.image} type={record.mediaType} alt={record.title} /> : <span className="moment-text-preview" aria-hidden="true">✦</span>}<span className="moment-card-copy"><strong>{record.title}</strong></span></span>
+          </button>)}
         </MomentCarousel>
-      </section>
-
+      </section>}
       <section className="today-section closer-look">
         <h2>Worth a closer look</h2>
-        <button className="notice-card" onClick={onOpenInsights}>
-          {allChangesLookNormal ? <span className="notice-card-reviewed" aria-hidden="true">✓</span> : <img src={asset('warning.png')} alt="" />}
-          <span><strong>{standoutActivity ? `${standoutActivity.activityLabel} · ${standoutActivity.key === 'duration' ? 'avg duration' : 'avg food/record'} ${standoutActivity.relativeChange > 0 ? '+' : '−'}${Math.round(Math.abs(standoutActivity.relativeChange) * 100)}% today` : allChangesLookNormal ? 'No changes need your attention today' : 'No change recorded today'}</strong><small>{standoutActivity ? `${standoutActivity.current.toFixed(1)} vs ${standoutActivity.previous.toFixed(1)} ${standoutActivity.unit} · ${standoutActivity.meetsThreshold ? 'meets main threshold' : 'small shift'} vs recorded history` : allChangesLookNormal ? `All reviewed changes look normal for ${petName}.` : 'No measured change to compare against prior recorded history.'}</small></span>
+        <button className="notice-card" type="button" onClick={onOpenInsights}>
+          {allChangesLookNormal ? <span className="notice-card-reviewed" aria-hidden="true">✓</span> : <span className="notice-card-alert" aria-hidden="true">!</span>}
+          <span><strong>{standoutActivity ? `${standoutActivity.activityLabel} · ${standoutActivity.key === 'duration' ? 'avg duration' : 'avg food/record'} ${standoutActivity.relativeChange > 0 ? '+' : '−'}${Math.round(Math.abs(standoutActivity.relativeChange) * 100)}% today` : allChangesLookNormal ? 'No changes need your attention today' : 'No change recorded today'}</strong><small>{standoutActivity ? `${standoutActivity.current.toFixed(1)} vs ${standoutActivity.previous.toFixed(1)} ${standoutActivity.unit} · ${standoutActivity.meetsThreshold ? 'meets main threshold' : 'small shift'} vs recorded history` : allChangesLookNormal ? `All reviewed changes look normal for ${displayName}.` : 'No measured change to compare against prior recorded history.'}</small></span>
         </button>
       </section>
       </>}
+      {!hasDemoMoments && !visibleRecords.length && (noPetYet ? <section className="today-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section>)}
     </>
   );
 }
@@ -1325,13 +1461,13 @@ function CareTasksPage({ tasks, patterns, observations, members, currentUserId, 
   const declinedAttention = isPrimary ? tasks.filter(task => task.status === 'declined') : [];
   const needsAttention = [...incoming, ...declinedAttention].filter((task, index, list) => list.findIndex(entry => entry.id === task.id) === index);
   const historyTasks = [...selectedRoutine, ...visibleTasks, ...tasks].filter((task, index, list) => list.findIndex(entry => entry.id === task.id) === index);
-  const eventHistory = historyTasks.flatMap(task => (task.events ?? []).map(event => ({ task, event }))).filter(({ event }) => isPrimary || event.actorId === currentUserId || event.targetId === currentUserId).sort((left, right) => right.event.createdAt.localeCompare(left.event.createdAt));
+  const eventHistory = historyTasks.flatMap(task => (task.events ?? []).map(event => ({ task, event }))).filter(({ event }) => canViewCareTaskEvent(event, currentUserId, isPrimary)).sort((left, right) => right.event.createdAt.localeCompare(left.event.createdAt));
   const saveGeneratedTask = (task: CareTask, patch: Partial<CareTask>) => {
     const nextTask = { ...task, ...patch };
     return onSave(tasks.some(entry => entry.id === task.id) ? tasks.map(entry => entry.id === task.id ? nextTask : entry) : [nextTask, ...tasks]);
   };
   const saveTransition = (task: CareTask, patch: Partial<CareTask>, event: Omit<CareTaskEvent, 'id'>) => saveGeneratedTask(task, appendCareTaskEvent({ ...task, ...patch }, event));
-  const eventLabel = (type: CareTaskEventType) => ({ assigned: 'Task assigned', requested: 'Help requested', reassigned: 'Request reassigned', accepted: 'Request accepted', declined: 'Help declined', released: 'Task released', taken_over: 'Task taken over', completed: 'Completed', reopened: 'Reopened', skipped: 'Not today', restored: 'Added back', auto_completed: 'Activity recorded' }[type]);
+  const eventLabel = (type: CareTaskEventType) => ({ assigned: 'Task assigned', requested: 'Help requested', reassigned: 'Request reassigned', accepted: 'Request accepted', declined: 'Help declined', released: 'Task released', taken_over: 'Task taken over', completed: 'Completed', reopened: 'Reopened', skipped: 'Not today', restored: 'Added back', auto_completed: 'Simulated activity recorded', reminded: 'Care reminder' }[type]);
   const eventDetail = (event: CareTaskEvent) => ({
     assigned: `${people(event.actorId)} assigned this to ${people(event.targetId ?? '')}`,
     requested: `${people(event.actorId)} asked ${people(event.targetId ?? '')} for help`,
@@ -1344,7 +1480,8 @@ function CareTasksPage({ tasks, patterns, observations, members, currentUserId, 
     reopened: `${people(event.actorId)} reopened the task`,
     skipped: `${people(event.actorId)} marked the activity not today`,
     restored: `${people(event.actorId)} added the activity back`,
-    auto_completed: `The activity record completed ${people(event.actorId)}’s task`,
+    auto_completed: 'Simulated activity recorded; caregiver completion is not verified',
+    reminded: `${people(event.actorId)} asked ${people(event.targetId ?? '')} to check this task and record it if already done`,
   }[event.type]);
   useEffect(() => {
     if (tab !== 'requests') return;
@@ -1399,20 +1536,19 @@ function CareTasksPage({ tasks, patterns, observations, members, currentUserId, 
       <section className="care-request-section" aria-labelledby="care-needs-attention"><div className="care-request-section-heading"><h2 id="care-needs-attention">Needs attention</h2><span>{needsAttention.length}</span></div>{needsAttention.length ? <div className="care-task-list">{needsAttention.map(task => {
         const awaitingCurrentUser = task.status === 'requested' && task.assignedTo === currentUserId;
         const composingRequest = helpTaskId === task.id;
-        return <article className="care-task-card care-request-attention" key={task.id}><div className="care-task-card-top"><span className={`care-task-status ${awaitingCurrentUser ? 'request' : 'declined'}`}>{awaitingCurrentUser ? 'Needs your response' : 'Caregiver stepped back'}</span><time>{new Date(task.dueAt).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</time></div><h2>{task.title}</h2>{(task.requestNote || task.note) && <p>{task.requestNote || task.note}</p>}<small>{awaitingCurrentUser ? `Asked by ${people(task.assignedBy)}` : `${people(task.declinedBy ?? task.assignedTo)} can’t complete this task`}</small>{composingRequest && <form className="care-help-form" onSubmit={event => sendHelpRequest(event, task)}><label>Who can help?<select autoFocus value={helpAssignee} onChange={event => setHelpAssignee(event.target.value)} required><option value="">Choose a caregiver</option>{helperCandidates.map(member => <option key={member.id} value={member.id}>{member.name}{member.role === 'Temporary caregiver' ? ' · Temporary caregiver' : ''}</option>)}</select></label><label>Message (optional)<textarea value={helpNote} onChange={event => setHelpNote(event.target.value)} maxLength={240} placeholder={`Could you take care of ${task.title.toLowerCase()} today?`} /></label><div className="care-task-form-actions"><button type="button" className="cancel-button" onClick={() => setHelpTaskId(null)}>Cancel</button><button type="submit" className="primary-button" disabled={!helpAssignee}>Send request</button></div></form>}{!composingRequest && canAct && <div className="care-task-card-actions">{awaitingCurrentUser ? <><button className="cancel-button" onClick={() => { const declinedAt = new Date().toISOString(); saveTransition(task, { status: 'declined', declinedBy: currentUserId, declinedAt }, { type: 'declined', actorId: currentUserId, targetId: task.assignedBy, createdAt: declinedAt }); }}>Can’t do it</button><button className="primary-button" onClick={() => { const acceptedAt = new Date().toISOString(); saveTransition(task, { status: 'accepted', acceptedAt }, { type: 'accepted', actorId: currentUserId, targetId: task.assignedBy, createdAt: acceptedAt }); }}>Accept</button></> : <><button className="care-task-ask" onClick={() => startHelpRequest(task)}>Ask someone else</button><button className="care-task-complete" onClick={() => takeOverTask(task)}>I’ll do it</button></>}</div>}</article>;
+        return <article className="care-task-card care-request-attention" key={task.id}><div className="care-task-card-top"><span className={`care-task-status ${awaitingCurrentUser ? 'request' : 'declined'}`}>{awaitingCurrentUser ? 'Needs your response' : 'Caregiver stepped back'}</span><time>{new Date(task.dueAt).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</time></div><h2>{task.title}</h2>{(task.requestNote || task.note) && <p>{task.requestNote || task.note}</p>}<small>{awaitingCurrentUser ? `Asked by ${people(task.assignedBy)}` : `${people(task.declinedBy ?? task.assignedTo)} can’t complete this task`}</small>{composingRequest && <form className="care-help-form" onSubmit={event => sendHelpRequest(event, task)}><label>Who can help?<select autoFocus value={helpAssignee} onChange={event => setHelpAssignee(event.target.value)} required><option value="">Choose a caregiver</option>{helperCandidates.map(member => <option key={member.id} value={member.id}>{member.name}{member.role === 'Temporary caregiver' ? ' · Temporary caregiver' : ''}</option>)}</select></label><label>Message (optional)<textarea value={helpNote} onChange={event => setHelpNote(event.target.value)} maxLength={240} placeholder={`Could you take care of ${task.title.toLowerCase()} today?`} /></label><div className="care-task-form-actions"><button type="button" className="cancel-button" onClick={() => setHelpTaskId(null)}>Cancel</button><button type="submit" className="primary-button" disabled={!helpAssignee}>Send request</button></div></form>}{!composingRequest && canAct && <div className="care-task-card-actions">{awaitingCurrentUser ? <><button type="button" className="cancel-button" aria-label={`Decline request for ${task.title}`} onClick={() => { const declinedAt = new Date().toISOString(); saveTransition(task, { status: 'declined', declinedBy: currentUserId, declinedAt }, { type: 'declined', actorId: currentUserId, targetId: task.assignedBy, createdAt: declinedAt }); }}>Decline request</button><button className="primary-button" onClick={() => { const acceptedAt = new Date().toISOString(); saveTransition(task, { status: 'accepted', acceptedAt }, { type: 'accepted', actorId: currentUserId, targetId: task.assignedBy, createdAt: acceptedAt }); }}>Accept</button></> : <><button className="care-task-ask" onClick={() => startHelpRequest(task)}>Ask someone else</button><button className="care-task-complete" onClick={() => takeOverTask(task)}>I’ll do it</button></>}</div>}</article>;
       })}</div> : <div className="care-tasks-empty compact"><span>✓</span><strong>Nothing needs your attention</strong><p>New requests and tasks that need reassignment will appear here.</p></div>}</section>
       <section className="care-request-section" aria-labelledby="care-request-history"><div className="care-request-section-heading"><h2 id="care-request-history">History</h2><span>{eventHistory.length}</span></div>{eventHistory.length ? <div className="care-request-history">{eventHistory.map(({ task, event }) => <article className={`care-request-event ${event.targetId === currentUserId && !(event.readBy ?? []).includes(currentUserId) ? 'is-unread' : ''}`} key={event.id}><span className={`care-request-event-dot ${event.type}`} aria-hidden="true"/><span><strong>{eventLabel(event.type)} · {task.title}</strong><small>{eventDetail(event)}</small></span><time>{new Date(event.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time></article>)}</div> : <div className="care-tasks-empty compact"><span>✉</span><strong>No request history yet</strong><p>Requests and responsibility changes will be recorded here.</p></div>}</section>
     </div> : <div className="care-task-list">
       {selectedRoutine.length > 0 && <section className="care-routine-section"><div className="care-routine-heading"><div><h2>{selectedDateLabel} activities</h2></div></div>{activeRoutineTasks.map(task => {
-        const canComplete = canEditSelectedDay && !task.autoCompleted && (task.status === 'done' ? isPrimary || task.completedBy === currentUserId : !task.assignedTo || task.assignedTo === currentUserId);
-        const canAskForHelp = isPrimary && canEditSelectedDay && !!task.sourceObservationId && helperCandidates.length > 0 && ['open', 'declined'].includes(task.status);
+        const canComplete = canEditSelectedDay && !task.autoCompleted && canToggleCareTaskCompletion(task, currentUserId, isPrimary);
         const composingRequest = helpTaskId === task.id;
         const time = task.sourcePatternId ? task.note.replace(/^Usual window /, '') : new Date(task.dueAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
         const statusLabel = task.status === 'done' ? 'Completed' : task.status === 'skipped' ? 'Not today' : task.status === 'requested' ? 'Awaiting response' : task.status === 'accepted' ? 'Assigned' : task.status === 'declined' ? 'Help declined' : task.sourceObservationId ? 'Scheduled' : 'Routine';
-        const detail = task.status === 'skipped' ? 'Not today · hidden from Story' : task.autoCompleted ? `Completed by ${task.completedByName ?? people(task.completedBy ?? 'simulation')} when the activity was recorded` : task.status === 'done' ? `Completed by ${task.completedByName ?? people(task.completedBy ?? '')} · ${task.completedAt ? new Date(task.completedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}` : task.status === 'requested' ? `Waiting for ${people(task.assignedTo)} to respond` : task.status === 'accepted' ? `${people(task.assignedTo)} is handling this activity` : task.status === 'declined' ? `${people(task.assignedTo)} couldn’t help · ask someone else` : task.sourceObservationId ? 'Scheduled simulated activity' : 'Shared routine · check off when done';
-        return <article className="care-task-card" key={task.id}><div className="care-task-card-top"><span className={`care-task-status ${task.status}`}>{statusLabel}</span><time>{time}</time></div><h2>{task.title}</h2><small>{detail}</small>{composingRequest && <form className="care-help-form" onSubmit={event => sendHelpRequest(event, task)}><label>Who can help?<select autoFocus value={helpAssignee} onChange={event => setHelpAssignee(event.target.value)} required><option value="">Choose a caregiver</option>{helperCandidates.map(member => <option key={member.id} value={member.id}>{member.name}{member.role === 'Temporary caregiver' ? ' · Temporary caregiver' : ''}</option>)}</select></label><label>Message (optional)<textarea value={helpNote} onChange={event => setHelpNote(event.target.value)} maxLength={240} placeholder={`Could you take care of ${task.title.toLowerCase()} today?`} /></label><div className="care-task-form-actions"><button type="button" className="cancel-button" onClick={() => setHelpTaskId(null)}>Cancel</button><button type="submit" className="primary-button" disabled={!helpAssignee}>Send request</button></div></form>}{!composingRequest && <div className="care-task-action-stack">{canEditSelectedDay && task.sourceObservationId && task.status === 'open' && <button className="care-task-not-today" onClick={() => onSkipTask(task)}>Not today</button>}<div className="care-task-card-actions">{canAskForHelp && <button className="care-task-ask" onClick={() => startHelpRequest(task)}>Ask a caregiver</button>}{isPrimary && canEditSelectedDay && task.status === 'declined' && <button className="care-task-complete" onClick={() => takeOverTask(task)}>I’ll do it</button>}{canEditSelectedDay && task.status === 'accepted' && task.assignedTo === currentUserId && <button className="cancel-button" onClick={() => setReleaseTaskId(task.id)}>Can’t do it</button>}{canComplete && ['open', 'accepted'].includes(task.status) && <button className="care-task-complete" onClick={() => onToggleTask(task)}>Mark as done ✓</button>}</div></div>}</article>;
-      })}{completedPlanTasks.length > 0 && <details className="care-task-archive" open={dayOffset !== 0}><summary><span>Completed</span><em>{completedPlanTasks.length}</em></summary><div className="care-task-archive-list">{completedPlanTasks.map(task => <article className="care-task-card is-complete" key={task.id}><div className="care-task-card-top"><span className="care-task-status done">Completed</span><time>{new Date(task.dueAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div><h2>{task.title}</h2><small>Completed by {task.completedByName ?? people(task.completedBy ?? '')}{task.completedAt ? ` · ${new Date(task.completedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}</small></article>)}</div></details>}{skippedPlanTasks.length > 0 && <details className="care-task-archive" open={dayOffset !== 0}><summary><span>Not today</span><em>{skippedPlanTasks.length}</em></summary><div className="care-task-archive-list">{skippedPlanTasks.map(task => <article className="care-task-card is-skipped" key={task.id}><div className="care-task-card-top"><span className="care-task-status skipped">Not today</span><time>{new Date(task.dueAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div><h2>{task.title}</h2><small>Hidden from Story for this day</small>{canEditSelectedDay && <button className="care-task-restore" onClick={() => onSkipTask(task)}>Add back to today</button>}</article>)}</div></details>}</section>}
-      {(selectedRoutine.length ? activeVisibleTasks : visibleTasks).map(task => <article className={`care-task-card ${task.status === 'done' ? 'is-complete' : ''}`} key={task.id}><div className="care-task-card-top"><span className={`care-task-status ${task.status}`}>{task.status === 'done' ? 'Completed' : task.status === 'requested' ? 'Awaiting response' : task.status === 'declined' ? 'Declined' : task.status === 'accepted' ? 'Accepted' : 'To do'}</span><time>{new Date(task.dueAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time></div><h2>{task.title}</h2>{task.note && <p>{task.note}</p>}<small>{task.status === 'done' ? `Completed by ${people(task.completedBy ?? '')} · ${task.completedAt ? new Date(task.completedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}` : `Assigned to ${people(task.assignedTo)} · from ${people(task.assignedBy)}`}</small>{canEditSelectedDay && task.assignedTo === currentUserId && ['open', 'accepted'].includes(task.status) && <div className="care-task-card-actions">{task.status === 'accepted' && <button className="cancel-button" onClick={() => setReleaseTaskId(task.id)}>Can’t do it</button>}<button className="care-task-complete" onClick={() => { const completedAt = new Date().toISOString(); saveTransition(task, { status: 'done', completedBy: currentUserId, completedAt }, { type: 'completed', actorId: currentUserId, targetId: task.assignedBy === currentUserId ? undefined : task.assignedBy, createdAt: completedAt }); }}>Mark as done ✓</button></div>}</article>)}
+        const detail = task.status === 'skipped' ? 'Not today · hidden from Story' : task.autoCompleted ? 'Simulated activity recorded · caregiver not verified' : task.status === 'done' ? `Completed by ${task.completedByName ?? people(task.completedBy ?? '')} · ${task.completedAt ? new Date(task.completedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}` : task.status === 'requested' ? `Waiting for ${people(task.assignedTo)} to respond` : task.status === 'accepted' ? `${people(task.assignedTo)} is handling this activity` : task.status === 'declined' ? `${people(task.assignedTo)} couldn’t help · ask someone else` : task.sourceObservationId ? 'Scheduled simulated activity' : 'Shared routine · check off when done';
+        return <article className="care-task-card" key={task.id}><div className="care-task-card-top"><span className={`care-task-status ${task.status}`}>{statusLabel}</span><time>{time}</time></div><h2>{task.title}</h2><small>{detail}</small>{composingRequest && <form className="care-help-form" onSubmit={event => sendHelpRequest(event, task)}><label>Who can help?<select autoFocus value={helpAssignee} onChange={event => setHelpAssignee(event.target.value)} required><option value="">Choose a caregiver</option>{helperCandidates.map(member => <option key={member.id} value={member.id}>{member.name}{member.role === 'Temporary caregiver' ? ' · Temporary caregiver' : ''}</option>)}</select></label><label>Message (optional)<textarea value={helpNote} onChange={event => setHelpNote(event.target.value)} maxLength={240} placeholder={`Could you take care of ${task.title.toLowerCase()} today?`} /></label><div className="care-task-form-actions"><button type="button" className="cancel-button" onClick={() => setHelpTaskId(null)}>Cancel</button><button type="submit" className="primary-button" disabled={!helpAssignee}>Send request</button></div></form>}{!composingRequest && <div className="care-task-action-stack">{canEditSelectedDay && task.sourceObservationId && task.status === 'open' && <button className="care-task-not-today" onClick={() => onSkipTask(task)}>Not today</button>}<div className="care-task-card-actions">{isPrimary && canEditSelectedDay && task.status === 'declined' && <button className="care-task-complete" onClick={() => takeOverTask(task)}>I’ll do it</button>}{canEditSelectedDay && task.status === 'accepted' && task.assignedTo === currentUserId && <button className="cancel-button" onClick={() => setReleaseTaskId(task.id)}>Can’t do it</button>}{canComplete && ['open', 'requested', 'accepted', 'declined'].includes(task.status) && <button className="care-task-complete" onClick={() => onToggleTask(task)}>Mark as done ✓</button>}</div></div>}</article>;
+      })}{completedPlanTasks.length > 0 && <details className="care-task-archive" open={dayOffset !== 0}><summary><span>Completed</span><em>{completedPlanTasks.length}</em></summary><div className="care-task-archive-list">{completedPlanTasks.map(task => <article className="care-task-card is-complete" key={task.id}><div className="care-task-card-top"><span className="care-task-status done">Completed</span><time>{new Date(task.dueAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div><h2>{task.title}</h2><small>{task.autoCompleted ? 'Simulated activity recorded · caregiver not verified' : `Done by ${task.completedByName ?? people(task.completedBy ?? '')}`}{task.completedAt ? ` · ${new Date(task.completedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}</small>{canEditSelectedDay && canToggleCareTaskCompletion(task,currentUserId,isPrimary) && <button type="button" className="care-task-undo" onClick={()=>onToggleTask(task)}>Undo completion</button>}</article>)}</div></details>}{skippedPlanTasks.length > 0 && <details className="care-task-archive" open={dayOffset !== 0}><summary><span>Not today</span><em>{skippedPlanTasks.length}</em></summary><div className="care-task-archive-list">{skippedPlanTasks.map(task => <article className="care-task-card is-skipped" key={task.id}><div className="care-task-card-top"><span className="care-task-status skipped">Not today</span><time>{new Date(task.dueAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div><h2>{task.title}</h2><small>Hidden from Story for this day</small>{canEditSelectedDay && <button className="care-task-restore" onClick={() => onSkipTask(task)}>Add back to today</button>}</article>)}</div></details>}</section>}
+      {(selectedRoutine.length ? activeVisibleTasks : visibleTasks).map(task => <article className={`care-task-card ${task.status === 'done' ? 'is-complete' : ''}`} key={task.id}><div className="care-task-card-top"><span className={`care-task-status ${task.status}`}>{task.status === 'done' ? 'Completed' : task.status === 'requested' ? 'Awaiting response' : task.status === 'declined' ? 'Declined' : task.status === 'accepted' ? 'Accepted' : 'To do'}</span><time>{new Date(task.dueAt).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time></div><h2>{task.title}</h2>{task.note && <p>{task.note}</p>}<small>{task.status === 'done' ? `Completed by ${people(task.completedBy ?? '')} · ${task.completedAt ? new Date(task.completedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}` : `Assigned to ${people(task.assignedTo)} · from ${people(task.assignedBy)}`}</small>{canEditSelectedDay && task.status === 'done' && canToggleCareTaskCompletion(task,currentUserId,isPrimary) && <button type="button" className="care-task-undo" onClick={()=>onToggleTask(task)}>Undo completion</button>}{canEditSelectedDay && canToggleCareTaskCompletion(task,currentUserId,isPrimary) && ['open', 'requested', 'accepted', 'declined'].includes(task.status) && <div className="care-task-card-actions">{task.status === 'accepted' && task.assignedTo === currentUserId && <button className="cancel-button" onClick={() => setReleaseTaskId(task.id)}>Can’t do it</button>}<button className="care-task-complete" onClick={() => onToggleTask(task)}>Mark as done ✓</button></div>}</article>)}
       {!selectedRoutine.length && !visibleTasks.length && <div className="care-tasks-empty"><span>✓</span><strong>No activities scheduled for this day</strong><p>{isPrimary ? 'Simulated activities—or confirmed Patterns when there is no simulation—appear here for the selected day.' : 'Care tasks assigned to you for this day will appear here.'}</p>{isPrimary && <button className="profile-link" onClick={onPatterns}>Review Patterns →</button>}</div>}
     </div>}
     {releaseTask && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setReleaseTaskId(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="release-care-task-title" onClick={event => event.stopPropagation()}><h2 id="release-care-task-title">Can’t complete this task?</h2><p>The Primary caregiver will see that you can’t complete “{releaseTask.title}” and can take over or ask someone else.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setReleaseTaskId(null)}>Keep task</button><button className="danger-button" onClick={confirmReleaseTask}>Can’t do it</button></div></section></div>}
@@ -2344,6 +2480,9 @@ function readPrototypeSession(): PrototypeSession {
         avatar: typeof account.avatar === 'string' ? account.avatar : '',
         preference: typeof account.preference === 'string' ? account.preference : '',
         careProfile: normalizeOwnerCareProfile(account.careProfile),
+        setupStatus: account.setupStatus,
+        guideStatus: account.guideStatus,
+        careGoals: Array.isArray(account.careGoals) ? account.careGoals.filter((g): g is string => typeof g === 'string').slice(0,4) : [],
         pets: availablePets,
         activePetId: availablePets.some((pet) => pet.id === account.activePetId) ? account.activePetId as string : availablePets[0].id,
       }];
@@ -2384,20 +2523,41 @@ function AskPage({ onPetsNavigate, petName, petAvatar, petSpecies, messages, mes
         <span>{message.text}</span>
       </article>)}
       {busy && <article className="chat-message ai ask-thinking" role="status"><ThinkingAvatar species={petSpecies} /> Pawsona is thinking…</article>}
-      <div ref={messageEndRef} />
+      <div ref={messageEndRef} className="ask-thread-end" />
     </section>
   </div>;
 }
 
-function AskComposer({ value, onValue, onSend, onQuickContext, saveError, busy, enabled }: { value: string; onValue: (value: string) => void; onSend: (attachment?: AskAttachment) => Promise<boolean>; onQuickContext: (value: string) => void; saveError: string; busy: boolean; enabled: boolean }) {
+function AskComposer({ value, onValue, onSend, onQuickContext, saveError, busy, enabled, messageEndRef }: { value: string; onValue: (value: string) => void; onSend: (attachment?: AskAttachment) => Promise<boolean>; onQuickContext: (value: string) => void; saveError: string; busy: boolean; enabled: boolean; messageEndRef: RefObject<HTMLDivElement | null> }) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const dockRef = useRef<HTMLElement>(null);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const quickChipsRef = useRef<HTMLDivElement>(null);
+  const chipDragRef = useRef<{ pointerId: number; startX: number; startScrollLeft: number; didMove: boolean } | null>(null);
+  const suppressChipClickRef = useRef(false);
   useEffect(() => {
     const dock = dockRef.current; const phone = dock?.closest<HTMLElement>('.phone');
     if (!dock || !phone) return;
     const observer = new ResizeObserver(() => phone.style.setProperty('--ask-dock-height', `${dock.offsetHeight}px`));
     observer.observe(dock);
     return () => { observer.disconnect(); phone.style.removeProperty('--ask-dock-height'); };
+  }, []);
+  useEffect(() => {
+    const scroll = dockRef.current?.closest<HTMLElement>('.phone')?.querySelector<HTMLElement>('.screen-scroll');
+    if (!scroll) return;
+    const update = () => {
+      const latestBottom = messageEndRef.current?.getBoundingClientRect().bottom;
+      const composerTop = dockRef.current?.getBoundingClientRect().top ?? scroll.getBoundingClientRect().bottom;
+      const visibleBottom = Math.min(scroll.getBoundingClientRect().bottom, composerTop) - 8;
+      setShowJumpToLatest(latestBottom !== undefined && latestBottom > visibleBottom + 12);
+    };
+    update();
+    scroll.addEventListener('scroll', update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(scroll);
+    const askContent = scroll.querySelector<HTMLElement>('.ask-page');
+    if (askContent) observer.observe(askContent);
+    return () => { scroll.removeEventListener('scroll', update); observer.disconnect(); };
   }, []);
   const [attachment, setAttachment] = useState<AskAttachment | undefined>();
   const [attachmentError, setAttachmentError] = useState('');
@@ -2427,8 +2587,9 @@ function AskComposer({ value, onValue, onSend, onQuickContext, saveError, busy, 
   const disabled = busy || reading || !enabled;
   const notice = Boolean(attachment || attachmentError || saveError);
   return <section ref={dockRef} className={`ask-dock${notice ? ' has-attachment' : ''}`} aria-label="Ask Pawsona a question">
+    {showJumpToLatest && <button type="button" className="ask-jump-latest" aria-label="Jump to latest message" title="Jump to latest message" onClick={() => messageEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v15m-6-6 6 6 6-6" /></svg></button>}
     <div className="quick-context-label">Quick questions</div>
-    <div className="quick-chips">{['What can you observe?', 'What should I watch for?', 'Help me understand'].map(text => <button key={text} disabled={disabled} onClick={() => onQuickContext(text)}>{text}</button>)}</div>
+    <div ref={quickChipsRef} className="quick-chips" onPointerDown={(event) => { if (event.pointerType !== 'mouse' || event.button !== 0) return; const rail = quickChipsRef.current; if (!rail) return; chipDragRef.current = { pointerId: event.pointerId, startX: event.clientX, startScrollLeft: rail.scrollLeft, didMove: false }; }} onPointerMove={(event) => { const drag = chipDragRef.current; const rail = quickChipsRef.current; if (!drag || drag.pointerId !== event.pointerId || !rail) return; const delta = event.clientX - drag.startX; if (Math.abs(delta) > 4) { drag.didMove = true; if (!event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.setPointerCapture(event.pointerId); } if (drag.didMove) { event.preventDefault(); rail.scrollLeft = drag.startScrollLeft - delta; } }} onPointerUp={(event) => { const drag = chipDragRef.current; if (!drag || drag.pointerId !== event.pointerId) return; suppressChipClickRef.current = drag.didMove; chipDragRef.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} onPointerCancel={() => { chipDragRef.current = null; }} onClickCapture={(event) => { if (!suppressChipClickRef.current) return; suppressChipClickRef.current = false; event.preventDefault(); event.stopPropagation(); }}>{QUICK_QUESTIONS.map(text => <button key={text} disabled={disabled} onClick={() => onQuickContext(text)}>{text}</button>)}</div>
     <div className={`ask-input-box${notice ? ' has-attachment' : ''}`}>
       {attachment && <div className="ask-attachment-preview"><div className="ask-attachment-tile image"><img src={attachment.url} alt={attachment.name} /><button type="button" disabled={busy} aria-label="Remove image attachment" onClick={() => { setAttachment(undefined); setAttachmentError(''); }}>×</button></div></div>}
       {(attachmentError || saveError) && <div className="ask-recording-error" role="alert"><span>{attachmentError || saveError}</span></div>}
@@ -2461,7 +2622,7 @@ function AccountSwitcher({ accounts, activeAccountId, onClose, onSwitch, onRegis
 }
 
 function PetSwitcher({ pets, activePetId, onClose, onSwitch, onAdd, onDelete, initialAdding = false }: { pets: PrototypePet[]; activePetId: string; onClose: () => void; onSwitch: (id: string) => void; onAdd: (name: string, breed: string, age: string, species: 'Dog' | 'Cat', avatar: string) => string; onDelete: (id: string) => string; initialAdding?: boolean }) {
-  const visiblePets = pets.filter((pet) => !pet.isEmptyProfile);
+  const visiblePets = pets.filter((pet) => !pet.isEmptyProfile).sort((left, right) => Number(right.id === activePetId) - Number(left.id === activePetId));
   const [adding, setAdding] = useState(initialAdding);
   const [name, setName] = useState('');
   const [breed, setBreed] = useState('');
@@ -2585,10 +2746,11 @@ function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, own
   );
 }
 
-function ProfileActivityPage({ pets, initialPetId, initialCategory, currentAccountId, onBack, onOpenMoment, onRemoveFavorites }: { pets: PrototypePet[]; initialPetId: string; initialCategory: ProfileActivityCategory; currentAccountId: string; onBack: () => void; onOpenMoment: (petId: string, momentId: string) => void; onRemoveFavorites: (petId: string, momentIds: string[]) => void }) {
+function ProfileActivityPage({ pets, initialPetId, initialCategory, currentAccountId, currentAccountName, onBack, onOpenMoment, onRemoveFavorites }: { pets: PrototypePet[]; initialPetId: string; initialCategory: ProfileActivityCategory; currentAccountId: string; currentAccountName: string; onBack: () => void; onOpenMoment: (petId: string, momentId: string) => void; onRemoveFavorites: (petId: string, momentIds: string[]) => void }) {
   const visiblePets = pets.filter((pet) => !pet.isEmptyProfile).sort((left, right) => Number(right.id === initialPetId) - Number(left.id === initialPetId));
   const [selectedPetId, setSelectedPetId] = useState(initialPetId);
   const [category, setCategory] = useState<ProfileActivityCategory>(initialCategory);
+  const [momentLayout, setMomentLayout] = useState<'large' | 'small'>('large');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMomentIds, setSelectedMomentIds] = useState<string[]>([]);
   const longPressTimer = useRef<number | null>(null);
@@ -2596,7 +2758,7 @@ function ProfileActivityPage({ pets, initialPetId, initialCategory, currentAccou
   const selectedPet = visiblePets.find((pet) => pet.id === selectedPetId) ?? visiblePets[0];
   const labels: Record<ProfileActivityCategory, string> = { records: 'My records', likes: 'Liked', favorites: 'Favorites', contexts: 'Contexts' };
   const allowedObservations = selectedPet?.workspace.observations.filter((entry) => !entry.privateRecord || observationBelongsToAccount(selectedPet, entry, currentAccountId)) ?? [];
-  const completedByCurrentAccount = allowedObservations.filter((entry) => selectedPet && observationCompletedByAccount(selectedPet, entry.id, currentAccountId));
+  const completedByCurrentAccount = allowedObservations.filter((entry) => selectedPet && observationCompletedByAccount(selectedPet, entry, currentAccountId, currentAccountName));
   const momentForId = (id: string) => {
     const observation = allowedObservations.find((entry) => entry.id === id);
     if (observation) return { id, title: observation.title, note: observation.note, image: observation.image, mediaType: observation.mediaType, savedAt: observation.savedAt };
@@ -2612,7 +2774,6 @@ function ProfileActivityPage({ pets, initialPetId, initialCategory, currentAccou
     .filter((context) => context.authorId === currentAccountId)
     .map((context) => ({ ...context, parent: momentForId(context.momentId) ?? { id: context.momentId, title: context.momentTitle, note: context.note, image: context.momentImage, mediaType: undefined, savedAt: context.savedAt } }))
     .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
-  const count = category === 'contexts' ? contexts.length : moments.length;
 
   function clearLongPressTimer() {
     if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
@@ -2657,15 +2818,15 @@ function ProfileActivityPage({ pets, initialPetId, initialCategory, currentAccou
 
   return <section className="favorites-page profile-activity-page">
     <header className={`favorites-page-header ${selectionMode ? 'selecting' : ''}`}><button className="back-button" aria-label="Back to profile" onClick={onBack}>←</button><div className="favorites-page-title"><span className="eyebrow">MY SPACE</span><h1>{labels[category]}</h1></div>{category === 'favorites' && <div className="favorite-selection-actions">{selectionMode ? <><button type="button" onClick={selectAllMoments}>{selectedMomentIds.length === moments.length ? 'Clear' : 'Select all'}</button><button type="button" className="favorite-delete-action" disabled={!selectedMomentIds.length} onClick={() => { if (selectedPet && selectedMomentIds.length) onRemoveFavorites(selectedPet.id, selectedMomentIds); leaveSelectionMode(); }}>Delete{selectedMomentIds.length ? ` · ${selectedMomentIds.length}` : ''}</button><button type="button" className="favorite-cancel-action" aria-label="Exit selection mode" onClick={leaveSelectionMode}>×</button></> : <button type="button" className="favorite-select-mode" onClick={() => setSelectionMode(true)}>Select</button>}</div>}</header>
-    <nav className="profile-activity-tabs" aria-label="Profile activity categories">{(['records', 'likes', 'favorites', 'contexts'] as const).map((item) => <button type="button" key={item} className={category === item ? 'active' : ''} aria-pressed={category === item} onClick={() => chooseCategory(item)}>{labels[item]}</button>)}</nav>
+    <nav className="profile-activity-tabs" aria-label="Profile activity categories" style={{ '--active-tab-index': ['records', 'likes', 'favorites', 'contexts'].indexOf(category) } as CSSProperties}><span className="profile-activity-slider" aria-hidden="true" />{(['records', 'likes', 'favorites', 'contexts'] as const).map((item) => <button type="button" key={item} className={category === item ? 'active' : ''} aria-pressed={category === item} onClick={() => chooseCategory(item)}>{labels[item]}</button>)}</nav>
     <nav className="favorite-pet-tabs" aria-label="Pet activity folders">{visiblePets.map((pet) => {
-      const petCount = itemCountForPet(pet, category, currentAccountId);
+      const petCount = itemCountForPet(pet, category, currentAccountId, currentAccountName);
       const selected = pet.id === selectedPet?.id;
       return <button type="button" key={pet.id} className={`favorite-pet-tab ${selected ? 'active' : ''}`} aria-pressed={selected} onClick={() => choosePet(pet.id)}><Avatar name={pet.name} src={pet.avatar} /><span>{pet.name}</span><small>{petCount}</small></button>;
     })}</nav>
     <section className="favorite-collection" aria-label={`${selectedPet?.name ?? 'Pet'} ${labels[category].toLowerCase()}`}>
-      <div className="favorite-collection-heading"><div><span>{labels[category].toUpperCase()}</span><h2>{selectedPet?.name ?? 'Pet'} · {labels[category]}</h2></div><strong>{count}</strong></div>
-      {category === 'contexts' ? contexts.length ? <div className="profile-comment-list">{contexts.map((entry) => <button type="button" className="profile-comment-row" key={entry.id} onClick={() => selectedPet && onOpenMoment(selectedPet.id, entry.momentId)}><span className="profile-comment-moment-image">{entry.parent.image && <StoryMediaView src={entry.parent.image} type={entry.parent.mediaType} alt=""/>}</span><span><small>{entry.parent.title} · {formatRelativeDate(entry.savedAt)}</small><strong>{entry.note || 'Owner context'}</strong></span><i>›</i></button>)}</div> : <div className="favorite-folder-empty"><span aria-hidden="true">▢</span><p>No contexts yet.</p></div> : moments.length ? <div className={`favorite-moments-grid ${selectionMode ? 'selecting' : ''}`}>{moments.map((moment) => {
+      <div className="favorite-collection-heading"><div><span>{labels[category].toUpperCase()}</span><h2>{selectedPet?.name ?? 'Pet'} · {labels[category]}</h2></div>{category !== 'contexts' && <div className="favorite-collection-tools"><div className="favorite-layout-toggle" role="group" aria-label="Moment layout"><span className={`favorite-layout-slider ${momentLayout}`} aria-hidden="true"/><button type="button" className={momentLayout === 'large' ? 'active' : ''} aria-label="Show two large cards per row" aria-pressed={momentLayout === 'large'} onClick={() => setMomentLayout('large')}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg></button><button type="button" className={momentLayout === 'small' ? 'active' : ''} aria-label="Show three small cards per row" aria-pressed={momentLayout === 'small'} onClick={() => setMomentLayout('small')}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="9.25" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="16" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="9.25" width="5.5" height="5.5" rx="1"/><rect x="9.25" y="9.25" width="5.5" height="5.5" rx="1"/><rect x="16" y="9.25" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="16" width="5.5" height="5.5" rx="1"/><rect x="9.25" y="16" width="5.5" height="5.5" rx="1"/><rect x="16" y="16" width="5.5" height="5.5" rx="1"/></svg></button></div></div>}</div>
+      {category === 'contexts' ? contexts.length ? <div className="profile-comment-list">{contexts.map((entry) => <button type="button" className="profile-comment-row" key={entry.id} onClick={() => selectedPet && onOpenMoment(selectedPet.id, entry.momentId)}><span className="profile-comment-moment-image">{entry.parent.image && <StoryMediaView src={entry.parent.image} type={entry.parent.mediaType} alt=""/>}</span><span><small>{entry.parent.title} · {formatRelativeDate(entry.savedAt)}</small><strong>{entry.note || 'Owner context'}</strong></span><i>›</i></button>)}</div> : <div className="favorite-folder-empty"><span aria-hidden="true">▢</span><p>No contexts yet.</p></div> : moments.length ? <div className={`favorite-moments-grid ${momentLayout} ${selectionMode ? 'selecting' : ''}`}>{moments.map((moment) => {
         const selected = selectedMomentIds.includes(moment.id);
         return <button type="button" className={`favorite-moment-card ${selected ? 'selected' : ''}`} key={moment.id} aria-pressed={selectionMode ? selected : undefined} onPointerDown={(event) => { if (category === 'favorites' && event.button === 0) beginLongPress(moment.id); }} onPointerUp={clearLongPressTimer} onPointerLeave={clearLongPressTimer} onPointerCancel={clearLongPressTimer} onContextMenu={(event) => { if (category === 'favorites') event.preventDefault(); }} onClick={() => handleMomentClick(moment.id)}><span className="favorite-moment-cover">{moment.image ? <StoryMediaView src={moment.image} type={moment.mediaType} alt={`${selectedPet?.name} · ${moment.title}`} /> : <span aria-hidden="true">🐾</span>}{selectionMode && <span className="favorite-selection-mark" aria-hidden="true">{selected && <svg viewBox="0 0 24 24"><path d="m4.5 12.5 5 5L20 7" /></svg>}</span>}</span><span className="favorite-moment-copy"><strong>{moment.title}</strong><small>{moment.note || 'Moment'}</small><em>{moment.savedAt ? formatRelativeDate(moment.savedAt) : 'Moment'}</em></span></button>;
       })}</div> : <div className="favorite-folder-empty"><span aria-hidden="true">{category === 'records' ? <svg viewBox="0 0 24 24"><path d="M7 3.75h7l4.25 4.3v12.2H7a2 2 0 0 1-2-2v-12a2 2 0 0 1 2-2Z"/><path d="M14 4v5h5M9 13h6M9 16.5h6"/></svg> : category === 'likes' ? '♡' : '☆'}</span><p>No {labels[category].toLowerCase()} for {selectedPet?.name ?? 'this pet'} yet.</p></div>}
@@ -2821,7 +2982,7 @@ function LifeCarePage({ petName, ownerName, primaryOwnerName, currentAccountId, 
   </section>;
 }
 
-function SettingsHubPage({ accounts, activeAccountId, onBack, onSwitchAccount, onRegister, onDeleteAccount, onSignOut, onAction }: { accounts: PrototypeAccount[]; activeAccountId: string; onBack: () => void; onSwitchAccount: (id: string) => void; onRegister: (name: string, email: string, petName: string) => string; onDeleteAccount: (id: string) => string; onSignOut: () => void; onAction: (title: string, detail: string) => void }) {
+function SettingsHubPage({ accounts, activeAccountId, onBack, onSwitchAccount, onRegister, onDeleteAccount, onSignOut, onAction, onHelp }: { accounts: PrototypeAccount[]; activeAccountId: string; onBack: () => void; onSwitchAccount: (id: string) => void; onRegister: (name: string, email: string, petName: string) => string; onDeleteAccount: (id: string) => string; onSignOut: () => void; onAction: (title: string, detail: string) => void; onHelp: () => void }) {
   const [creatingAccount, setCreatingAccount] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -2861,6 +3022,7 @@ function SettingsHubPage({ accounts, activeAccountId, onBack, onSwitchAccount, o
       <section className="settings-hub-section"><div className="profile-section-heading"><h2>Privacy &amp; support</h2></div><div className="profile-card you-list privacy-list">
         <button className="media-row" onClick={() => onAction('Data, sharing & retention', 'Review permissions, access and deletion.')}><span className="media-icon">▤</span><span><strong>Data, sharing &amp; retention</strong><small>Review permissions, access and deletion</small></span><i>›</i></button>
         <button className="media-row" onClick={() => onAction('Accessibility & feedback', 'Text size, captions, help and suggestions.')}><span className="media-icon">◎</span><span><strong>Accessibility &amp; feedback</strong><small>Text size, captions, help and suggestions</small></span><i>›</i></button>
+        <button className="media-row" onClick={onHelp}><span className="media-icon">?</span><span><strong>Help &amp; getting started</strong><small>How Pawsona works · Review the guide</small></span><i>›</i></button>
       </div></section>
     </div>
     {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="settings-delete-account-title" onClick={(event) => event.stopPropagation()}><h2 id="settings-delete-account-title">Delete {pendingDelete.name}?</h2><p>This permanently removes this local account and the pets, moments and context saved inside it.</p>{deleteError && <p className="account-form-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDeleteAccount}>Delete account</button></div></section></div>}
@@ -3275,7 +3437,7 @@ function CloudEmailLink({ email, onSubmit, onVerify }: { email: string; onSubmit
 
 export function createCloudSession(id: string, email: string, name: string): PrototypeSession {
   const petId = 'pet-' + crypto.randomUUID();
-  return { activeAccountId: id, accounts: [{ id, email, name, role: 'Primary caregiver', avatar: '', preference: '', activePetId: petId,
+  return { activeAccountId: id, accounts: [{ id, email, name, setupStatus: 'pending', guideStatus: 'pending', role: 'Primary caregiver', avatar: '', preference: '', activePetId: petId,
     pets: [{ id: petId, name: 'My pet', breed: 'Mixed breed', age: '1', avatar: '', hasDemoMoments: false, isEmptyProfile: true, workspace: emptyPetWorkspace(name) }] }] };
 }
 
@@ -3298,6 +3460,8 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     return session;
   });
   const [view, setView] = useState<View>('today');
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [tourIndex, setTourIndex] = useState<number | null>(null);
   const [profileActivityCategory, setProfileActivityCategory] = useState<ProfileActivityCategory>('favorites');
   const [dailyRhythmDayOffset, setDailyRhythmDayOffset] = useState(0);
   const initialAccount = prototypeSession.accounts.find((entry) => entry.id === prototypeSession.activeAccountId);
@@ -3411,6 +3575,37 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const contextReturnView = useRef<View>('momentDetail');
   const activeAccount = prototypeSession.accounts.find((account) => account.id === prototypeSession.activeAccountId) ?? null;
   const activePetRecord = activeAccount?.pets.find((pet) => pet.id === activeAccount.activePetId) ?? activeAccount?.pets[0] ?? null;
+  useEffect(() => {
+    if (activeAccount?.setupStatus === 'pending') setSetupOpen(true);
+    else if (activeAccount?.guideStatus === 'pending') { setTourIndex(0); setView('today'); }
+    else { setSetupOpen(false); setTourIndex(null); }
+  }, [activeAccount?.id]);
+  function updateGettingStarted(patch: Partial<PrototypeAccount>) {
+    const captured = captureCurrentSpace(prototypeSession);
+    setPrototypeSession({ ...captured, accounts: captured.accounts.map(account => account.id === captured.activeAccountId ? {...account,...patch} : account) });
+  }
+  function reviewGuide() { setProfileAction(null); setTourIndex(0); setView('today'); setDailyRhythmDayOffset(0); }
+  function tourStep(index: number) { setTourIndex(index); setView(TOUR_STEPS[index].view); }
+  function closeTour(completed: boolean) { setTourIndex(null); updateGettingStarted({guideStatus:completed?'completed':'skipped'}); setView('today'); }
+  function finishSetup(value?: SetupValues) {
+    const captured = captureCurrentSpace(prototypeSession);
+    const canSetPet = !!value && !!activePetRecord && !activePetRecord.sharedGroupId;
+    const nextName = value?.name.trim() || ownerName;
+    if (value) {
+      setOwnerName(nextName); setOwnerPreference(value.goals.join(' · '));
+      const prefs = {largeText:value.largeText,reducedMotion:value.reducedMotion,includeHistory:value.includeHistory};
+      setDevicePreferences(prefs);
+      try { localStorage.setItem('pawsona-device-preferences',JSON.stringify(prefs)); } catch { setPreferencesError('Preferences apply for this session but could not be saved.'); }
+      if (canSetPet && value.petName.trim()) { setPetName(value.petName.trim()); }
+    }
+    const next = { ...captured, accounts: captured.accounts.map(account => account.id !== captured.activeAccountId ? account : {
+      ...account, name:nextName, setupStatus:(value?'completed':'skipped') as 'completed'|'skipped', guideStatus:'pending' as const,
+      ...(value ? {preference:value.goals.join(' · '),careGoals:value.goals,careProfile:{...normalizeOwnerCareProfile(account.careProfile),relationship:value.relationship}} : {}),
+      pets: account.pets.map(pet => canSetPet && value?.petName.trim() && pet.id===activePetRecord?.id ? {...pet,name:value.petName.trim(),species:value.species,isEmptyProfile:false} : pet)
+    }) };
+    setPrototypeSession(next); setSetupOpen(false); setTourIndex(0); setView('today'); setDailyRhythmDayOffset(0);
+  }
+
   const latestSessionRef = useRef(prototypeSession);
   latestSessionRef.current = prototypeSession;
   const askIdentity = `${activeAccount?.id}:${activePetRecord?.id}`;
@@ -3726,6 +3921,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       role: 'Primary caregiver',
       avatar: '',
       preference: 'Manage your profile details here.',
+      setupStatus: 'pending', guideStatus: 'pending',
       activePetId: petId,
       pets: [{ id: petId, name: firstPetName.trim() || 'My pet', breed: 'Mixed breed', age: '1', avatar: '', hasDemoMoments: false, isEmptyProfile: !firstPetName.trim(), workspace: emptyPetWorkspace(name) }],
     };
@@ -4677,15 +4873,36 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setInsightReviews(next);
     setAccountActionError('');
   }
+  function requestCareTask(task: CareTask, recipientId: string): boolean {
+    const actorId = activeAccount?.id;
+    const now = new Date();
+    const recipient = displayedCareMembers.find(member => member.id === recipientId);
+    const current = careTasks.find(entry => entry.id === task.id) ?? task;
+    if (!canContributeToSharedPet || !actorId || !recipient || recipientId === actorId
+      || recipient.access === 'viewer' || recipient.role === 'Viewer'
+      || (recipient.expiresAt && Date.parse(recipient.expiresAt) <= +now)
+      || !['open', 'declined'].includes(current.status)
+      || (!isPrimaryCaregiver && (current.status === 'declined' || current.assignedTo && current.assignedTo !== actorId))) return false;
+    const createdAt = now.toISOString();
+    const eventType: CareTaskEventType = current.status === 'declined' ? 'reassigned' : 'requested';
+    const requested = appendCareTaskEvent({
+      ...current,
+      assignedTo: recipientId,
+      assignedBy: actorId,
+      status: 'requested',
+      acceptedAt: undefined,
+      declinedAt: undefined,
+      declinedBy: undefined,
+      requestNote: undefined,
+    }, { type: eventType, actorId, targetId: recipientId, createdAt });
+    return saveCareTasks(careTasks.some(entry => entry.id === current.id)
+      ? careTasks.map(entry => entry.id === current.id ? requested : entry) : [requested, ...careTasks]);
+  }
   function toggleCareTask(task: CareTask) {
     const currentAccountId = activeAccount?.id;
-    if (!canContributeToSharedPet || !currentAccountId || (!isPrimaryCaregiver && task.assignedTo && task.assignedTo !== currentAccountId)) return;
-    const changedAt = new Date().toISOString();
-    const changed: CareTask = task.status === 'done'
-      ? { ...task, status: 'open', completedBy: undefined, completedAt: undefined }
-      : { ...task, status: 'done', completedBy: currentAccountId, completedAt: changedAt };
-    const targetId = task.assignedTo && task.assignedTo !== currentAccountId ? task.assignedTo : task.assignedBy && task.assignedBy !== currentAccountId ? task.assignedBy : undefined;
-    const nextTask = appendCareTaskEvent(changed, { type: task.status === 'done' ? 'reopened' : 'completed', actorId: currentAccountId, targetId, createdAt: changedAt });
+    if (!canContributeToSharedPet || !currentAccountId) return;
+    const nextTask = toggleCareTaskCompletion(task,currentAccountId,activeAccount.name,isPrimaryCaregiver);
+    if (!nextTask) return;
     const exists = careTasks.some(entry => entry.id === task.id);
     saveCareTasks(exists ? careTasks.map(entry => entry.id === task.id ? nextTask : entry) : [nextTask, ...careTasks]);
   }
@@ -4739,7 +4956,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         {sharedId && sharedSync.current.failed && sharedWritePending() && <p className="shared-sync-pending" role="status">Shared sync paused. Your local edits are kept; resolve the sync error before leaving.</p>}
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
-            {view === 'today' && <TodayPage hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenInsights={() => navigateTo('activityInsights')} onCareTasks={() => navigateTo('careTasks')} onToggleCareTask={toggleCareTask} onSkipCareTask={skipCareTask} careTasks={careTasks} careMembers={displayedCareMembers} insightReviews={insightReviews} currentUserId={activeAccount.id} canAct={canContributeToSharedPet} isPrimary={isPrimaryCaregiver} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onMoment={openMomentDetail} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
+            {view === 'today' && <TodayPage onRequestCareTask={requestCareTask} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenMomentDetail={openMomentDetail} onOpenInsights={() => navigateTo('activityInsights')} onCareTasks={() => navigateTo('careTasks')} onToggleCareTask={toggleCareTask} careTasks={careTasks} careMembers={displayedCareMembers} insightReviews={insightReviews} currentUserId={activeAccount.id} canAct={canContributeToSharedPet} isPrimary={isPrimaryCaregiver} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
             {view === 'careTasks' && <CareTasksPage tasks={careTasks} patterns={typicalPatterns} observations={storyObservations} members={displayedCareMembers} currentUserId={activeAccount.id} currentUserName={activeAccount.name} petName={petName} dayOffset={dailyRhythmDayOffset} isPrimary={isPrimaryCaregiver} canAct={canContributeToSharedPet} onBack={() => goBack('today')} onPatterns={() => openPatternKnowledge()} onToggleTask={toggleCareTask} onSkipTask={skipCareTask} onSave={saveCareTasks} />}
             {view === 'activityInsights' && <ActivityInsightsPage records={visibleStoryObservations(storyObservations.filter(observation => !isObservationSkippedForToday(observation, careTasks)), includedStoryMoments)} petName={petName} reviews={insightReviews} canReview={canContributeToSharedPet} onReview={reviewActivityInsight} onBack={() => goBack('today')} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} />}
 
@@ -4767,11 +4984,12 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
             {view === 'undone' && <UndonePage onBack={() => goBack('saved')} onReturnToday={() => navigateTo('today')} onReview={() => navigateTo('overview')} petName={petName} />}
             {view === 'ask' && <AskPage petSpecies={petSpecies} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} messages={askMessages} messageEndRef={askEndRef} noPetYet={activePetRecord.isEmptyProfile ?? false} busy={askBusy} pending={askPending} live={Boolean(cloud)} />}
             {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} accounts={prototypeSession.accounts} onOpenActivity={(category) => { setProfileActivityCategory(category); navigateTo('favorites'); }} onPetsNavigate={() => navigateTo('pets')} onSettingsNavigate={() => navigateTo('settings')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={activePetRecord.isEmptyProfile ? openAddPetForm : () => setShowPetSwitcher(true)} careMembers={orderedCareMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} patterns={typicalPatterns} lifeEvents={lifeCareEvents} mediaSources={mediaSources} onPatternHistory={() => openPatternKnowledge()} onPattern={(id) => openPatternKnowledge(id)} onLifeCare={openLifeCare} onConnectedMedia={openConnectedMedia} invitations={view === 'you' ? receivedCareInvitations : []} onAcceptInvitation={acceptCareInvitation} onDeclineInvitation={(id) => updateInvitationStatus(id, 'declined')} careOwnerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} careOwnerAvatar={primaryCaregiverAvatar} careOwnerRole="Primary caregiver" groupName={activeGroupName} canManageCareGroup={isPrimaryCaregiver} canEditPetDetails={isPrimaryCaregiver} canAddLifeCare={canManageLongTermCare} canManageConnectedMedia={canManageLongTermCare} noPetYet={activePetRecord.isEmptyProfile ?? false} />}
-            {view === 'favorites' && <ProfileActivityPage pets={activeAccount.pets.map((pet) => pet.id === activePetRecord.id ? { ...pet, workspace: { ...pet.workspace, observations: storyObservations, momentEngagement, contexts: savedContexts, careTasks } } : pet)} initialPetId={activePetRecord.id} initialCategory={profileActivityCategory} currentAccountId={activeAccount.id} onBack={() => goBack('you')} onOpenMoment={openFavoriteMoment} onRemoveFavorites={removeFavoriteMoments} />}
+            {view === 'help' && <HelpPage onBack={() => goBack('settings')} onReview={reviewGuide} onSetup={() => setSetupOpen(true)} />}
+            {view === 'favorites' && <ProfileActivityPage pets={activeAccount.pets.map((pet) => pet.id === activePetRecord.id ? { ...pet, workspace: { ...pet.workspace, observations: storyObservations, momentEngagement, contexts: savedContexts, careTasks } } : pet)} initialPetId={activePetRecord.id} initialCategory={profileActivityCategory} currentAccountId={activeAccount.id} currentAccountName={activeAccount.name} onBack={() => goBack('you')} onOpenMoment={openFavoriteMoment} onRemoveFavorites={removeFavoriteMoments} />}
             {view === 'connectedMedia' && <ConnectedMediaPage petName={petName} sources={mediaSources} initialSourceId={selectedMediaSourceId} onBack={() => goBack('you')} onUpdate={saveMediaSource} onDelete={deleteMediaSource} />}
             {view === 'patternHistory' && <PatternKnowledgePage onMoment={openMomentDetail} petId={activePetRecord.id} records={visibleStoryObservations(storyObservations, includedStoryMoments)} live={Boolean(cloud)} petName={petName} ownerName={ownerName} patterns={typicalPatterns} initialPatternId={selectedPatternId} canManage={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveTypicalPattern} onDelete={deleteTypicalPattern} />}
             {view === 'careEvent' && <LifeCarePage petName={petName} ownerName={ownerName} primaryOwnerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} currentAccountId={activeAccount.id} events={lifeCareEvents} initialCategory={lifeCareInitialCategory} startAdding={lifeCareStartAdding} canAdd={canManageLongTermCare} canManageAll={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveLifeCareEvent} onDelete={deleteLifeCareEvent} />}
-            {view === 'settings' && !cloud && <SettingsHubPage accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onBack={() => goBack('you')} onSwitchAccount={switchAccount} onRegister={registerAccount} onDeleteAccount={deleteSavedAccount} onSignOut={() => setShowSignOutConfirm(true)} onAction={(title, detail) => setProfileAction({ title, detail })} />}
+            {view === 'settings' && !cloud && <SettingsHubPage accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onBack={() => goBack('you')} onSwitchAccount={switchAccount} onRegister={registerAccount} onDeleteAccount={deleteSavedAccount} onSignOut={() => setShowSignOutConfirm(true)} onAction={(title, detail) => setProfileAction({ title, detail })} onHelp={() => navigateTo('help')} />}
             {view === 'settings' && cloud && <section className="settings-hub-page">
               <header className="settings-hub-header"><button className="back-button" aria-label="Go back" onClick={() => goBack('you')}>←</button><h1>Settings</h1></header>
               <div className="settings-hub-content">
@@ -4807,6 +5025,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
                   <div className="profile-card you-list privacy-list">
                     <button className="media-row" onClick={() => setProfileAction({ title: 'Data, sharing & retention', detail: 'Review permissions, access and deletion.' })}><span className="media-icon">▤</span><span><strong>Data, sharing &amp; retention</strong><small>Review permissions, access and deletion</small></span><i>›</i></button>
                     <button className="media-row" onClick={() => setProfileAction({ title: 'Accessibility & feedback', detail: 'Text size, captions, help and suggestions.' })}><span className="media-icon">◎</span><span><strong>Accessibility &amp; feedback</strong><small>Text size, captions, help and suggestions</small></span><i>›</i></button>
+                    <button className="media-row" onClick={() => navigateTo('help')}><span className="media-icon">?</span><span><strong>Help &amp; getting started</strong><small>How Pawsona works · Review the guide</small></span><i>›</i></button>
                   </div>
                 </section>
               </div>
@@ -4857,7 +5076,9 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         </main>
         {view === 'story' && canContributeToSharedPet && <button className={`floating-add ${showStoryAddOptions ? 'is-open' : ''}`} aria-expanded={showStoryAddOptions} onClick={() => setShowStoryAddOptions((open) => !open)}><span className="add-icon" aria-hidden="true">+</span><span className="add-label">Add</span></button>}
         {view === 'story' && canContributeToSharedPet && showStoryAddOptions && <div className="story-add-menu-backdrop" role="presentation" onClick={() => setShowStoryAddOptions(false)}><div className="story-add-choices" role="menu" aria-label="Add to Story" onClick={(event) => event.stopPropagation()}><button className="story-add-choice story-add-choice-new" role="menuitem" onClick={() => { setShowStoryAddOptions(false); startStoryObservation(); }}>New moment</button><button className="story-add-choice story-add-choice-drafts" role="menuitem" onClick={() => { setShowStoryAddOptions(false); navigateTo('drafts'); }}>Drafts{storyDrafts.length > 0 ? ` (${storyDrafts.length})` : ''}</button></div></div>}
-        {view === 'ask' && <AskComposer key={askIdentity} busy={askBusy} enabled={Boolean(cloud && activePetRecord && !activePetRecord.isEmptyProfile)} value={askInput} onValue={(value) => { setAskInput(value); if (askSaveError) setAskSaveError(''); }} onSend={sendAskMessage} saveError={askSaveError} onQuickContext={(value) => { setAskSaveError(''); setAskInput((current) => current ? `${current} ${value}` : value); }} />}
+        {view === 'ask' && <AskComposer key={askIdentity} busy={askBusy} enabled={Boolean(cloud && activePetRecord && !activePetRecord.isEmptyProfile)} value={askInput} onValue={(value) => { setAskInput(value); if (askSaveError) setAskSaveError(''); }} onSend={sendAskMessage} saveError={askSaveError} onQuickContext={(value) => { setAskSaveError(''); setAskInput((current) => current ? `${current} ${value}` : value); }} messageEndRef={askEndRef} />}
+        {setupOpen && <SetupWizard key={activeAccount.id} allowPetEdit={!activePetRecord.sharedGroupId} initial={{name:ownerName,relationship:activeAccount.careProfile?.relationship ?? '',petName:activePetRecord.isEmptyProfile ? '' : petName,species:petSpecies,goals:activeAccount.careGoals ?? [],...devicePreferences}} onFinish={finishSetup} onSkip={() => finishSetup()} />}
+        {!setupOpen && tourIndex !== null && <GuidedTour index={tourIndex} onStep={tourStep} onClose={closeTour} />}
         {profileAction && <SettingsPanels title={profileAction.title} onClose={() => setProfileAction(null)} preferences={devicePreferences} onPreferences={value => { setDevicePreferences(value); try { localStorage.setItem('pawsona-device-preferences', JSON.stringify(value)); setPreferencesError(''); } catch { setPreferencesError('Preferences apply for this session but could not be saved.'); } }} workspace={captureCurrentSpace(prototypeSession).accounts.find(a => a.id === activeAccount.id)?.pets.find(p => p.id === activePetRecord.id)?.workspace} petName={petName} cloud={Boolean(cloud)} />}
         {preferencesError && <p role="alert">{preferencesError}</p>}
         {pendingDeviceAccountRemoval && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDeviceAccountRemoval(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="remove-device-account-title" onClick={(event) => event.stopPropagation()}><h2 id="remove-device-account-title">Remove {pendingDeviceAccountRemoval.name} from this device?</h2><p>{pendingDeviceAccountRemoval.username.toLowerCase() === (activeAccount.email.endsWith('@users.pawsona.invalid') ? activeAccount.email.split('@')[0].toLowerCase() : activeAccount.email.toLowerCase()) ? 'You will be signed out of this account. Its cloud account and records will not be deleted.' : 'This only removes the remembered username from this device. The cloud account and its records will not be deleted.'}</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDeviceAccountRemoval(null)}>Cancel</button><button className="danger-button" onClick={() => { void confirmRemoveDeviceAccount(); }}>Remove from device</button></div></section></div>}
