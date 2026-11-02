@@ -16,7 +16,7 @@ import { visibleStoryObservations } from './storyVisibility';
 import { buildRollingStorySimulation, isSyntheticSunnyProfile } from './storySimulation';
 import { mergeSharedStoryObservations } from './sharedStoryObservations';
 import { careRhythmForDate, careTaskTiming, canToggleCareTaskCompletion, toggleCareTaskCompletion, appendCareTaskEvent, canViewCareTaskEvent, careTaskAttentionCount, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask, type CareTask, type CareTaskEvent, type CareTaskEventType } from './careTasks';
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
 
 type View =
   | 'help'
@@ -659,9 +659,56 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
 function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySummary, onOpenInsights, standoutActivity, patterns, careTasks, careMembers, onOpenCareTasks, onPatterns, dayOffset, onDayOffsetChange }: { petName: string; moments: StoryObservation[]; scheduledMoments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; standoutActivity?: RankedDailyActivityInsight; patterns: TypicalPattern[]; careTasks: CareTask[]; careMembers: CareMember[]; onOpenCareTasks: () => void; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void }) {
   const [revealedActivityId, setRevealedActivityId] = useState<string | null>(null);
   const [fullDayDial, setFullDayDial] = useState(false);
+  const [isRevealingFullDay, setIsRevealingFullDay] = useState(false);
+  const [isRevealingHalfDay, setIsRevealingHalfDay] = useState(false);
+  const [isCenterCopyHidden, setIsCenterCopyHidden] = useState(false);
+  const centerCopyTimer = useRef<number | null>(null);
+  const dialChartRef = useRef<HTMLDivElement | null>(null);
+  const previousDayOffset = useRef(dayOffset);
+  const [dialRotationOverride, setDialRotationOverride] = useState<number | null>(null);
+  const dialRotationFrame = useRef<number | null>(null);
   const [dialTimeOffset, setDialTimeOffset] = useState(0);
   const dialDrag = useRef<{ x: number; offset: number; timer: number; active: boolean; pointerId: number; target: HTMLDivElement } | null>(null);
-  useEffect(() => setRevealedActivityId(null), [dayOffset]);
+  useLayoutEffect(() => {
+    const changedDay = previousDayOffset.current !== dayOffset;
+    const revealFullDay = previousDayOffset.current === 0 && dayOffset < 0;
+    const revealHalfDay = previousDayOffset.current < 0 && dayOffset === 0;
+    previousDayOffset.current = dayOffset;
+    if (changedDay) {
+      if (centerCopyTimer.current !== null) window.clearTimeout(centerCopyTimer.current);
+      setIsCenterCopyHidden(true);
+      centerCopyTimer.current = window.setTimeout(() => {
+        centerCopyTimer.current = null;
+        setIsCenterCopyHidden(false);
+      }, 760);
+    }
+    setRevealedActivityId(null);
+    setFullDayDial(revealHalfDay ? true : dayOffset !== 0);
+    setIsRevealingFullDay(revealFullDay);
+    setIsRevealingHalfDay(revealHalfDay);
+    if (revealFullDay || revealHalfDay) {
+      const timeout = window.setTimeout(() => {
+        setIsRevealingFullDay(false);
+        setIsRevealingHalfDay(false);
+        if (revealHalfDay) setFullDayDial(false);
+      }, 760);
+      return () => window.clearTimeout(timeout);
+    }
+  }, [dayOffset]);
+  useLayoutEffect(() => {
+    const chart = dialChartRef.current;
+    if (!isRevealingHalfDay || !chart) return;
+    const fullHeight = chart.getBoundingClientRect().height;
+    chart.style.height = `${fullHeight}px`;
+    void chart.offsetHeight;
+    const frame = requestAnimationFrame(() => {
+    chart.style.height = `${chart.clientWidth * 300 / 600}px`;
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      chart.style.height = '';
+    };
+  }, [isRevealingHalfDay]);
   const dragStart = useRef<number | null>(null);
   const navStart = useRef<'previous' | 'newer' | null>(null);
   const pressedMomentId = useRef<string | null>(null);
@@ -731,7 +778,68 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
     return `M${start.x} ${start.y} A${radius} ${radius} 0 ${span > 720 ? 1 : 0} 1 ${end.x} ${end.y}`;
   };
   const currentMinute = now.getHours() * 60 + now.getMinutes();
+  const pointerTip = circlePoint(currentMinute, 258);
   const dialRotation = (((isToday ? 1320 - currentMinute : 720) - dialTimeOffset) / 4 + 360) % 360;
+  const wheelRotation = dialRotationOverride ?? (isToday && !fullDayDial ? dialRotation : 0);
+  const navigateToDay = (nextOffset: number) => {
+    if (dialRotationFrame.current !== null) cancelAnimationFrame(dialRotationFrame.current);
+    const startAngle = wheelRotation;
+    const targetAngle = nextOffset === 0 ? (((1320 - currentMinute - dialTimeOffset) / 4) % 360 + 360) % 360 : 0;
+    const delta = ((targetAngle - startAngle + 540) % 360) - 180;
+    const startedAt = performance.now();
+    const duration = 720;
+    setDialRotationOverride(startAngle);
+    const tick = (time: number) => {
+      const progress = Math.min(1, (time - startedAt) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDialRotationOverride(startAngle + delta * eased);
+      if (progress < 1) dialRotationFrame.current = requestAnimationFrame(tick);
+      else {
+        dialRotationFrame.current = null;
+        if (nextOffset === 0) setFullDayDial(false);
+        setDialRotationOverride(null);
+      }
+    };
+    dialRotationFrame.current = requestAnimationFrame(tick);
+    onDayOffsetChange(nextOffset);
+  };
+  const transitionDialMode = (nextFullDay: boolean) => {
+    const isReturningToNow = !nextFullDay && !fullDayDial && dialTimeOffset !== 0;
+    const isSwitchingToNow = fullDayDial && !nextFullDay;
+    if (fullDayDial === nextFullDay && !isReturningToNow) return;
+    if (dialRotationFrame.current !== null) cancelAnimationFrame(dialRotationFrame.current);
+    const startAngle = wheelRotation;
+    const targetAngle = nextFullDay ? 0 : (((1320 - currentMinute) / 4 + 360) % 360);
+    const delta = ((targetAngle - startAngle + 540) % 360) - 180;
+    const startedAt = performance.now();
+    const duration = 740;
+    setDialRotationOverride(startAngle);
+    if (nextFullDay) {
+      setFullDayDial(true);
+      setIsRevealingFullDay(true);
+    } else if (isSwitchingToNow) {
+      setIsRevealingHalfDay(true);
+    }
+    setDialTimeOffset(0);
+    const tick = (time: number) => {
+      const progress = Math.min(1, (time - startedAt) / duration);
+      const eased = (1 - Math.cos(progress * Math.PI)) / 2;
+      setDialRotationOverride(startAngle + delta * eased);
+      if (progress < 1) dialRotationFrame.current = requestAnimationFrame(tick);
+      else {
+        dialRotationFrame.current = null;
+        if (isSwitchingToNow) setFullDayDial(false);
+        setIsRevealingFullDay(false);
+        setIsRevealingHalfDay(false);
+        setDialRotationOverride(null);
+      }
+    };
+    dialRotationFrame.current = requestAnimationFrame(tick);
+  };
+  useEffect(() => () => {
+    if (dialRotationFrame.current !== null) cancelAnimationFrame(dialRotationFrame.current);
+    if (centerCopyTimer.current !== null) window.clearTimeout(centerCopyTimer.current);
+  }, []);
   const startDialDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     if (fullDayDial) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -829,36 +937,55 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
   };
   const revealedPatternMoment = patternMoments.find(moment => moment.id === revealedActivityId);
   const revealedSelection = revealedPatternMoment ? { moment: revealedPatternMoment, time: `${clockMinute(patternById.get(revealedPatternMoment.id)!.startMinute!)}–${clockMinute(patternById.get(revealedPatternMoment.id)!.endMinute!)}` } : undefined;
-  const goToPreviousDay = () => onDayOffsetChange(dayOffset - 1);
-  const goToNewerDay = () => { if (dayOffset < 0) onDayOffsetChange(dayOffset + 1); };
+  const goToPreviousDay = () => navigateToDay(dayOffset - 1);
+  const goToNewerDay = () => { if (dayOffset < 0) navigateToDay(dayOffset + 1); };
   return <section className="daily-rhythm-card daily-rhythm-split" aria-labelledby="daily-rhythm-title">
     <header className="daily-rhythm-header">
       <div><p className="eyebrow">DAILY RHYTHM</p><h2 id="daily-rhythm-title">{displayName}’s day</h2></div>
       <div className="daily-rhythm-date-nav" aria-label="Selected day">
+        {!isToday && <button type="button" className="daily-rhythm-today-button" onClick={() => navigateToDay(0)}>Today</button>}
         <button type="button" aria-label="Show previous day" onClick={goToPreviousDay}>‹</button>
         <span>{selectedDateLabel}</span>
         <button type="button" aria-label="Show newer day" disabled={isToday} onClick={goToNewerDay}>›</button>
-        {!isToday && <button type="button" className="daily-rhythm-today-button" onClick={() => onDayOffsetChange(0)}>Today</button>}
       </div>
     </header>
     <>
-    <div className="daily-rhythm-circle-heading"><span className="rhythm-circle-legend"><span><i className="pattern-key"/>Typical window</span><span><i className="done-key"/>Done</span><span><i className="upcoming-key"/>Upcoming</span></span><span className="daily-rhythm-dial-controls">{isToday && <button type="button" onClick={() => { setFullDayDial(false); setDialTimeOffset(0); }}>Now</button>}<button type="button" aria-pressed={fullDayDial} onClick={() => setFullDayDial(value => !value)}>{fullDayDial ? '12 hours' : 'Full day'}</button><button type="button" onClick={() => onPatterns()}>{timedPatterns.length ? 'View →' : 'Set up →'}</button></span></div>
-    <div className={`daily-rhythm-circle-chart ${fullDayDial ? 'is-full-day' : 'is-half-day'}`} onPointerDown={startDialDrag} onPointerMove={moveDialDrag} onPointerUp={endDialDrag} onPointerCancel={endDialDrag}>
-      <svg viewBox={fullDayDial ? '0 0 600 600' : '0 0 600 350'} role="img" aria-label={`${displayName}’s ${fullDayDial ? 'full-day' : '12-hour'} activity timeline`}>
-      <defs><clipPath id="daily-rhythm-dial-clip"><rect x="0" y="0" width="600" height={fullDayDial ? 600 : 300}/></clipPath></defs>
-      <g clipPath="url(#daily-rhythm-dial-clip)"><g transform={fullDayDial ? undefined : `rotate(${dialRotation} 300 300)`}>
+    <div className="daily-rhythm-circle-heading"><span className="rhythm-circle-legend"><span><i className="pattern-key"/>Typical window</span><span><i className="done-key"/>Done</span><span><i className="upcoming-key"/>Upcoming</span></span><span className="daily-rhythm-dial-controls">{isToday ? <span className={`daily-rhythm-dial-toggle ${fullDayDial && !isRevealingHalfDay ? 'is-full-day' : ''} ${isRevealingHalfDay ? 'is-instant' : ''}`} role="group" aria-label="Dial view"><span className="daily-rhythm-dial-toggle-thumb" aria-hidden="true"/><button type="button" aria-pressed={!fullDayDial || isRevealingHalfDay} onClick={() => transitionDialMode(false)}>Now</button><button type="button" aria-pressed={fullDayDial && !isRevealingHalfDay} onClick={() => transitionDialMode(true)}>Full day</button></span> : <span className="daily-rhythm-dial-toggle-spacer" aria-hidden="true"/>}<button type="button" onClick={() => onPatterns()}>{timedPatterns.length ? 'View →' : 'Set up →'}</button></span></div>
+    <div ref={dialChartRef} className={`daily-rhythm-circle-chart ${fullDayDial ? 'is-full-day' : 'is-half-day'} ${isRevealingFullDay ? 'is-revealing-full-day' : ''} ${isRevealingHalfDay ? 'is-revealing-half-day' : ''}`} onPointerDown={startDialDrag} onPointerMove={moveDialDrag} onPointerUp={endDialDrag} onPointerCancel={endDialDrag}>
+      <svg viewBox={fullDayDial ? '0 0 600 600' : '0 0 600 300'} role="img" aria-label={`${displayName}’s ${fullDayDial ? 'full-day' : '12-hour'} activity timeline`}>
+      <defs>
+        <clipPath id="daily-rhythm-dial-clip"><rect x="0" y="0" width="600" height={fullDayDial ? 600 : 300}/></clipPath>
+        <radialGradient id="daily-rhythm-atmosphere-fade" cx="300" cy="300" r="245" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="white" stopOpacity="1"/>
+          <stop offset=".3" stopColor="white" stopOpacity=".98"/>
+          <stop offset=".5" stopColor="white" stopOpacity=".9"/>
+          <stop offset=".7" stopColor="white" stopOpacity=".74"/>
+          <stop offset=".85" stopColor="white" stopOpacity=".52"/>
+          <stop offset=".95" stopColor="white" stopOpacity=".22"/>
+          <stop offset="1" stopColor="white" stopOpacity="0"/>
+        </radialGradient>
+        <mask id="daily-rhythm-atmosphere-mask" x="0" y="0" width="600" height="600" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse"><rect width="600" height="600" fill="url(#daily-rhythm-atmosphere-fade)"/></mask>
+        <linearGradient id="daily-rhythm-now-hand" x1="300" y1="300" x2={circlePoint(currentMinute,258).x} y2={circlePoint(currentMinute,258).y} gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#e5a900" stopOpacity="0"/>
+          <stop offset=".22" stopColor="#e5a900" stopOpacity=".12"/>
+          <stop offset=".52" stopColor="#e5a900" stopOpacity=".55"/>
+          <stop offset="1" stopColor="#e5a900" stopOpacity="1"/>
+        </linearGradient>
+      </defs>
+      <g clipPath="url(#daily-rhythm-dial-clip)"><g transform={`rotate(${wheelRotation} 300 300)`}>
+      <image className="daily-rhythm-atmosphere" href="/assets/dial-atmosphere.png" x="85" y="85" width="430" height="430" preserveAspectRatio="xMidYMid meet" mask="url(#daily-rhythm-atmosphere-mask)" aria-hidden="true"/>
       <circle className="rhythm-circle-guide outer" cx="300" cy="300" r="238"/><circle className="rhythm-circle-guide inner" cx="300" cy="300" r="165"/>
-      {[0,360,720,1080].map(minute => { const point = circlePoint(minute, 290); const label = minute === 0 ? '12 AM' : minute === 360 ? '6 AM' : minute === 720 ? '12 PM' : '6 PM'; const rotation = fullDayDial ? 0 : dialRotation; const radians = rotation * Math.PI / 180; const shownX = 300 + (point.x - 300) * Math.cos(radians) - (point.y - 300) * Math.sin(radians); const shownY = 300 + (point.x - 300) * Math.sin(radians) + (point.y - 300) * Math.cos(radians); const anchor = shownX < 60 ? 'start' : shownX > 540 ? 'end' : 'middle'; const labelY = point.y + (shownY < 40 ? 14 : -6); return <g key={minute}><line className="rhythm-circle-tick" x1={circlePoint(minute,242).x} y1={circlePoint(minute,242).y} x2={circlePoint(minute,258).x} y2={circlePoint(minute,258).y}/><text className="rhythm-circle-label" x={point.x} y={labelY} textAnchor={anchor} transform={fullDayDial ? undefined : `rotate(${-dialRotation} ${point.x} ${point.y})`}>{label}</text></g>; })}
-      {timedPatterns.map(pattern => { const middle = (pattern.startMinute! + pattern.endMinute!) / 2; const point = circlePoint(middle,238); const icon = activityGlyphFor(pattern.activity!); return <g key={pattern.id} className="rhythm-circle-pattern" role="button" tabIndex={0} aria-label={`${pattern.activity}, ${clockMinute(pattern.startMinute!)} to ${clockMinute(pattern.endMinute!)}`} onClick={() => onPatterns(pattern.id)}><path d={circleArcPath(pattern.startMinute!,pattern.endMinute!,238)}/><circle cx={point.x} cy={point.y} r="20"/><text x={point.x} y={point.y+1} textAnchor="middle" dominantBaseline="middle" transform={fullDayDial ? undefined : `rotate(${-dialRotation} ${point.x} ${point.y})`}>{icon}</text></g>; })}
-      {todayTimelineItems.map(item => { const date = new Date(item.at); const minute = date.getHours()*60+date.getMinutes(); const point = circlePoint(minute,165); const hasInsight = isToday && Boolean(standoutActivity && item.moment && activitySummaryIdentity(item.moment).key === standoutActivity.activityKey); const counterRotation = fullDayDial ? undefined : `rotate(${-dialRotation} ${point.x} ${point.y})`; return <g key={item.id} className={`rhythm-circle-today is-${item.state} ${hasInsight ? 'has-insight' : ''}`} role="button" tabIndex={0} aria-label={`${item.title}${item.timeHint ? `, ${item.timeHint}` : ''}, ${item.stateLabel}${hasInsight ? ', worth a closer look' : ''}`} onClick={() => item.moment ? onOpenActivitySummary(item.moment) : onOpenCareTasks()} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.moment ? onOpenActivitySummary(item.moment) : onOpenCareTasks(); } }}><circle className="rhythm-circle-today-halo" cx={point.x} cy={point.y} r="22"/><circle className="rhythm-circle-today-main" cx={point.x} cy={point.y} r="16"/><text x={point.x} y={point.y+1} textAnchor="middle" dominantBaseline="middle" transform={counterRotation}>{item.glyph}</text>{hasInsight && <g className="rhythm-circle-alert is-insight" role="button" tabIndex={0} aria-label="Worth a closer look" transform={counterRotation} onClick={event => { event.stopPropagation(); onOpenInsights(); }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onOpenInsights(); } }}><circle cx={point.x+13} cy={point.y-13} r="10"/><text x={point.x+13} y={point.y-9} textAnchor="middle">!</text></g>}<title>{item.title} · {item.timeHint || item.stateLabel}{hasInsight ? ' · Worth a closer look' : ''}</title></g>; })}
-      <line className="rhythm-circle-now" x1="300" y1="300" x2={circlePoint(currentMinute,258).x} y2={circlePoint(currentMinute,258).y}/><circle className="rhythm-circle-now-dot" cx={circlePoint(currentMinute,258).x} cy={circlePoint(currentMinute,258).y} r="5"/>
-      </g><text className="rhythm-circle-center-kicker" x="300" y={fullDayDial ? isToday ? 277 : 290 : 238} textAnchor="middle">{dayTitle}</text><text className="rhythm-circle-center-date" x="300" y={fullDayDial ? isToday ? 303 : 320 : 260} textAnchor="middle">{selectedDateLabel}</text>{isToday && <text className="rhythm-circle-center-time" x="300" y={fullDayDial ? 354 : 288} textAnchor="middle">{centerTimeLabel}</text>}
+      {[0,360,720,1080].map(minute => { const point = circlePoint(minute, 290); const label = minute === 0 ? ['12', 'AM'] : minute === 360 ? ['6', 'AM'] : minute === 720 ? ['12', 'PM'] : ['6', 'PM']; const radians = wheelRotation * Math.PI / 180; const shownX = 300 + (point.x - 300) * Math.cos(radians) - (point.y - 300) * Math.sin(radians); const shownY = 300 + (point.x - 300) * Math.sin(radians) + (point.y - 300) * Math.cos(radians); const anchor = shownX < 60 ? 'start' : shownX > 540 ? 'end' : 'middle'; const labelY = point.y + (shownY < 40 ? 14 : -6); return <g key={minute}><line className="rhythm-circle-tick" x1={circlePoint(minute,242).x} y1={circlePoint(minute,242).y} x2={circlePoint(minute,258).x} y2={circlePoint(minute,258).y}/><text className="rhythm-circle-label" x={point.x} y={labelY} textAnchor={anchor} transform={wheelRotation ? `rotate(${-wheelRotation} ${point.x} ${point.y})` : undefined}><tspan className="rhythm-circle-label-hour">{label[0]}</tspan><tspan className="rhythm-circle-label-period">{' ' + label[1]}</tspan></text></g>; })}
+      {timedPatterns.map(pattern => { const middle = (pattern.startMinute! + pattern.endMinute!) / 2; const point = circlePoint(middle,238); const icon = activityGlyphFor(pattern.activity!); return <g key={pattern.id} className="rhythm-circle-pattern" role="button" tabIndex={0} aria-label={`${pattern.activity}, ${clockMinute(pattern.startMinute!)} to ${clockMinute(pattern.endMinute!)}`} onClick={() => onPatterns(pattern.id)}><path d={circleArcPath(pattern.startMinute!,pattern.endMinute!,238)}/><circle cx={point.x} cy={point.y} r="20"/><text x={point.x} y={point.y+1} textAnchor="middle" dominantBaseline="middle" transform={wheelRotation ? `rotate(${-wheelRotation} ${point.x} ${point.y})` : undefined}>{icon}</text></g>; })}
+      {todayTimelineItems.map(item => { const date = new Date(item.at); const minute = date.getHours()*60+date.getMinutes(); const point = circlePoint(minute,165); const hasInsight = isToday && Boolean(standoutActivity && item.moment && activitySummaryIdentity(item.moment).key === standoutActivity.activityKey); const counterRotation = wheelRotation ? `rotate(${-wheelRotation} ${point.x} ${point.y})` : undefined; return <g key={item.id} className={`rhythm-circle-today is-${item.state} ${hasInsight ? 'has-insight' : ''}`} role="button" tabIndex={0} aria-label={`${item.title}${item.timeHint ? `, ${item.timeHint}` : ''}, ${item.stateLabel}${hasInsight ? ', worth a closer look' : ''}`} onClick={() => item.moment ? onOpenActivitySummary(item.moment) : onOpenCareTasks()} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.moment ? onOpenActivitySummary(item.moment) : onOpenCareTasks(); } }}><circle className="rhythm-circle-today-halo" cx={point.x} cy={point.y} r="22"/>{hasInsight && <circle className="rhythm-circle-insight-pulse" cx={point.x} cy={point.y} r="22" aria-hidden="true"/>}<circle className="rhythm-circle-today-main" cx={point.x} cy={point.y} r="16"/><text x={point.x} y={point.y+1} textAnchor="middle" dominantBaseline="middle" transform={counterRotation}>{item.glyph}</text>{hasInsight && <g className="rhythm-circle-alert is-insight" role="button" tabIndex={0} aria-label="Worth a closer look" transform={counterRotation} onClick={event => { event.stopPropagation(); onOpenInsights(); }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onOpenInsights(); } }}><circle cx={point.x+13} cy={point.y-13} r="10"/><text x={point.x+13} y={point.y-9} textAnchor="middle">!</text></g>}<title>{item.title} · {item.timeHint || item.stateLabel}{hasInsight ? ' · Worth a closer look' : ''}</title></g>; })}
+      {isToday && <><line className="rhythm-circle-now" stroke="url(#daily-rhythm-now-hand)" x1="300" y1="300" x2={pointerTip.x} y2={pointerTip.y}/><circle className="rhythm-circle-now-dot" cx={pointerTip.x} cy={pointerTip.y} r="5"/></>}
+      </g><g className={`rhythm-circle-center-copy ${isCenterCopyHidden ? 'is-hidden' : ''}`} aria-hidden={isCenterCopyHidden}><text className="rhythm-circle-center-kicker" x="300" y={fullDayDial ? isToday ? 277 : 290 : 238} textAnchor="middle">{dayTitle}</text><text className="rhythm-circle-center-date" x="300" y={fullDayDial ? isToday ? 303 : 320 : 260} textAnchor="middle">{selectedDateLabel}</text>{isToday && !isRevealingHalfDay && <text className="rhythm-circle-center-time" x="300" y={fullDayDial ? 354 : 288} textAnchor="middle">{centerTimeLabel}</text>}</g>
       </g>
     </svg></div>
-    {isToday && !fullDayDial && standoutActivity && <div className="daily-rhythm-insight-row"><button type="button" className="daily-rhythm-insight-link" onClick={onOpenInsights}>Worth a closer look →</button></div>}
+    {isToday && (!fullDayDial || isRevealingHalfDay) && standoutActivity && <div className="daily-rhythm-insight-row"><button type="button" className="daily-rhythm-insight-link" onClick={onOpenInsights}>Worth a closer look →</button></div>}
     <div className="daily-rhythm-lane-heading"><span>TYPICAL PATTERN</span><button type="button" onClick={() => onPatterns()}>{timedPatterns.length ? 'View →' : 'Set up →'}</button></div>
     <div className="daily-rhythm-chart">
-      {dayOffset < 0 && <button type="button" className="daily-rhythm-go-today" onClick={() => onDayOffsetChange(0)}>Today</button>}
+      {dayOffset < 0 && <button type="button" className="daily-rhythm-go-today" onClick={() => navigateToDay(0)}>Today</button>}
       {revealedSelection && <button type="button" className="daily-rhythm-selected-banner" aria-label={`Open details for ${revealedSelection.moment.title} at ${revealedSelection.time}`} onClick={() => openActivity(revealedSelection.moment)}>
         <span className="daily-rhythm-selected-banner-icon" aria-hidden="true">{activityGlyph(revealedSelection.moment)}</span>
         <span className="daily-rhythm-selected-banner-title">{revealedSelection.moment.title}</span>
@@ -1258,7 +1385,7 @@ function ActivityInsightsPage({ records, petName, reviews, canReview, onReview, 
   </section>;
 }
 
-function TodayPage({ onRequestCareTask, onStory, onPetsNavigate, onAddPet, onActivitySummary, onOpenInsights, onCareTasks, onToggleCareTask, careTasks, careMembers, insightReviews, currentUserId, canAct, isPrimary, petName, petAvatar, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, dayOffset, onDayOffsetChange }: { onRequestCareTask: (task: CareTask, recipientId: string) => boolean; onStory: () => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; onCareTasks: () => void; onToggleCareTask: (task: CareTask) => void; careTasks: CareTask[]; careMembers: CareMember[]; insightReviews: ActivityInsightReview[]; currentUserId: string; canAct: boolean; isPrimary: boolean; petName: string; petAvatar: string; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
+function TodayPage({ onRequestCareTask, onStory, onPetsNavigate, onAddPet, onActivitySummary, onOpenMomentDetail, onOpenInsights, onCareTasks, onToggleCareTask, careTasks, careMembers, insightReviews, currentUserId, canAct, isPrimary, petName, petAvatar, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, dayOffset, onDayOffsetChange }: { onRequestCareTask: (task: CareTask, recipientId: string) => boolean; onStory: () => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; onOpenMomentDetail: (momentId: string) => void; onOpenInsights: () => void; onCareTasks: () => void; onToggleCareTask: (task: CareTask) => void; careTasks: CareTask[]; careMembers: CareMember[]; insightReviews: ActivityInsightReview[]; currentUserId: string; canAct: boolean; isPrimary: boolean; petName: string; petAvatar: string; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
   const now = useCurrentTime();
   const displayName = petName.replace(/\s*[（(]test[^）)]*[）)]$/i, '');
   const visibleRecords = visibleStoryObservations(observations.filter(record => !isObservationSkippedForToday(record, careTasks)), includedMoments)
@@ -1267,21 +1394,22 @@ function TodayPage({ onRequestCareTask, onStory, onPetsNavigate, onAddPet, onAct
   const rankedActivities = rankDailyActivityInsights(visibleRecords, now);
   const standoutActivity = attentionActivityInsights(rankedActivities, insightReviews)[0];
   const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
-  const featuredRecords = (todayRecords.length ? todayRecords : visibleRecords.filter(record => isSameLocalDay(record.savedAt, new Date(visibleRecords[0]?.savedAt ?? now)))).slice(0, 8);
+  const featuredRecords = todayRecords.slice(0, 8);
   const allChangesLookNormal = rankedActivities.length > 0 && !standoutActivity;
 
   return (
     <>
       <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       {!noPetYet && <>
-      <DailyRhythmCard petName={petName} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} onOpenInsights={onOpenInsights} standoutActivity={standoutActivity} patterns={patterns} careTasks={careTasks} careMembers={careMembers} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
-      <TodayCare key={currentUserId + petName} petName={petName} patterns={patterns} observations={observations} tasks={careTasks} members={careMembers} currentUserId={currentUserId} canAct={canAct && dayOffset === 0} isPrimary={isPrimary} dayOffset={dayOffset} onDone={onToggleCareTask} onRequestHelp={onRequestCareTask} onOpenPlan={onCareTasks} onPatterns={() => onPatterns()} />
+      <section className="today-rhythm-care-group">
+        <DailyRhythmCard petName={petName} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} onOpenInsights={onOpenInsights} standoutActivity={standoutActivity} patterns={patterns} careTasks={careTasks} careMembers={careMembers} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
+        <TodayCare key={currentUserId + petName} petName={petName} patterns={patterns} observations={observations} tasks={careTasks} members={careMembers} currentUserId={currentUserId} canAct={canAct && dayOffset === 0} isPrimary={isPrimary} dayOffset={dayOffset} onDone={onToggleCareTask} onRequestHelp={onRequestCareTask} onOpenPlan={onCareTasks} onPatterns={() => onPatterns()} />
+      </section>
       {featuredRecords.length > 0 && <section className="today-section">
         <h2>Moments you might love</h2>
         <MomentCarousel>
-          {featuredRecords.map(record => <button className="moment-card" key={record.id} type="button" onClick={() => onActivitySummary(record)}>
-            {observationHasPrimaryMedia(record) ? <StoryMediaView src={record.image} type={record.mediaType} alt={record.title} /> : <span className="moment-text-preview" aria-hidden="true">✦</span>}
-            <span className="moment-card-copy"><strong>{record.title}</strong></span>
+          {featuredRecords.map(record => <button className="moment-card" key={record.id} type="button" onClick={() => onOpenMomentDetail(record.id)}>
+            <span className="moment-card-media">{observationHasPrimaryMedia(record) ? <StoryMediaView src={record.image} type={record.mediaType} alt={record.title} /> : <span className="moment-text-preview" aria-hidden="true">✦</span>}<span className="moment-card-copy"><strong>{record.title}</strong></span></span>
           </button>)}
         </MomentCarousel>
       </section>}
@@ -2541,7 +2669,7 @@ function PetSwitcher({ pets, activePetId, onClose, onSwitch, onAdd, onDelete, in
   return <div className="profile-dialog-backdrop" role="presentation" onClick={onClose}><section className="profile-dialog switcher-dialog" role="dialog" aria-modal="true" aria-labelledby="pet-switcher-title" onClick={(event) => event.stopPropagation()}><button className="profile-dialog-close" aria-label="Close" onClick={onClose}>×</button><h2 id="pet-switcher-title">Pet profiles</h2><p>{visiblePets.length ? 'Choose which pet’s Today, Story and context you want to view.' : 'Add a pet profile to continue to Today, Story and context.'}</p>{visiblePets.length > 0 && <div className="switcher-list pet-switcher-list">{visiblePets.map((pet) => <div key={pet.id} className={`pet-switcher-row ${pet.id === activePetId ? 'selected' : ''}`}><button className="pet-switcher-choice" onClick={() => { if (pet.id !== activePetId) onSwitch(pet.id); onClose(); }}><Avatar name={pet.name} src={pet.avatar} /><span><strong>{pet.name}</strong><small>{pet.breed} · {formatPetAge(pet.age)}</small></span><em>{pet.id === activePetId ? 'Current' : 'Switch'}</em></button><button className="pet-profile-delete" disabled={visiblePets.length === 1} aria-label={visiblePets.length === 1 ? `${pet.name} is the only pet and cannot be deleted` : `Delete ${pet.name}`} title={visiblePets.length === 1 ? 'Add another pet before deleting this one' : `Delete ${pet.name}`} onClick={() => { setError(''); setPendingDelete(pet); }}>Delete</button></div>)}</div>}{visiblePets.length === 1 && <p className="pet-delete-help">Add another pet before deleting this profile.</p>}{error && !adding && <p className="account-form-error" role="alert">{error}</p>}{adding ? <form className="switcher-form" onSubmit={add}><div className="pet-photo-field"><label className="profile-avatar-upload" aria-label="Upload pet photo">{avatar ? <img className="profile-edit-avatar pet-edit-avatar" src={avatar} alt={name || 'Pet'} /> : <span className="profile-edit-avatar pet-edit-avatar pet-photo-placeholder" aria-hidden="true">＋</span>}<span className="avatar-edit-badge" aria-hidden="true">✎</span><input type="file" accept="image/*" aria-label="Choose pet photo" onChange={(event) => readPetAvatar(event.target.files?.[0])} /></label><span>Add a pet photo</span></div><fieldset className="pet-species-field"><legend>Pet type</legend><div className="pet-species-options">{(['Dog', 'Cat'] as const).map((option) => <button key={option} type="button" aria-pressed={species === option} className={species === option ? 'selected' : ''} onClick={() => setSpecies(option)}>{option === 'Dog' ? '🐕 Dog' : '🐈 Cat'}</button>)}</div></fieldset><label><span>Pet name</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label><label><span>Breed</span><input value={breed} onChange={(event) => setBreed(event.target.value)} placeholder="Mixed breed" /></label><label><span>Age</span><input type="number" min="0" max="40" value={age} onChange={(event) => setAge(event.target.value)} /></label>{error && <p className="account-form-error" role="alert">{error}</p>}<div className="member-removal-actions"><button type="button" className="cancel-button" onClick={() => { setAdding(false); setError(''); }}>Cancel</button><button className="primary-button" disabled={!name.trim() || !breed.trim() || !age.trim()}>Add pet</button></div></form> : <button className="cancel-button full" onClick={() => setAdding(true)}>Add a pet</button>}{pendingDelete && <div className="nested-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog pet-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-pet-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-pet-title">Delete {pendingDelete.name}?</h2><p>This permanently removes this pet profile and its timeline, Story, context and Ask AI history from this device. Other pets will not be changed.</p><div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={() => { setPendingDelete(null); confirmDelete(); }}>Delete pet</button></div></section></div>}</section></div>;
 }
 
-function SimplePage({ onHelp, kind, petName, petAvatar, petBreed, petAge, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', ownerPreference = 'Manage your profile details here.', pets, activePetId, onOpenActivity, onPetsNavigate, onSettingsNavigate, onPetEdit, onProfileEdit, onPetSwitcher, careMembers, accounts, primaryMemberId, onMemberClick, onCareMembers, patterns, lifeEvents, mediaSources, onPatternHistory, onPattern, onLifeCare, onConnectedMedia, invitations = [], onAcceptInvitation, onDeclineInvitation, careOwnerName = ownerName, careOwnerAvatar = ownerAvatar, careOwnerRole = ownerRole, groupName = 'Care circle', canManageCareGroup = primaryMemberId === 'emily', canEditPetDetails = true, canAddLifeCare = true, canManageConnectedMedia = true, noPetYet = false }: { onHelp: () => void; kind: 'pets' | 'you'; petName: string; petAvatar: string; petBreed: string; petAge: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; ownerPreference?: string; pets: PrototypePet[]; activePetId: string; onOpenActivity: (category: ProfileActivityCategory) => void; accounts: PrototypeAccount[]; onPetsNavigate: () => void; onSettingsNavigate: () => void; onPetEdit: () => void; onProfileEdit: () => void; onPetSwitcher: () => void; careMembers: CareMember[]; primaryMemberId: string; onMemberClick: (id: string) => void; onCareMembers: () => void; patterns: TypicalPattern[]; lifeEvents: LifeCareEvent[]; mediaSources: MediaSource[]; onPatternHistory: () => void; onPattern: (id: string) => void; onLifeCare: (category?: 'life' | 'health') => void; onConnectedMedia: (sourceId?: string) => void; invitations?: CareInvitation[]; onAcceptInvitation?: (invite: CareInvitation) => void; onDeclineInvitation?: (inviteId: string) => void; careOwnerName?: string; careOwnerAvatar?: string; careOwnerRole?: string; groupName?: string; canManageCareGroup?: boolean; canEditPetDetails?: boolean; canAddLifeCare?: boolean; canManageConnectedMedia?: boolean; noPetYet?: boolean }) {
+function SimplePage({ kind, petName, petAvatar, petBreed, petAge, ownerName, ownerRole = 'Primary caregiver', ownerAvatar = '', ownerPreference = 'Manage your profile details here.', pets, activePetId, onOpenActivity, onPetsNavigate, onSettingsNavigate, onPetEdit, onProfileEdit, onPetSwitcher, careMembers, accounts, primaryMemberId, onMemberClick, onCareMembers, patterns, lifeEvents, mediaSources, onPatternHistory, onPattern, onLifeCare, onConnectedMedia, invitations = [], onAcceptInvitation, onDeclineInvitation, careOwnerName = ownerName, careOwnerAvatar = ownerAvatar, careOwnerRole = ownerRole, groupName = 'Care circle', canManageCareGroup = primaryMemberId === 'emily', canEditPetDetails = true, canAddLifeCare = true, canManageConnectedMedia = true, noPetYet = false }: { kind: 'pets' | 'you'; petName: string; petAvatar: string; petBreed: string; petAge: string; ownerName: string; ownerRole?: string; ownerAvatar?: string; ownerPreference?: string; pets: PrototypePet[]; activePetId: string; onOpenActivity: (category: ProfileActivityCategory) => void; accounts: PrototypeAccount[]; onPetsNavigate: () => void; onSettingsNavigate: () => void; onPetEdit: () => void; onProfileEdit: () => void; onPetSwitcher: () => void; careMembers: CareMember[]; primaryMemberId: string; onMemberClick: (id: string) => void; onCareMembers: () => void; patterns: TypicalPattern[]; lifeEvents: LifeCareEvent[]; mediaSources: MediaSource[]; onPatternHistory: () => void; onPattern: (id: string) => void; onLifeCare: (category?: 'life' | 'health') => void; onConnectedMedia: (sourceId?: string) => void; invitations?: CareInvitation[]; onAcceptInvitation?: (invite: CareInvitation) => void; onDeclineInvitation?: (inviteId: string) => void; careOwnerName?: string; careOwnerAvatar?: string; careOwnerRole?: string; groupName?: string; canManageCareGroup?: boolean; canEditPetDetails?: boolean; canAddLifeCare?: boolean; canManageConnectedMedia?: boolean; noPetYet?: boolean }) {
   void canManageCareGroup;
   const shownSex = normalizePetSex(pets.find(p => p.id === activePetId)?.sex);
   const petDetailsLabel = `${petBreed} · ${formatPetAge(petAge)}${shownSex === 'Unknown' ? '' : ` · ${shownSex}`}`;
@@ -2599,7 +2727,6 @@ function SimplePage({ onHelp, kind, petName, petAvatar, petBreed, petAge, ownerN
         </div>
       </div>
 
-      <button className="profile-help-entry" onClick={onHelp}><span className="profile-help-icon" aria-hidden="true">?</span><span><strong>Help &amp; getting started</strong><small>How Pawsona works · Review the guide</small></span><span aria-hidden="true">›</span></button>
       <section className="profile-section you-section">
         <div className="profile-section-heading"><h2>My pets</h2>{invitations.length > 0 && <span className="invitation-count">{invitations.length} invitation{invitations.length === 1 ? '' : 's'}</span>}<button className="profile-link" onClick={onPetSwitcher}>Switch or add →</button></div>
         <div className="profile-card you-list pets-list">
@@ -2855,7 +2982,7 @@ function LifeCarePage({ petName, ownerName, primaryOwnerName, currentAccountId, 
   </section>;
 }
 
-function SettingsHubPage({ accounts, activeAccountId, onBack, onSwitchAccount, onRegister, onDeleteAccount, onSignOut, onAction }: { accounts: PrototypeAccount[]; activeAccountId: string; onBack: () => void; onSwitchAccount: (id: string) => void; onRegister: (name: string, email: string, petName: string) => string; onDeleteAccount: (id: string) => string; onSignOut: () => void; onAction: (title: string, detail: string) => void }) {
+function SettingsHubPage({ accounts, activeAccountId, onBack, onSwitchAccount, onRegister, onDeleteAccount, onSignOut, onAction, onHelp }: { accounts: PrototypeAccount[]; activeAccountId: string; onBack: () => void; onSwitchAccount: (id: string) => void; onRegister: (name: string, email: string, petName: string) => string; onDeleteAccount: (id: string) => string; onSignOut: () => void; onAction: (title: string, detail: string) => void; onHelp: () => void }) {
   const [creatingAccount, setCreatingAccount] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -2895,6 +3022,7 @@ function SettingsHubPage({ accounts, activeAccountId, onBack, onSwitchAccount, o
       <section className="settings-hub-section"><div className="profile-section-heading"><h2>Privacy &amp; support</h2></div><div className="profile-card you-list privacy-list">
         <button className="media-row" onClick={() => onAction('Data, sharing & retention', 'Review permissions, access and deletion.')}><span className="media-icon">▤</span><span><strong>Data, sharing &amp; retention</strong><small>Review permissions, access and deletion</small></span><i>›</i></button>
         <button className="media-row" onClick={() => onAction('Accessibility & feedback', 'Text size, captions, help and suggestions.')}><span className="media-icon">◎</span><span><strong>Accessibility &amp; feedback</strong><small>Text size, captions, help and suggestions</small></span><i>›</i></button>
+        <button className="media-row" onClick={onHelp}><span className="media-icon">?</span><span><strong>Help &amp; getting started</strong><small>How Pawsona works · Review the guide</small></span><i>›</i></button>
       </div></section>
     </div>
     {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={() => setPendingDelete(null)}><section className="profile-dialog member-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="settings-delete-account-title" onClick={(event) => event.stopPropagation()}><h2 id="settings-delete-account-title">Delete {pendingDelete.name}?</h2><p>This permanently removes this local account and the pets, moments and context saved inside it.</p>{deleteError && <p className="account-form-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={() => setPendingDelete(null)}>Cancel</button><button className="danger-button" onClick={confirmDeleteAccount}>Delete account</button></div></section></div>}
@@ -4828,7 +4956,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         {sharedId && sharedSync.current.failed && sharedWritePending() && <p className="shared-sync-pending" role="status">Shared sync paused. Your local edits are kept; resolve the sync error before leaving.</p>}
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
-            {view === 'today' && <TodayPage onRequestCareTask={requestCareTask} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenInsights={() => navigateTo('activityInsights')} onCareTasks={() => navigateTo('careTasks')} onToggleCareTask={toggleCareTask} careTasks={careTasks} careMembers={displayedCareMembers} insightReviews={insightReviews} currentUserId={activeAccount.id} canAct={canContributeToSharedPet} isPrimary={isPrimaryCaregiver} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
+            {view === 'today' && <TodayPage onRequestCareTask={requestCareTask} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenMomentDetail={openMomentDetail} onOpenInsights={() => navigateTo('activityInsights')} onCareTasks={() => navigateTo('careTasks')} onToggleCareTask={toggleCareTask} careTasks={careTasks} careMembers={displayedCareMembers} insightReviews={insightReviews} currentUserId={activeAccount.id} canAct={canContributeToSharedPet} isPrimary={isPrimaryCaregiver} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
             {view === 'careTasks' && <CareTasksPage tasks={careTasks} patterns={typicalPatterns} observations={storyObservations} members={displayedCareMembers} currentUserId={activeAccount.id} currentUserName={activeAccount.name} petName={petName} dayOffset={dailyRhythmDayOffset} isPrimary={isPrimaryCaregiver} canAct={canContributeToSharedPet} onBack={() => goBack('today')} onPatterns={() => openPatternKnowledge()} onToggleTask={toggleCareTask} onSkipTask={skipCareTask} onSave={saveCareTasks} />}
             {view === 'activityInsights' && <ActivityInsightsPage records={visibleStoryObservations(storyObservations.filter(observation => !isObservationSkippedForToday(observation, careTasks)), includedStoryMoments)} petName={petName} reviews={insightReviews} canReview={canContributeToSharedPet} onReview={reviewActivityInsight} onBack={() => goBack('today')} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} />}
 
@@ -4855,13 +4983,13 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
             {view === 'saved' && lastSavedContext && <SavedPage saved={lastSavedContext} onBack={() => goBack('confirm')} onReturnStory={() => navigateTo('story')} onUndo={() => undoContext(lastSavedContext.id)} onEvidence={() => openMomentDetail(lastSavedContext.momentId)} onEdit={() => startContextForMoment(lastSavedContext.momentId, lastSavedContext)} petName={petName} ownerName={ownerName} />}
             {view === 'undone' && <UndonePage onBack={() => goBack('saved')} onReturnToday={() => navigateTo('today')} onReview={() => navigateTo('overview')} petName={petName} />}
             {view === 'ask' && <AskPage petSpecies={petSpecies} onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} messages={askMessages} messageEndRef={askEndRef} noPetYet={activePetRecord.isEmptyProfile ?? false} busy={askBusy} pending={askPending} live={Boolean(cloud)} />}
-            {(view === 'pets' || view === 'you') && <SimplePage onHelp={() => navigateTo('help')} kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} accounts={prototypeSession.accounts} onOpenActivity={(category) => { setProfileActivityCategory(category); navigateTo('favorites'); }} onPetsNavigate={() => navigateTo('pets')} onSettingsNavigate={() => navigateTo('settings')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={activePetRecord.isEmptyProfile ? openAddPetForm : () => setShowPetSwitcher(true)} careMembers={orderedCareMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} patterns={typicalPatterns} lifeEvents={lifeCareEvents} mediaSources={mediaSources} onPatternHistory={() => openPatternKnowledge()} onPattern={(id) => openPatternKnowledge(id)} onLifeCare={openLifeCare} onConnectedMedia={openConnectedMedia} invitations={view === 'you' ? receivedCareInvitations : []} onAcceptInvitation={acceptCareInvitation} onDeclineInvitation={(id) => updateInvitationStatus(id, 'declined')} careOwnerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} careOwnerAvatar={primaryCaregiverAvatar} careOwnerRole="Primary caregiver" groupName={activeGroupName} canManageCareGroup={isPrimaryCaregiver} canEditPetDetails={isPrimaryCaregiver} canAddLifeCare={canManageLongTermCare} canManageConnectedMedia={canManageLongTermCare} noPetYet={activePetRecord.isEmptyProfile ?? false} />}
-            {view === 'help' && <HelpPage onBack={() => goBack('you')} onReview={reviewGuide} onSetup={() => setSetupOpen(true)} />}
+            {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} accounts={prototypeSession.accounts} onOpenActivity={(category) => { setProfileActivityCategory(category); navigateTo('favorites'); }} onPetsNavigate={() => navigateTo('pets')} onSettingsNavigate={() => navigateTo('settings')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={activePetRecord.isEmptyProfile ? openAddPetForm : () => setShowPetSwitcher(true)} careMembers={orderedCareMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} patterns={typicalPatterns} lifeEvents={lifeCareEvents} mediaSources={mediaSources} onPatternHistory={() => openPatternKnowledge()} onPattern={(id) => openPatternKnowledge(id)} onLifeCare={openLifeCare} onConnectedMedia={openConnectedMedia} invitations={view === 'you' ? receivedCareInvitations : []} onAcceptInvitation={acceptCareInvitation} onDeclineInvitation={(id) => updateInvitationStatus(id, 'declined')} careOwnerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} careOwnerAvatar={primaryCaregiverAvatar} careOwnerRole="Primary caregiver" groupName={activeGroupName} canManageCareGroup={isPrimaryCaregiver} canEditPetDetails={isPrimaryCaregiver} canAddLifeCare={canManageLongTermCare} canManageConnectedMedia={canManageLongTermCare} noPetYet={activePetRecord.isEmptyProfile ?? false} />}
+            {view === 'help' && <HelpPage onBack={() => goBack('settings')} onReview={reviewGuide} onSetup={() => setSetupOpen(true)} />}
             {view === 'favorites' && <ProfileActivityPage pets={activeAccount.pets.map((pet) => pet.id === activePetRecord.id ? { ...pet, workspace: { ...pet.workspace, observations: storyObservations, momentEngagement, contexts: savedContexts, careTasks } } : pet)} initialPetId={activePetRecord.id} initialCategory={profileActivityCategory} currentAccountId={activeAccount.id} currentAccountName={activeAccount.name} onBack={() => goBack('you')} onOpenMoment={openFavoriteMoment} onRemoveFavorites={removeFavoriteMoments} />}
             {view === 'connectedMedia' && <ConnectedMediaPage petName={petName} sources={mediaSources} initialSourceId={selectedMediaSourceId} onBack={() => goBack('you')} onUpdate={saveMediaSource} onDelete={deleteMediaSource} />}
             {view === 'patternHistory' && <PatternKnowledgePage onMoment={openMomentDetail} petId={activePetRecord.id} records={visibleStoryObservations(storyObservations, includedStoryMoments)} live={Boolean(cloud)} petName={petName} ownerName={ownerName} patterns={typicalPatterns} initialPatternId={selectedPatternId} canManage={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveTypicalPattern} onDelete={deleteTypicalPattern} />}
             {view === 'careEvent' && <LifeCarePage petName={petName} ownerName={ownerName} primaryOwnerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} currentAccountId={activeAccount.id} events={lifeCareEvents} initialCategory={lifeCareInitialCategory} startAdding={lifeCareStartAdding} canAdd={canManageLongTermCare} canManageAll={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveLifeCareEvent} onDelete={deleteLifeCareEvent} />}
-            {view === 'settings' && !cloud && <SettingsHubPage accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onBack={() => goBack('you')} onSwitchAccount={switchAccount} onRegister={registerAccount} onDeleteAccount={deleteSavedAccount} onSignOut={() => setShowSignOutConfirm(true)} onAction={(title, detail) => setProfileAction({ title, detail })} />}
+            {view === 'settings' && !cloud && <SettingsHubPage accounts={prototypeSession.accounts} activeAccountId={activeAccount.id} onBack={() => goBack('you')} onSwitchAccount={switchAccount} onRegister={registerAccount} onDeleteAccount={deleteSavedAccount} onSignOut={() => setShowSignOutConfirm(true)} onAction={(title, detail) => setProfileAction({ title, detail })} onHelp={() => navigateTo('help')} />}
             {view === 'settings' && cloud && <section className="settings-hub-page">
               <header className="settings-hub-header"><button className="back-button" aria-label="Go back" onClick={() => goBack('you')}>←</button><h1>Settings</h1></header>
               <div className="settings-hub-content">
@@ -4897,6 +5025,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
                   <div className="profile-card you-list privacy-list">
                     <button className="media-row" onClick={() => setProfileAction({ title: 'Data, sharing & retention', detail: 'Review permissions, access and deletion.' })}><span className="media-icon">▤</span><span><strong>Data, sharing &amp; retention</strong><small>Review permissions, access and deletion</small></span><i>›</i></button>
                     <button className="media-row" onClick={() => setProfileAction({ title: 'Accessibility & feedback', detail: 'Text size, captions, help and suggestions.' })}><span className="media-icon">◎</span><span><strong>Accessibility &amp; feedback</strong><small>Text size, captions, help and suggestions</small></span><i>›</i></button>
+                    <button className="media-row" onClick={() => navigateTo('help')}><span className="media-icon">?</span><span><strong>Help &amp; getting started</strong><small>How Pawsona works · Review the guide</small></span><i>›</i></button>
                   </div>
                 </section>
               </div>

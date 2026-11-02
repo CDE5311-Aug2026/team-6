@@ -81,6 +81,11 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .today-section { margin-top: 16px; }
 .today-section h2, .section-heading h2 { margin: 0; color: #000; font: 600 20px/28px 'Poppins', sans-serif; letter-spacing: -.3px; }
 .daily-rhythm-card { margin-top: 18px; padding: 13px 12px 10px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 22px; background: #fffcf5; box-shadow: 0 3px 12px #1a29210a; }
+.today-rhythm-care-group { margin-top: 18px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 22px; background: #fffcf5; box-shadow: 0 3px 12px #1a29210a; }
+.today-rhythm-care-group .daily-rhythm-card, .today-rhythm-care-group .today-care-action { margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+.today-rhythm-care-group .daily-rhythm-card { padding-bottom: 0; }
+.today-rhythm-care-group .today-care-action { position: relative; padding-top: 8px; }
+.today-rhythm-care-group .today-care-action::before { position: absolute; top: 0; right: 24px; left: 24px; border-top: 1px solid #e9e7df; content: ''; }
 .daily-rhythm-card.daily-rhythm-split { position:relative; }
 .daily-rhythm-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .daily-rhythm-header > div:first-child { min-width: 0; }
@@ -189,6 +194,12 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-circle-chart { width:100%; max-width:430px; margin:0 auto; }
 .daily-rhythm-circle-chart.is-half-day { overflow:hidden; touch-action:pan-y; cursor:grab; user-select:none; }
 .daily-rhythm-circle-chart.is-half-day:active { cursor:grabbing; }
+.daily-rhythm-circle-chart.is-revealing-full-day svg { animation: daily-rhythm-full-day-reveal 740ms cubic-bezier(.2,.72,.28,1) both; }
+.daily-rhythm-circle-chart.is-revealing-half-day { overflow:hidden; transition:height 600ms cubic-bezier(.2,.72,.28,1); }
+@keyframes daily-rhythm-full-day-reveal {
+  from { clip-path: inset(0 0 41.67% 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
 .daily-rhythm-dial-controls { display:flex; align-items:center; gap:5px; }
 .daily-rhythm-dial-controls button { border:0; border-radius:999px; padding:5px 8px; background:#f7f3e8; color:#806000; font:600 9px/1 'Roboto',sans-serif; white-space:nowrap; }
 .daily-rhythm-dial-controls button[aria-pressed="true"] { background:#ffeaa0; }
@@ -198,13 +209,16 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-split > .daily-rhythm-chart,
 .daily-rhythm-split > .daily-rhythm-today-lane { display:none; }
 .daily-rhythm-circle-chart svg { display:block; width:100%; height:auto; overflow:visible; }
-.daily-rhythm-insight-row { position:absolute; right:14px; bottom:10px; z-index:2; display:flex; justify-content:flex-end; margin:0; }
+.daily-rhythm-atmosphere { opacity:.84; filter:saturate(1.5) contrast(1.1) brightness(.92); mix-blend-mode:multiply; pointer-events:none; }
+.daily-rhythm-insight-row { position:relative; z-index:2; display:flex; justify-content:flex-end; min-height:22px; margin:0 0 2px; }
 .daily-rhythm-insight-link { border:0; padding:4px 7px; background:transparent; color:#a15b2f; font:600 10px/14px 'Roboto',sans-serif; }
-.rhythm-circle-guide { fill:none; stroke:#eadfc4; stroke-width:2; }
+.rhythm-circle-guide { fill:none; stroke:#eadfc4; stroke-width:2; filter:drop-shadow(0 2px 2px #8d774033); }
 .rhythm-circle-guide.outer { stroke:#f1e3bb; }
-.rhythm-circle-guide.inner { stroke:#e8e0cf; }
+.rhythm-circle-guide.inner { stroke:#d9cbb0; }
 .rhythm-circle-tick { stroke:#bda65e; stroke-width:3; stroke-linecap:round; }
 .rhythm-circle-label { fill:#786c4b; font:600 11px 'Roboto',sans-serif; }
+.rhythm-circle-label-hour { font-size:15px; }
+.rhythm-circle-label-period { font-size:11px; }
 .rhythm-circle-pattern path { fill:none; stroke:#f4d783; stroke-width:18; stroke-linecap:round; opacity:.7; }
 .rhythm-circle-pattern circle { fill:#fffdf7; stroke:#d8a91e; stroke-width:3; filter:drop-shadow(0 2px 3px #73591d24); }
 .rhythm-circle-pattern text { font:18px 'Segoe UI Emoji','Apple Color Emoji',sans-serif; }
@@ -216,11 +230,14 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .rhythm-circle-today.is-upcoming .rhythm-circle-today-main { fill:#f0f0ed; stroke:#c5c7c2; }
 .rhythm-circle-today.is-soon .rhythm-circle-today-main { fill:#fff7dc; stroke:#d9b43e; }
 .rhythm-circle-today.is-attention .rhythm-circle-today-main { fill:#fff0ed; stroke:#df756b; }
-.rhythm-circle-today.has-insight .rhythm-circle-today-halo { stroke:#e96656; stroke-width:2.5; filter:drop-shadow(0 0 4px #e9665666); }
+.rhythm-circle-today.has-insight .rhythm-circle-today-halo { stroke:transparent; filter:none; }
 .rhythm-circle-today.has-insight .rhythm-circle-today-main { stroke:#db594e; stroke-width:3; }
+.rhythm-circle-insight-pulse { fill:none; stroke:#e96656; stroke-width:2.5; opacity:0; transform-box:fill-box; transform-origin:center; animation:rhythm-insight-pulse 2s ease-out infinite; }
+@keyframes rhythm-insight-pulse { 0% { opacity:.85; transform:scale(.72); } 68% { opacity:0; transform:scale(1); } 100% { opacity:0; transform:scale(1); } }
+@media (prefers-reduced-motion:reduce) { .rhythm-circle-insight-pulse { animation:none; opacity:.45; } }
 .rhythm-circle-alert circle { fill:#c9362f; stroke:#fff; stroke-width:2.5; filter:drop-shadow(0 2px 3px #6b1b1b55); }
 .rhythm-circle-alert text { fill:white; font:900 13px 'Roboto',sans-serif; }
-.rhythm-circle-now { stroke:#d5a500; stroke-width:2; opacity:.75; }
+.rhythm-circle-now { stroke:url(#daily-rhythm-now-hand); stroke-width:2; opacity:.85; }
 .rhythm-circle-now-dot { fill:#d5a500; stroke:white; stroke-width:2; }
 .rhythm-circle-center-kicker { fill:#7d827b; font:700 13px 'Poppins',sans-serif; letter-spacing:1.5px; }
 .rhythm-circle-center-date { fill:#78644a; font:14px 'Roboto',sans-serif; }
@@ -232,6 +249,21 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .rhythm-circle-legend .upcoming-key { background:#c5c7c2; }
 .daily-rhythm-circle-heading .rhythm-circle-legend { justify-content:flex-start; padding:0; gap:9px; }
 .daily-rhythm-circle-heading .rhythm-circle-legend span { gap:4px; }
+.daily-rhythm-circle-heading { align-items:flex-start; margin-bottom:6px; }
+.daily-rhythm-circle-heading .rhythm-circle-legend { flex-direction:column; align-items:flex-start; gap:4px; padding-top:2px; }
+.daily-rhythm-dial-controls { flex-wrap:wrap; justify-content:flex-end; gap:7px; }
+.daily-rhythm-dial-controls .daily-rhythm-dial-toggle { position:relative; display:grid; grid-template-columns:1fr 1fr; align-items:center; width:108px; height:26px; padding:3px; border-radius:999px; background:#f1efe8; box-shadow:inset 0 0 0 1px #e9e5d9; }
+.daily-rhythm-dial-toggle-thumb { position:absolute; top:3px; bottom:3px; left:3px; width:calc(50% - 3px); border-radius:999px; background:#fffdf8; box-shadow:0 1px 4px #51452a20; transition:transform 220ms ease; }
+.daily-rhythm-dial-toggle.is-full-day .daily-rhythm-dial-toggle-thumb { transform:translateX(100%); background:#ffeaa0; }
+.daily-rhythm-dial-toggle.is-instant .daily-rhythm-dial-toggle-thumb { transition:none; }
+.rhythm-circle-center-copy { opacity:1; visibility:visible; pointer-events:none; transition:opacity 120ms ease-out; }
+.rhythm-circle-center-copy.is-hidden { opacity:0; visibility:hidden; transition:none; }
+.daily-rhythm-dial-controls .daily-rhythm-dial-toggle button { position:relative; z-index:1; width:auto; min-width:0; height:24px; padding:0 3px; border:0; border-radius:999px; background:transparent; color:#806000; font:600 9px/1 'Roboto',sans-serif; }
+.daily-rhythm-dial-controls .daily-rhythm-dial-toggle button[aria-pressed="true"] { color:#684f08; }
+.daily-rhythm-dial-controls > button { padding:5px 7px; border-radius:999px; background:#f7f3e8; }
+.daily-rhythm-dial-controls .daily-rhythm-dial-toggle button { height:20px; font-size:9px; }
+.daily-rhythm-dial-toggle-spacer { display:block; width:108px; height:26px; flex:none; visibility:hidden; }
+.daily-rhythm-circle-chart { margin-top:-14px; }
 .daily-rhythm-today-button { width:auto!important; min-width:38px; padding:0 8px!important; border-radius:999px!important; font:600 9px/1 'Roboto',sans-serif!important; }
 .daily-rhythm-date-nav { display: flex; flex: none; align-items: center; gap: 6px; }
 .daily-rhythm-date-nav span { min-width: 48px; color: #78644a; font: 600 10px/14px 'Roboto', sans-serif; text-align: center; }
@@ -1751,7 +1783,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 
 /* Allow the home greeting to wrap without covering the dashboard. */
 .home-screen .main-header { height: auto; min-height: 89px; padding-bottom: 8px; }
-.home-screen .main-header + .daily-rhythm-card { margin-top: 10px; }
+.home-screen .today-rhythm-care-group { margin-top: 10px; }
 
 /* Cover the scroll container's top padding behind every top-sticky surface. */
 .screen-scroll :is(
@@ -1780,12 +1812,13 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .moment-carousel-viewport { overflow-x: auto; display: flex; gap: 14px; scrollbar-width: none; touch-action: pan-x pan-y; overscroll-behavior-x: contain; cursor: grab; }
 .moment-carousel-viewport::-webkit-scrollbar { display: none; }
 .moment-carousel-viewport:active { cursor: grabbing; }
-.moment-carousel-set { flex: none; display: flex; gap: 14px; }
-.moment-carousel-set .moment-card { flex: none; width: calc(var(--moment-carousel-width, 350px) * .28); user-select: none; }
-.moment-carousel-set .moment-card img { height: 76px; object-position: center 40%; }
-.moment-carousel-set .moment-card .moment-card-copy { min-height:0; padding:7px 9px; }
-.moment-carousel-set .moment-card .moment-card-copy strong { overflow:hidden; font:600 10px/14px 'Roboto',sans-serif; text-overflow:ellipsis; white-space:nowrap; }
-.moment-carousel-set .moment-card img { pointer-events: none; -webkit-user-drag: none; }
+.moment-carousel-set { flex: none; display: flex; gap: 8px; }
+.moment-carousel-set .moment-card { flex: none; width: calc(var(--moment-carousel-width, 350px) * .28); height: auto; border-radius: 12px; user-select: none; }
+.moment-card-media { position: relative; display: block; width: 100%; height: auto; overflow: hidden; border-radius: inherit; }
+.moment-carousel-set .moment-card-media > img, .moment-carousel-set .moment-card-media > video, .moment-carousel-set .moment-card-media > .moment-text-preview { display: block; width: 100%; height: 60px; object-fit: cover; object-position: center center; }
+.moment-carousel-set .moment-card .moment-card-copy { position: static; box-sizing: border-box; width: 100%; max-width: 100%; min-height: 0; padding: 5px 8px 6px; border-radius: 0; background: #fff; color: var(--color-text-primary); text-align: left; }
+.moment-carousel-set .moment-card .moment-card-copy strong { display: block; overflow: hidden; color: var(--color-text-primary); font: 600 11px/15px 'Roboto',sans-serif; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.moment-carousel-set .moment-card img { object-position: center center; pointer-events: none; -webkit-user-drag: none; }
 .moment-carousel-pause { position: absolute; z-index: 2; right: 6px; top: 6px; border: 1px solid var(--color-border); border-radius: 12px; padding: 5px 8px; background: var(--color-surface); color: var(--color-text-primary); font-size: 11px; opacity: 0; }
 .moment-carousel:focus-within .moment-carousel-pause, .moment-carousel:hover .moment-carousel-pause { opacity: 1; }
 @media (hover: none) { .moment-carousel-pause { opacity: 1; } }

@@ -27,7 +27,7 @@ export default function MomentCarousel({ children }: { children: ReactNode }) {
     const measure = () => {
       el.style.setProperty('--moment-carousel-width', `${el.clientWidth}px`);
       const set = el.querySelector<HTMLElement>('.moment-carousel-set');
-      segment = set ? set.getBoundingClientRect().width + 14 : 0;
+      segment = set ? set.getBoundingClientRect().width + 8 : 0;
       el.scrollLeft = segment;
     };
     measure();
@@ -53,7 +53,7 @@ export default function MomentCarousel({ children }: { children: ReactNode }) {
       onScroll={event => {
         if (cards.length < 2 || dragging.current) return;
         const el = event.currentTarget, set = el.querySelector<HTMLElement>('.moment-carousel-set');
-        const segment = set ? set.getBoundingClientRect().width + 14 : 0;
+        const segment = set ? set.getBoundingClientRect().width + 8 : 0;
         if (segment && el.scrollLeft < segment / 2) el.scrollLeft += segment;
         else if (segment && el.scrollLeft > segment * 2) el.scrollLeft -= segment;
       }}

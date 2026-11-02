@@ -13,6 +13,6 @@ export const TOUR_STEPS = [
   { view: 'story', target: '.story-page', title: 'Record what happened', text: 'Use Add a moment to log care or an observation, with an optional photo or video. A record’s details let you add context. This tour will not save a sample record.' },
   { view: 'careTasks', target: '.care-tasks-page', title: 'Share the care', text: 'Ask a caregiver for help, accept or decline requests, and see who completed a task. Shared updates need to finish syncing; reminders appear inside Pawsona.' },
   { view: 'ask', target: '.ask-page', title: 'Ask a useful question', text: 'Try a Quick question or write your own. You can edit it before sending. Ask AI can use permitted recent Story text, but it cannot diagnose your pet. Add a pet profile first.' },
-  { view: 'you', target: '.you-page', title: 'Your space, and help', text: 'Review your activity, edit your profile and open Help & getting started. You can return there to review this guide or finish setup at any time.' }
+  { view: 'you', target: '.you-page', title: 'Your space', text: 'Review your activity, edit your profile and manage your pets here. Open Settings, then Privacy & support to find Help & getting started and review this guide.' }
 ] as const;
 export type SetupValues = { name: string; relationship: string; petName: string; species: 'Dog' | 'Cat'; goals: string[]; largeText: boolean; reducedMotion: boolean; includeHistory: boolean };
