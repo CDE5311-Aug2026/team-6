@@ -219,8 +219,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-split > .daily-rhythm-today-lane { display:none; }
 .daily-rhythm-circle-chart svg { display:block; width:100%; height:auto; overflow:visible; }
 .daily-rhythm-atmosphere { opacity:.94; filter:blur(4px) saturate(1.08) brightness(1.04); mix-blend-mode:normal; pointer-events:none; }
-.daily-rhythm-insight-row { position:relative; z-index:2; display:flex; height:22px; min-height:22px; justify-content:flex-end; margin:-22px 0 2px; background:linear-gradient(to top, #fffcf5 0%, #fffcf5 25%, rgba(255,252,245,.5) 62.5%, rgba(255,252,245,0) 100%); }
-.daily-rhythm-insight-link { border:0; padding:4px 7px; background:transparent; color:#a77b5d; font:600 10px/14px 'Roboto',sans-serif; }
 .rhythm-circle-guide { fill:none; stroke:#eadfc4; stroke-width:2; filter:drop-shadow(0 2px 2px #8d774033); }
 .rhythm-circle-guide.outer { stroke:#f1e3bb; }
 .rhythm-circle-guide.inner { stroke:#d9cbb0; }
@@ -1838,7 +1836,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .moment-carousel-viewport:active { cursor: grabbing; }
 .moment-carousel-set { flex: none; display: flex; gap: 8px; }
 .moment-carousel-set .moment-card { flex: none; width: calc(var(--moment-carousel-width, 350px) * .28); height: auto; border-radius: 12px; user-select: none; }
-.today-moments-strip .home-moment-insight-card { flex: 1 1 0; box-sizing: border-box; display: grid; grid-template-columns: 32px minmax(0, 1fr); column-gap: 12px; row-gap: 5px; min-width: 0; min-height: 86px; align-self: stretch; margin: 0; padding: 11px 12px; border-color: #f2e4a5; border-radius: 16px; background: #fff1b2; }
+.today-moments-strip .home-moment-insight-card { flex: 1 1 0; box-sizing: border-box; display: grid; grid-template-columns: 32px minmax(0, 1fr); column-gap: 12px; row-gap: 2px; min-width: 0; height: 86px; min-height: 86px; align-content: center; align-self: stretch; margin: 0; padding: 6px 12px; border-color: #f2e4a5; border-radius: 16px; background: #fff1b2; }
 .today-moments-strip.insight-only .home-moment-insight-card { flex-basis: 100%; }
 .today-moments-strip .home-moment-insight-card .notice-card-alert,
 .today-moments-strip .home-moment-insight-card .notice-card-reviewed { width: 32px; height: 32px; flex: 0 0 32px; }
@@ -1846,6 +1844,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .today-moments-strip .home-moment-insight-card .notice-card-alert,
 .today-moments-strip .home-moment-insight-card .notice-card-reviewed { margin-top: 2px; }
 .today-moments-strip .home-moment-insight-card > span:last-child { min-width: 0; }
+.today-moments-strip .home-moment-insight-card .home-moment-insight-heading { grid-column: 1 / -1; display: block; color: #8f643a; font: 600 10px/13px 'Poppins', sans-serif; text-align: center; white-space: nowrap; }
 .today-moments-strip .home-moment-insight-card .home-moment-insight-copy { display: contents; }
 .today-moments-strip .home-moment-insight-card strong { align-self: center; }
 .today-moments-strip .home-moment-insight-card small { grid-column: 1 / -1; }
