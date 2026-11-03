@@ -7,7 +7,7 @@ import { breedAvatar, normalizePetSex, type PetSex } from './petBreeds';
 import ThinkingAvatar from './ThinkingAvatar';
 import PatternSuggestions from './PatternSuggestions';
 import SettingsPanels, { readPreferences } from './SettingsPanels';
-import { activityCategoryLabel, activityCategoryRecords, activityInsightReviewFor, activityInsightReviewId, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, attentionActivityInsights, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight, type ActivityInsightReview, type ActivityInsightReviewStatus, type ActivityPeriod, type RankedDailyActivityInsight } from './activitySummary';
+import { activityCategoryLabel, activityCategoryRecords, activityInsightReviewFor, activityInsightReviewId, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, attentionActivityInsights, unreviewedDialActivityInsights, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight, type ActivityInsightReview, type ActivityInsightReviewStatus, type ActivityPeriod, type RankedDailyActivityInsight } from './activitySummary';
 import { clockMinute, type DailyPattern } from '../supabase/functions/_shared/dailyPatterns';
 import Welcome from './Welcome';
 import { requestAskAI } from './askAI';
@@ -249,7 +249,7 @@ function saveCareMembersToStorage(members: CareMember[]) {
 type StoryMedia = { name: string; type: string; url: string };
 type StorySourceNote = { id: string; text: string; label: string };
 type StoryObservation = { careTaskId?: string; id: string; note: string; title: string; image: string; mediaType?: string; relatedPhotos?: StoryMedia[]; momentCount: number; momentIds?: string[]; sourceNotes?: StorySourceNote[]; context: string; privateRecord: boolean; sourceKind?: string; savedAt: string; authorId?: string; authorName?: string; authorAvatar?: string; synthetic?: boolean; observationKind?: 'meal' | 'walk' | 'play' | 'rest' | string; simulationKey?: string; metrics?: Record<string, number> };
-type StoryDraft = { id: string; selectedMoments: string[]; note: string; title?: string; momentAt?: string; relatedPhotos?: StoryMedia[]; context: string; savedAt: string; privateRecord?: boolean; uploadedMedia?: StoryMedia };
+type StoryDraft = { id: string; selectedMoments: string[]; note: string; title?: string; momentAt?: string; momentEndAt?: string; intakeAmount?: string; relatedPhotos?: StoryMedia[]; context: string; savedAt: string; privateRecord?: boolean; uploadedMedia?: StoryMedia };
 type AskAttachment = { url: string; name: string; kind: 'image' | 'audio'; type: string };
 type AskMessage = { role: 'user' | 'assistant'; text: string; attachment?: AskAttachment };
 type PetWorkspace = {
@@ -322,6 +322,7 @@ type MomentRecord = {
   relatedPhotos?: StoryMedia[];
   source: string;
   observationContext?: string;
+  details?: string[];
 };
 type MomentEngagement = { likes: string[]; favorites: string[] };
 type MomentEngagementById = Record<string, MomentEngagement>;
@@ -639,7 +640,12 @@ function observationHasPrimaryMedia(observation: StoryObservation) {
 
 function resolveMoment(momentId: string, observations: StoryObservation[]): MomentRecord {
   const observation = observations.find((entry) => entry.id === momentId);
-  if (observation) return {
+  if (observation) {
+    const details: string[] = [];
+    if (observation.metrics?.durationMinutes != null) details.push(`Duration: ${formatActivityDuration(observation.metrics.durationMinutes)}`);
+    if (observation.metrics?.foodGrams != null) details.push(`Food eaten: ${observation.metrics.foodGrams} g`);
+    if (observation.metrics?.waterMilliliters != null) details.push(`Water drunk: ${observation.metrics.waterMilliliters} ml`);
+    return {
     id: observation.id,
     time: formatObservationTime(observation.savedAt).replace('\n', ' · '),
     title: observation.title,
@@ -650,13 +656,15 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
     relatedPhotos: observation.relatedPhotos,
     source: `${observation.sourceKind === 'camera' ? 'Simulated camera clip' : 'Owner observation'} · ${formatRelativeDate(observation.savedAt)}`,
     observationContext: observation.context,
+    details,
   };
+  }
   const base = baseMomentDefinitions.find((entry) => entry.id === momentId) ?? baseMomentDefinitions[1];
   return { ...base, image: asset(base.image) };
 }
 
 
-function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySummary, onOpenInsights, standoutActivity, patterns, careTasks, careMembers, onOpenCareTasks, onPatterns, dayOffset, onDayOffsetChange }: { petName: string; moments: StoryObservation[]; scheduledMoments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; standoutActivity?: RankedDailyActivityInsight; patterns: TypicalPattern[]; careTasks: CareTask[]; careMembers: CareMember[]; onOpenCareTasks: () => void; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void }) {
+function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySummary, onOpenInsights, standoutActivity, dialStandoutActivity, patterns, careTasks, careMembers, onOpenCareTasks, onPatterns, dayOffset, onDayOffsetChange }: { petName: string; moments: StoryObservation[]; scheduledMoments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; standoutActivity?: RankedDailyActivityInsight; dialStandoutActivity?: RankedDailyActivityInsight; patterns: TypicalPattern[]; careTasks: CareTask[]; careMembers: CareMember[]; onOpenCareTasks: () => void; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void }) {
   const [revealedActivityId, setRevealedActivityId] = useState<string | null>(null);
   const [fullDayDial, setFullDayDial] = useState(false);
   const [isRevealingFullDay, setIsRevealingFullDay] = useState(false);
@@ -977,7 +985,7 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
       <circle className="rhythm-circle-guide outer" cx="300" cy="300" r="238"/><circle className="rhythm-circle-guide inner" cx="300" cy="300" r="165"/>
       {[0,360,720,1080].map(minute => { const point = circlePoint(minute, 290); const label = minute === 0 ? ['12', 'AM'] : minute === 360 ? ['6', 'AM'] : minute === 720 ? ['12', 'PM'] : ['6', 'PM']; const radians = wheelRotation * Math.PI / 180; const shownX = 300 + (point.x - 300) * Math.cos(radians) - (point.y - 300) * Math.sin(radians); const shownY = 300 + (point.x - 300) * Math.sin(radians) + (point.y - 300) * Math.cos(radians); const anchor = shownX < 60 ? 'start' : shownX > 540 ? 'end' : 'middle'; const labelY = point.y + (shownY < 40 ? 14 : -6); return <g key={minute}><line className="rhythm-circle-tick" x1={circlePoint(minute,242).x} y1={circlePoint(minute,242).y} x2={circlePoint(minute,258).x} y2={circlePoint(minute,258).y}/><text className="rhythm-circle-label" x={point.x} y={labelY} textAnchor={anchor} transform={wheelRotation ? `rotate(${-wheelRotation} ${point.x} ${point.y})` : undefined}><tspan className="rhythm-circle-label-hour">{label[0]}</tspan><tspan className="rhythm-circle-label-period">{' ' + label[1]}</tspan></text></g>; })}
       {timedPatterns.map(pattern => { const middle = (pattern.startMinute! + pattern.endMinute!) / 2; const point = circlePoint(middle,238); const icon = activityGlyphFor(pattern.activity!); return <g key={pattern.id} className="rhythm-circle-pattern" role="button" tabIndex={0} aria-label={`${pattern.activity}, ${clockMinute(pattern.startMinute!)} to ${clockMinute(pattern.endMinute!)}`} onClick={() => onPatterns(pattern.id)}><path d={circleArcPath(pattern.startMinute!,pattern.endMinute!,238)}/><circle cx={point.x} cy={point.y} r="20"/><text x={point.x} y={point.y+1} textAnchor="middle" dominantBaseline="middle" transform={wheelRotation ? `rotate(${-wheelRotation} ${point.x} ${point.y})` : undefined}>{icon}</text></g>; })}
-      {todayTimelineItems.map(item => { const date = new Date(item.at); const minute = date.getHours()*60+date.getMinutes(); const point = circlePoint(minute,165); const hasInsight = isToday && Boolean(standoutActivity && item.moment && activitySummaryIdentity(item.moment).key === standoutActivity.activityKey); const counterRotation = wheelRotation ? `rotate(${-wheelRotation} ${point.x} ${point.y})` : undefined; return <g key={item.id} className={`rhythm-circle-today is-${item.state} ${hasInsight ? 'has-insight' : ''}`} role="button" tabIndex={0} aria-label={`${item.title}${item.timeHint ? `, ${item.timeHint}` : ''}, ${item.stateLabel}${hasInsight ? ', worth a closer look' : ''}`} onClick={() => item.moment ? onOpenActivitySummary(item.moment) : onOpenCareTasks()} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.moment ? onOpenActivitySummary(item.moment) : onOpenCareTasks(); } }}><circle className="rhythm-circle-today-halo" cx={point.x} cy={point.y} r="22"/>{hasInsight && <circle className="rhythm-circle-insight-pulse" cx={point.x} cy={point.y} r="22" aria-hidden="true"/>}<circle className="rhythm-circle-today-main" cx={point.x} cy={point.y} r="16"/><text x={point.x} y={point.y+1} textAnchor="middle" dominantBaseline="middle" transform={counterRotation}>{item.glyph}</text>{hasInsight && <g className="rhythm-circle-alert is-insight" role="button" tabIndex={0} aria-label="Worth a closer look" transform={counterRotation} onClick={event => { event.stopPropagation(); onOpenInsights(); }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onOpenInsights(); } }}><circle cx={point.x+13} cy={point.y-13} r="10"/><text x={point.x+13} y={point.y-9} textAnchor="middle">!</text></g>}<title>{item.title} · {item.timeHint || item.stateLabel}{hasInsight ? ' · Worth a closer look' : ''}</title></g>; })}
+      {todayTimelineItems.map(item => { const date = new Date(item.at); const minute = date.getHours()*60+date.getMinutes(); const point = circlePoint(minute,165); const hasInsight = isToday && Boolean(dialStandoutActivity && item.moment && activitySummaryIdentity(item.moment).key === dialStandoutActivity.activityKey); const counterRotation = wheelRotation ? `rotate(${-wheelRotation} ${point.x} ${point.y})` : undefined; return <g key={item.id} className={`rhythm-circle-today is-${item.state} ${hasInsight ? 'has-insight' : ''}`} role="button" tabIndex={0} aria-label={`${item.title}${item.timeHint ? `, ${item.timeHint}` : ''}, ${item.stateLabel}${hasInsight ? ', worth a closer look' : ''}`} onClick={() => item.moment ? (hasInsight ? onOpenInsights() : onOpenActivitySummary(item.moment)) : onOpenCareTasks()} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.moment ? (hasInsight ? onOpenInsights() : onOpenActivitySummary(item.moment)) : onOpenCareTasks(); } }}><circle className="rhythm-circle-today-halo" cx={point.x} cy={point.y} r="22"/>{hasInsight && <circle className="rhythm-circle-insight-pulse" cx={point.x} cy={point.y} r="22" aria-hidden="true"/>}<circle className="rhythm-circle-today-main" cx={point.x} cy={point.y} r="16"/><text x={point.x} y={point.y+1} textAnchor="middle" dominantBaseline="middle" transform={counterRotation}>{item.glyph}</text>{hasInsight && <g className="rhythm-circle-alert is-insight" role="button" tabIndex={0} aria-label="Worth a closer look" transform={counterRotation} onClick={event => { event.stopPropagation(); onOpenInsights(); }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onOpenInsights(); } }}><circle cx={point.x+13} cy={point.y-13} r="10"/><text x={point.x+13} y={point.y-9} textAnchor="middle">!</text></g>}<title>{item.title} · {item.timeHint || item.stateLabel}{hasInsight ? ' · Worth a closer look' : ''}</title></g>; })}
       {isToday && <><line className="rhythm-circle-now" stroke="url(#daily-rhythm-now-hand)" x1="300" y1="300" x2={pointerTip.x} y2={pointerTip.y}/><circle className="rhythm-circle-now-dot" cx={pointerTip.x} cy={pointerTip.y} r="5"/></>}
       </g><g className={`rhythm-circle-center-copy ${isCenterCopyHidden ? 'is-hidden' : ''}`} aria-hidden={isCenterCopyHidden}><text className="rhythm-circle-center-kicker" x="300" y={fullDayDial ? isToday ? 277 : 290 : 238} textAnchor="middle">{dayTitle}</text><text className="rhythm-circle-center-date" x="300" y={fullDayDial ? isToday ? 303 : 320 : 260} textAnchor="middle">{selectedDateLabel}</text>{isToday && !isRevealingHalfDay && <text className="rhythm-circle-center-time" x="300" y={fullDayDial ? 354 : 288} textAnchor="middle">{centerTimeLabel}</text>}</g>
       </g>
@@ -1393,6 +1401,7 @@ function TodayPage({ onRequestCareTask, onStory, onPetsNavigate, onAddPet, onAct
     .sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime());
   const rankedActivities = rankDailyActivityInsights(visibleRecords, now);
   const standoutActivity = attentionActivityInsights(rankedActivities, insightReviews)[0];
+  const dialStandoutActivity = unreviewedDialActivityInsights(rankedActivities, insightReviews)[0];
   const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
   const featuredRecords = todayRecords.slice(0, 8);
   const allChangesLookNormal = rankedActivities.length > 0 && !standoutActivity;
@@ -1402,7 +1411,7 @@ function TodayPage({ onRequestCareTask, onStory, onPetsNavigate, onAddPet, onAct
       <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       {!noPetYet && <>
       <section className="today-rhythm-care-group">
-        <DailyRhythmCard petName={petName} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} onOpenInsights={onOpenInsights} standoutActivity={standoutActivity} patterns={patterns} careTasks={careTasks} careMembers={careMembers} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
+        <DailyRhythmCard petName={petName} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} onOpenInsights={onOpenInsights} standoutActivity={standoutActivity} dialStandoutActivity={dialStandoutActivity} patterns={patterns} careTasks={careTasks} careMembers={careMembers} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
         <TodayCare key={currentUserId + petName} petName={petName} patterns={patterns} observations={observations} tasks={careTasks} members={careMembers} currentUserId={currentUserId} canAct={canAct && dayOffset === 0} isPrimary={isPrimary} dayOffset={dayOffset} onDone={onToggleCareTask} onRequestHelp={onRequestCareTask} onOpenPlan={onCareTasks} onPatterns={() => onPatterns()} />
       </section>
       {featuredRecords.length > 0 && <section className="today-section">
@@ -1792,7 +1801,7 @@ function StoryDraftsPage({ drafts, onBack, onResume, onDelete }: { drafts: Story
 
   return <section className="story-drafts-page">
     <header className="story-edit-header"><button className="back-button" aria-label="Go back" onClick={onBack}>←</button><h1>Drafts</h1></header>
-    {drafts.length ? <div className="story-drafts-list">{drafts.map((draft) => <div className="story-draft-row" key={draft.id}><button className="story-draft-card" onClick={() => onResume(draft)}><strong>{draft.title?.trim() || (draft.note.trim() ? draft.note : 'Untitled observation')}</strong><span>{draft.privateRecord ? 'Private note' : `${draft.selectedMoments.length} selected ${draft.selectedMoments.length === 1 ? 'moment' : 'moments'}`}{draft.context ? ` · ${draft.context}` : ''}</span><small>Saved {formatObservationTime(draft.savedAt).replace('\n', ' · ')}</small></button><button className="story-draft-delete" aria-label={`Delete draft ${draft.title?.trim() || draft.note.trim() || 'Untitled observation'}`} onClick={() => { setDeleteError(''); setPendingDelete(draft); }}>Delete</button></div>)}</div> : <div className="story-drafts-empty">No drafts yet.</div>}
+    {drafts.length ? <div className="story-drafts-list">{drafts.map((draft) => <div className="story-draft-row" key={draft.id}><button className="story-draft-card" onClick={() => onResume(draft)}><strong>{draft.title?.trim() || (draft.note.trim() ? draft.note : 'Untitled observation')}</strong><span>Unfinished moment{draft.context ? ` · ${draft.context}` : ''}</span><small>Saved {formatObservationTime(draft.savedAt).replace('\n', ' · ')}</small></button><button className="story-draft-delete" aria-label={`Delete draft ${draft.title?.trim() || draft.note.trim() || 'Untitled observation'}`} onClick={() => { setDeleteError(''); setPendingDelete(draft); }}>Delete</button></div>)}</div> : <div className="story-drafts-empty">No drafts yet.</div>}
     {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={closeDeleteDialog}><section className="profile-dialog draft-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-draft-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-draft-title">Delete this draft?</h2><p>This removes the unsaved observation from Drafts. This action cannot be undone.</p>{deleteError && <p className="inline-save-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={closeDeleteDialog}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete draft</button></div></section></div>}
   </section>;
 }
@@ -1860,7 +1869,7 @@ function MomentDateTimePicker({ value, onChange }: { value: string; onChange: (v
   </section>;
 }
 
-function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMoments, uploadedMedia, setUploadedMedia, title, setTitle, momentAt, setMomentAt, relatedPhotos, setRelatedPhotos, note, setNote, context, setContext, privateRecord, setPrivateRecord, petName, ownerName, hasDemoMoments, saveError, savedObservation, onSave, onEdit }: {
+function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMoments, uploadedMedia, setUploadedMedia, title, setTitle, momentAt, setMomentAt, momentEndAt, setMomentEndAt, intakeAmount, setIntakeAmount, relatedPhotos, setRelatedPhotos, note, setNote, context, setContext, privateRecord, setPrivateRecord, petName, ownerName, hasDemoMoments, saveError, savedObservation, canSaveDraft, onSaveDraft, onSave, onEdit }: {
   step: 'moments' | 'compose' | 'preview' | 'saved';
   onBack: () => void;
   onCancel: () => void;
@@ -1872,6 +1881,10 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   setTitle: (value: string) => void;
   momentAt: string;
   setMomentAt: (value: string) => void;
+  momentEndAt: string;
+  setMomentEndAt: (value: string) => void;
+  intakeAmount: string;
+  setIntakeAmount: (value: string) => void;
   relatedPhotos: StoryMedia[];
   setRelatedPhotos: (photos: StoryMedia[]) => void;
   note: string;
@@ -1886,6 +1899,8 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   ownerName: string;
   hasDemoMoments: boolean;
   saveError: string;
+  canSaveDraft: boolean;
+  onSaveDraft: () => void;
   onSave: () => void;
   onEdit: () => void;
 }) {
@@ -1903,6 +1918,10 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   ];
   const selectedActivity = selectedMoments.length === 0 && !uploadedMedia
     ? quickActivities.find((activity) => title === activity.label) : undefined;
+  const intakeUnit = title === 'Meal' ? 'g' : title === 'Water' ? 'ml' : null;
+  const timingAndIntake = <><div className="moment-extra-fields"><label className="moment-range-toggle"><input type="checkbox" checked={Boolean(momentEndAt)} onChange={(event) => setMomentEndAt(event.target.checked ? momentAt : '')} /> Add an end time</label>{momentEndAt && <label className="moment-extra-field"><strong>End time</strong><input type="datetime-local" value={momentEndAt} min={momentAt} max={toLocalDateTimeInput(new Date())} onChange={(event) => setMomentEndAt(event.target.value)} /><small>Start and end must be on the same day.</small></label>}{intakeUnit && <label className="moment-extra-field"><strong>{title === 'Meal' ? 'Food eaten' : 'Water drunk'} (optional)</strong><span className="moment-amount-input"><input type="number" min="0" step="any" inputMode="decimal" value={intakeAmount} onChange={(event) => setIntakeAmount(event.target.value)} placeholder="Amount" /><span>{intakeUnit}</span></span></label>}</div></>;
+  const invalidRange = Boolean(momentEndAt && (new Date(momentEndAt).getTime() < new Date(momentAt).getTime() || new Date(momentEndAt).toDateString() !== new Date(momentAt).toDateString() || new Date(momentEndAt).getTime() > Date.now()));
+  const invalidAmount = Boolean(intakeUnit && intakeAmount && (!Number.isFinite(Number(intakeAmount)) || Number(intakeAmount) <= 0));
   function startWrittenMoment() {
     setUploadedMedia(null); setSelectedMoments([]); setTitle('');
     setRelatedPhotos([]); setNote(''); onEdit();
@@ -1977,26 +1996,26 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
     {header('Add a moment', `A LITTLE MOMENT WITH ${petName.toUpperCase()}`)}
     <div className="quick-moment-intro"><strong>What has {petName} been up to?</strong><p>Pick an activity and save. No photo or typing needed.</p></div>
     <section className="quick-moment-content">
-      <div className="quick-activity-grid" aria-label="Common pet activities">{quickActivities.map((activity) => <button type="button" key={activity.label} aria-pressed={selectedActivity?.label === activity.label} className={`quick-activity ${selectedActivity?.label === activity.label ? 'selected' : ''}`} onClick={() => { setUploadedMedia(null); setSelectedMoments([]); setRelatedPhotos([]); setTitle(activity.label); setNote(activity.text); }}><span aria-hidden="true">{activity.icon}</span><strong>{activity.label}</strong>{selectedActivity?.label === activity.label && <span className="quick-activity-check" aria-hidden="true">✓</span>}</button>)}</div>
+      <div className="quick-activity-grid" aria-label="Common pet activities">{quickActivities.map((activity) => <button type="button" key={activity.label} aria-pressed={selectedActivity?.label === activity.label} className={`quick-activity ${selectedActivity?.label === activity.label ? 'selected' : ''}`} onClick={() => { setUploadedMedia(null); setSelectedMoments([]); setRelatedPhotos([]); if (title !== activity.label) setIntakeAmount(''); setTitle(activity.label); setNote(activity.text); }}><span aria-hidden="true">{activity.icon}</span><strong>{activity.label}</strong>{selectedActivity?.label === activity.label && <span className="quick-activity-check" aria-hidden="true">✓</span>}</button>)}</div>
       <button type="button" className="quick-custom-moment" onClick={startWrittenMoment}>＋ Something else</button>
-      {selectedActivity && <div className="quick-moment-summary"><strong>Ready to save</strong><p aria-live="polite">{note}</p><MomentDateTimePicker value={momentAt} onChange={setMomentAt} /><button type="button" className="quick-details-button" onClick={onEdit}>＋ Add details or photo/video</button><label className="quick-private-choice"><input type="checkbox" checked={privateRecord} onChange={(event) => setPrivateRecord(event.target.checked)} />Keep as a private record</label><small>{privateRecord ? 'Only you can see this moment.' : `Visible in ${petName}’s Story to your care group.`}</small></div>}
+      {selectedActivity && <div className="quick-moment-summary"><strong>Ready to save</strong><p aria-live="polite">{note}</p><MomentDateTimePicker value={momentAt} onChange={setMomentAt} />{timingAndIntake}<button type="button" className="quick-details-button" onClick={onEdit}>＋ Add details or photo/video</button><label className="quick-private-choice"><input type="checkbox" checked={privateRecord} onChange={(event) => setPrivateRecord(event.target.checked)} />Keep as a private record</label><small>{privateRecord ? 'Only you can see this moment.' : `Visible in ${petName}’s Story to your care group.`}</small></div>}
     </section>
     {saveError && <p className="inline-save-error" role="alert">{saveError}</p>}
-    <div className="sticky-action add-moment-sticky-action"><button className="primary-button full" onClick={onSave} disabled={!selectedActivity || !note.trim()}>{privateRecord ? 'Save private moment' : 'Save moment'}</button></div>
+    <div className="sticky-action add-moment-sticky-action"><button className="save-draft-button" type="button" onClick={onSaveDraft} disabled={!canSaveDraft || !selectedActivity}>Save draft</button><button className="primary-button full" onClick={onSave} disabled={!selectedActivity || !note.trim() || invalidRange || invalidAmount}>{privateRecord ? 'Save private moment' : 'Save moment'}</button></div>
   </div>;
 
   if (step === 'compose') return <div className="add-flow-page">
     {header('Moment details', 'ADD ONLY WHAT MATTERS')}
     {hasVisual || selectedNotes.length > 0 ? <><div className="compose-section-label"><strong>Selected moment</strong></div>{hasVisual ? <div className="selected-moments-strip">{selected.map((moment) => <img key={moment.id} src={asset(moment.image)} alt={moment.title} />)}{uploadedSelected && uploadedMedia && <StoryMediaView src={uploadedMedia.url} type={uploadedMedia.type} alt={uploadedMedia.name} />}</div> : <div className="selected-note-strip">{selectedNotes.map((entry) => <div key={entry.id}><span>{entry.text}</span><small>{entry.label}</small></div>)}</div>}</> : <><div className="written-observation-mode"><strong>Written observation</strong></div><div className="written-observation-note"><strong>A note is enough</strong><span>You can describe a moment without a photo or camera clip.</span></div></>}
     <label className="moment-media-button">＋ {uploadedSelected ? 'Replace photo/video' : 'Add photo/video'}<input type="file" accept="image/*,video/*" onChange={(event) => { uploadMedia(event.target.files?.[0]); event.currentTarget.value = ''; }} /></label>
-    {isOwnerCreatedMoment && <MomentDateTimePicker value={momentAt} onChange={setMomentAt} />}
+    {isOwnerCreatedMoment && <><MomentDateTimePicker value={momentAt} onChange={setMomentAt} />{timingAndIntake}</>}
     <label className="observation-title-field"><strong>Title</strong><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Add a title for this moment" maxLength={70} /></label>
     <section className="observation-writing-card"><strong>What happened with {petName}?</strong><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Describe what you noticed…" />{relatedPhotos.length > 0 && <div className="related-photos-strip">{relatedPhotos.map((media, index) => <div className={media.type.startsWith('audio/') ? 'audio-attachment-thumb' : ''} key={`${media.name}-${index}`}><StoryMediaView src={media.url} type={media.type} alt={media.name} controls={media.type.startsWith('audio/')} /><button type="button" aria-label={`Remove attachment ${index + 1}`} onClick={() => setRelatedPhotos(relatedPhotos.filter((_, mediaIndex) => mediaIndex !== index))}>×</button></div>)}</div>}{uploadError && <p className="upload-error" role="alert">{uploadError}</p>}<div className="observation-writing-tools">{<label aria-label="Add photos"><input type="file" accept="image/*" multiple onChange={(event) => { addRelatedPhotos(event.target.files); event.currentTarget.value = ''; }} /><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" /><circle cx="9" cy="9" r="1.5" /><path d="m5 17 5-5 3 3 2-2 5 5" /></svg></label>}<label aria-label="Add a voice note"><input type="file" accept="audio/*" capture onChange={(event) => { addRelatedPhotos(event.target.files); event.currentTarget.value = ''; }} /><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8" /></svg></label><span className="observation-attachment-hint">Photos and voice notes are optional.</span></div></section>
     <section className="add-context-choices"><strong>Add context</strong><div>{['Visitors at home', 'Routine changed', 'Not sure yet'].map((item) => <button key={item} className={context === item ? 'active' : ''} onClick={() => setContext(context === item ? '' : item)}>{item}</button>)}</div></section>
     <label className="quick-private-choice compose-private-choice"><input type="checkbox" checked={privateRecord} onChange={(event) => setPrivateRecord(event.target.checked)} />Keep as a private record</label>
     <p className="compose-visibility">{privateRecord ? 'Only you can see this moment.' : `Visible in ${petName}’s Story to your care group.`}</p>
     {saveError && <p className="inline-save-error" role="alert">{saveError}</p>}
-    <div className="sticky-action"><button className="primary-button full" onClick={onSave} disabled={!note.trim()}>{privateRecord ? 'Save private moment' : 'Save moment'}</button></div>
+    <div className="sticky-action"><button className="save-draft-button" type="button" onClick={onSaveDraft} disabled={!canSaveDraft}>Save draft</button><button className="primary-button full" onClick={onSave} disabled={!note.trim() || invalidRange || invalidAmount}>{privateRecord ? 'Save private moment' : 'Save moment'}</button></div>
   </div>;
 
   if (step === 'preview') return <div className="add-flow-page">
@@ -2004,7 +2023,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
     <article className={`observation-preview-card ${!hasVisual ? 'note-observation-preview' : ''}`}>{hasVisual ? <StoryMediaView src={image} type={mediaType} alt={petName} controls={mediaType?.startsWith('video/')} /> : <div className="observation-note-visual"><strong>A note from {ownerName}</strong><p>{note || 'A moment with ' + petName + '.'}</p></div>}{relatedPhotos.length > 0 && <div className="preview-related-photos">{relatedPhotos.map((media, index) => <StoryMediaView key={`${media.name}-${index}`} src={media.url} type={media.type} alt={`Related attachment ${index + 1}`} controls={media.type.startsWith('audio/')} />)}</div>}<div className="observation-preview-copy"><small>{petName} · {formatRelativeDate(new Date(momentAt).toISOString())}</small><strong>{observationTitle}</strong><p>{note || 'A moment with ' + petName + '.'}</p>{selectedNotes.length > 0 && <div className="preview-source-notes"><strong>Saved note sources</strong>{selectedNotes.map((entry) => <span key={entry.id}>{entry.text}<small>{entry.label}</small></span>)}</div>}<div>{selectedMoments.length} selected {selectedMoments.length === 1 ? 'source' : 'sources'} · {hasVisual ? 'owner observation' : `Written observation · ${ownerName}`}</div><span>Owner-provided context{context ? ` · ${context}` : ''}</span></div></article>
     <section className="observation-destination"><strong>Where this goes</strong><button className={!privateRecord ? 'selected' : ''} onClick={() => setPrivateRecord(false)}><span className="destination-radio">{!privateRecord && <i />}</span>Add to {petName}'s Story</button><button className={privateRecord ? 'selected' : ''} onClick={() => setPrivateRecord(true)}><span className="destination-radio">{privateRecord && <i />}</span>Keep as a private record</button><small>{privateRecord ? 'Only you can see this record until you choose to share it.' : 'You choose which sources and words are saved.'}</small></section>
     {saveError && <p className="inline-save-error" role="alert">{saveError}</p>}
-    <div className="sticky-action"><button className="primary-button full" onClick={onSave}>{privateRecord ? 'Save private note' : 'Save observation'}</button></div>
+    <div className="sticky-action"><button className="save-draft-button" type="button" onClick={onSaveDraft} disabled={!canSaveDraft}>Save draft</button><button className="primary-button full" onClick={onSave}>{privateRecord ? 'Save private note' : 'Save observation'}</button></div>
   </div>;
 
   return <div className="add-flow-page">
@@ -2126,7 +2145,7 @@ function MomentDetailPage({ moment, contexts, accounts, careMembers, ownerName, 
       <DetailHeader title={moment.title} eyebrow="MOMENT DETAILS" onBack={onBack} />
       <article className={`moment-detail-card ${moment.image ? '' : 'note-only-moment-card'}`}>
         {moment.image && <section className="moment-detail-media"><StoryMediaView src={moment.image} type={moment.mediaType} alt={`${petName} · ${moment.title}`} controls={moment.mediaType?.startsWith('video/')} /></section>}
-        <section className="moment-summary-card"><div className="moment-summary-mini moment-source-mini"><strong>{moment.source}</strong><p>{moment.time}</p></div><div className="moment-summary-mini moment-description-mini"><strong>What this moment shows</strong><p>{moment.description}</p></div></section>
+        <section className="moment-summary-card"><div className="moment-summary-mini moment-source-mini"><strong>{moment.source}</strong><p>{moment.time}</p>{moment.details?.map(detail => <p key={detail}>{detail}</p>)}</div><div className="moment-summary-mini moment-description-mini"><strong>What this moment shows</strong><p>{moment.description}</p></div></section>
         {canInteract && <div className="moment-engagement-actions"><button type="button" className={`moment-engagement-button like ${engagement.likes.includes(currentAccountId) ? 'active' : ''}`} aria-label={engagement.likes.includes(currentAccountId) ? 'Unlike this moment' : 'Like this moment'} aria-pressed={engagement.likes.includes(currentAccountId)} onClick={onToggleMomentLike}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.9a5.5 5.5 0 0 0-7.8 0L12 5.9l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.3 1-1a5.5 5.5 0 0 0 0-7.8Z" /></svg>{engagement.likes.length > 0 && <b>{engagement.likes.length}</b>}</button><button type="button" className={`moment-engagement-button favorite ${engagement.favorites.includes(currentAccountId) ? 'active' : ''}`} aria-label={engagement.favorites.includes(currentAccountId) ? 'Remove from favorites' : 'Add to favorites'} aria-pressed={engagement.favorites.includes(currentAccountId)} onClick={onToggleMomentFavorite}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3Z" /></svg>{engagement.favorites.length > 0 && <b>{engagement.favorites.length}</b>}</button></div>}
       </article>
       {moment.relatedPhotos && moment.relatedPhotos.length > 0 && <section className="moment-related-photos"><strong>Related photos</strong><div>{moment.relatedPhotos.map((media, index) => <StoryMediaView key={`${media.name}-${index}`} src={media.url} type={media.type} alt={`Related attachment ${index + 1}`} controls={media.type.startsWith('audio/')} />)}</div></section>}
@@ -3507,6 +3526,8 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const [draftUploadedMedia, setDraftUploadedMedia] = useState<StoryMedia | null>(null);
   const [draftObservationTitle, setDraftObservationTitle] = useState('');
   const [draftMomentAt, setDraftMomentAt] = useState(() => toLocalDateTimeInput(new Date()));
+  const [draftMomentEndAt, setDraftMomentEndAt] = useState('');
+  const [draftIntakeAmount, setDraftIntakeAmount] = useState('');
   const [draftRelatedPhotos, setDraftRelatedPhotos] = useState<StoryMedia[]>([]);
   const [draftObservation, setDraftObservation] = useState('');
   const [draftObservationContext, setDraftObservationContext] = useState('');
@@ -4487,6 +4508,8 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setDraftUploadedMedia(null);
     setDraftObservationTitle('');
     setDraftMomentAt(toLocalDateTimeInput(new Date()));
+    setDraftMomentEndAt('');
+    setDraftIntakeAmount('');
     setDraftRelatedPhotos([]);
     setDraftObservation('');
     setDraftObservationContext('');
@@ -4503,15 +4526,47 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setView(returnView);
   }
 
+  function saveStoryDraft() {
+    if (!canContributeToSharedPet || editingStoryObservationId || !(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)) return;
+    setStorySaveError('');
+    const draft: StoryDraft = { id: activeStoryDraftId ?? `story-draft-${Date.now()}`, selectedMoments: draftMoments, note: draftObservation, title: draftObservationTitle, momentAt: draftMomentAt, momentEndAt: draftMomentEndAt, intakeAmount: draftIntakeAmount, relatedPhotos: draftRelatedPhotos, context: draftObservationContext, savedAt: new Date().toISOString(), privateRecord: draftPrivateRecord, uploadedMedia: draftUploadedMedia ?? undefined };
+    const next = [draft, ...storyDrafts.filter((entry) => entry.id !== draft.id)];
+    if (!persistWorkspacePatch({ drafts: next })) {
+      setStorySaveError('This draft could not be saved on this device. Remove a large photo or video, then try again.');
+      return;
+    }
+    setStoryDrafts(next);
+    cancelStoryObservation();
+    setStoryDraftSavedNotice(true);
+  }
+
   function saveStoryObservation() {
     if (!canContributeToSharedPet) return;
     setStorySaveError('');
+    const start = new Date(draftMomentAt);
+    const end = draftMomentEndAt ? new Date(draftMomentEndAt) : null;
+    if (end && (end.getTime() < start.getTime() || end.toDateString() !== start.toDateString() || end.getTime() > Date.now())) {
+      setStorySaveError('Choose an end time after the start, on the same day and no later than now.');
+      return;
+    }
+    const intakeUnit = draftObservationTitle === 'Meal' ? 'foodGrams' : draftObservationTitle === 'Water' ? 'waterMilliliters' : null;
+    const amount = draftIntakeAmount.trim() ? Number(draftIntakeAmount) : null;
+    if (intakeUnit && amount !== null && (!Number.isFinite(amount) || amount <= 0)) {
+      setStorySaveError('Enter an amount greater than zero.');
+      return;
+    }
     const selected = momentChoices.filter((moment) => draftMoments.includes(moment.id));
     const selectedNotes = getNoteChoices(petName).filter((entry) => draftMoments.includes(entry.id));
     const uploadedSelected = Boolean(draftUploadedMedia && draftMoments.includes('uploaded'));
     const existing = storyObservations.find((entry) => entry.id === editingStoryObservationId);
     const generatedTitle = selected[0]?.title ?? (uploadedSelected ? `A moment with ${petName}` : titleFromObservation(selectedNotes[0]?.text ?? draftObservation));
     const title = draftObservationTitle.trim() || generatedTitle;
+    const metrics = { ...(existing?.metrics ?? {}) };
+    delete metrics.durationMinutes;
+    delete metrics.foodGrams;
+    delete metrics.waterMilliliters;
+    if (end) metrics.durationMinutes = (end.getTime() - start.getTime()) / 60000;
+    if (intakeUnit && amount !== null) metrics[intakeUnit] = amount;
     const observation: StoryObservation = {
       id: existing?.id ?? `story-observation-${Date.now()}`,
       note: draftObservation.trim(),
@@ -4526,18 +4581,13 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       context: draftObservationContext,
       privateRecord: draftPrivateRecord,
       savedAt: draftMomentAt ? new Date(draftMomentAt).toISOString() : new Date().toISOString(),
+      metrics,
       authorId: existing?.authorId ?? activeAccount?.id ?? undefined,
       authorName: existing?.authorName ?? ownerName,
       authorAvatar: existing?.authorAvatar ?? ownerAvatar,
     };
     const next = [observation, ...storyObservations.filter((entry) => entry.id !== observation.id)];
-    let nextDrafts: StoryDraft[] | null = null;
-    if (draftPrivateRecord) {
-      const draft: StoryDraft = { id: activeStoryDraftId ?? `story-draft-${Date.now()}`, selectedMoments: draftMoments, note: draftObservation, title: draftObservationTitle, momentAt: draftMomentAt, relatedPhotos: draftRelatedPhotos, context: draftObservationContext, savedAt: new Date().toISOString(), privateRecord: true, uploadedMedia: draftUploadedMedia ?? undefined };
-      nextDrafts = [draft, ...storyDrafts.filter((entry) => entry.id !== draft.id)];
-    } else if (activeStoryDraftId) {
-      nextDrafts = storyDrafts.filter((entry) => entry.id !== activeStoryDraftId);
-    }
+    const nextDrafts = activeStoryDraftId ? storyDrafts.filter((entry) => entry.id !== activeStoryDraftId) : null;
     if (!saveObservationsToCurrentGroup(next, observation.id)) {
       setStorySaveError('This observation could not be saved on this device. Remove a large photo or video, then try again.');
       return;
@@ -4736,6 +4786,8 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setDraftObservation(existing?.note ?? row.note ?? '');
     setDraftObservationTitle(existing?.title ?? row.title);
     setDraftMomentAt(toLocalDateTimeInput(existing ? new Date(existing.savedAt) : new Date()));
+    setDraftMomentEndAt(existing?.metrics?.durationMinutes ? toLocalDateTimeInput(new Date(new Date(existing.savedAt).getTime() + existing.metrics.durationMinutes * 60000)) : '');
+    setDraftIntakeAmount(String(existing?.metrics?.foodGrams ?? existing?.metrics?.waterMilliliters ?? ''));
     setDraftRelatedPhotos(existing?.relatedPhotos ?? []);
     setDraftObservationContext(existing?.context ?? '');
     setDraftPrivateRecord(existing?.privateRecord ?? false);
@@ -4749,6 +4801,8 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setDraftObservation(draft.note);
     setDraftObservationTitle(draft.title ?? '');
     setDraftMomentAt(draft.momentAt ?? toLocalDateTimeInput(new Date()));
+    setDraftMomentEndAt(draft.momentEndAt ?? '');
+    setDraftIntakeAmount(draft.intakeAmount ?? '');
     setDraftRelatedPhotos(draft.relatedPhotos ?? []);
     setDraftObservationContext(draft.context);
     setDraftPrivateRecord(Boolean(draft.privateRecord));
@@ -4971,10 +5025,10 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
               /* Keep the selection for this session. */
             } navigateTo('story'); }} />}
             {view === 'drafts' && <StoryDraftsPage drafts={storyDrafts} onBack={() => goBack('story')} onResume={resumeStoryDraft} onDelete={deleteStoryDraft} />}
-            {view === 'addMoments' && <StoryAddPage step="moments" saveError={storySaveError} onBack={cancelStoryObservation} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
-            {view === 'addCompose' && <StoryAddPage step="compose" saveError={storySaveError} onBack={() => goBack('addMoments')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addPreview')} />}
-            {view === 'addPreview' && <StoryAddPage step="preview" saveError={storySaveError} onBack={() => goBack('addCompose')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
-            {view === 'addSaved' && <StoryAddPage savedObservation={savedStoryObservation} step="saved" saveError={storySaveError} onBack={() => goBack('addPreview')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
+            {view === 'addMoments' && <StoryAddPage step="moments" saveError={storySaveError} onBack={cancelStoryObservation} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
+            {view === 'addCompose' && <StoryAddPage step="compose" saveError={storySaveError} onBack={() => goBack('addMoments')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addPreview')} />}
+            {view === 'addPreview' && <StoryAddPage step="preview" saveError={storySaveError} onBack={() => goBack('addCompose')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
+            {view === 'addSaved' && <StoryAddPage savedObservation={savedStoryObservation} step="saved" saveError={storySaveError} onBack={() => goBack('addPreview')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
             {view === 'momentDetail' && <MomentDetailPage moment={selectedMoment} contexts={selectedMomentContexts} accounts={prototypeSession.accounts} careMembers={displayedCareMembers} ownerName={ownerName} ownerAvatar={ownerAvatar} currentAccountId={activeAccount.id} groupOwnerAccountId={activePetRecord.sharedGroupId ? groupOwnerAccountId : undefined} petName={petName} canContribute={canContributeToSharedPet} canInteract={canInteractWithGroupContext} engagement={momentEngagement[selectedMoment.id] ?? { likes: [], favorites: [] }} onToggleMomentLike={() => toggleMomentEngagement(selectedMoment.id, 'likes')} onToggleMomentFavorite={() => toggleMomentEngagement(selectedMoment.id, 'favorites')} onBack={() => goBack('story')} onAddContext={() => startContextForMoment(selectedMoment.id)} onEditContext={(context) => startContextForMoment(selectedMoment.id, context)} onDeleteContext={deleteOwnerContext} onToggleLike={toggleContextLike} onAddComment={addContextComment} onEditOwnComment={editOwnContextComment} onDeleteOwnComment={deleteOwnContextComment} />}
             {view === 'overview' && <OverviewPage onBack={() => goBack('today')} onClip={() => { setSelectedMomentId('window'); navigateTo('clip'); }} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} onSaved={() => openMomentDetail('window')} petName={petName}/>}
             {view === 'clip' && <ClipPage onBack={() => goBack('overview')} onContext={() => startContextForMoment('window')} petName={petName} ownerName={ownerName} canContribute={canContributeToSharedPet} />}
