@@ -220,7 +220,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-circle-chart svg { display:block; width:100%; height:auto; overflow:visible; }
 .daily-rhythm-atmosphere { opacity:.94; filter:blur(4px) saturate(1.08) brightness(1.04); mix-blend-mode:normal; pointer-events:none; }
 .daily-rhythm-insight-row { position:relative; z-index:2; display:flex; height:22px; min-height:22px; justify-content:flex-end; margin:-22px 0 2px; background:linear-gradient(to top, #fffcf5 0%, #fffcf5 25%, rgba(255,252,245,.5) 62.5%, rgba(255,252,245,0) 100%); }
-.daily-rhythm-insight-link { border:0; padding:4px 7px; background:transparent; color:#a15b2f; font:600 10px/14px 'Roboto',sans-serif; }
+.daily-rhythm-insight-link { border:0; padding:4px 7px; background:transparent; color:#a77b5d; font:600 10px/14px 'Roboto',sans-serif; }
 .rhythm-circle-guide { fill:none; stroke:#eadfc4; stroke-width:2; filter:drop-shadow(0 2px 2px #8d774033); }
 .rhythm-circle-guide.outer { stroke:#f1e3bb; }
 .rhythm-circle-guide.inner { stroke:#d9cbb0; }
@@ -1838,7 +1838,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .moment-carousel-viewport:active { cursor: grabbing; }
 .moment-carousel-set { flex: none; display: flex; gap: 8px; }
 .moment-carousel-set .moment-card { flex: none; width: calc(var(--moment-carousel-width, 350px) * .28); height: auto; border-radius: 12px; user-select: none; }
-.today-moments-strip .home-moment-insight-card { flex: 1 1 0; box-sizing: border-box; min-width: 0; min-height: 86px; align-self: stretch; margin: 0; padding: 11px 12px; border-radius: 16px; }
+.today-moments-strip .home-moment-insight-card { flex: 1 1 0; box-sizing: border-box; display: grid; grid-template-columns: 32px minmax(0, 1fr); column-gap: 12px; row-gap: 5px; min-width: 0; min-height: 86px; align-self: stretch; margin: 0; padding: 11px 12px; border-color: #f2e4a5; border-radius: 16px; background: #fff1b2; }
 .today-moments-strip.insight-only .home-moment-insight-card { flex-basis: 100%; }
 .today-moments-strip .home-moment-insight-card .notice-card-alert,
 .today-moments-strip .home-moment-insight-card .notice-card-reviewed { width: 32px; height: 32px; flex: 0 0 32px; }
@@ -1846,8 +1846,11 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .today-moments-strip .home-moment-insight-card .notice-card-alert,
 .today-moments-strip .home-moment-insight-card .notice-card-reviewed { margin-top: 2px; }
 .today-moments-strip .home-moment-insight-card > span:last-child { min-width: 0; }
+.today-moments-strip .home-moment-insight-card .home-moment-insight-copy { display: contents; }
+.today-moments-strip .home-moment-insight-card strong { align-self: center; }
+.today-moments-strip .home-moment-insight-card small { grid-column: 1 / -1; }
 .today-moments-strip .home-moment-insight-card strong { overflow-wrap: anywhere; }
-.today-moments-strip .home-moment-insight-card small { line-height: 16px; }
+.today-moments-strip .home-moment-insight-card small { font-size: 11px; line-height: 16px; white-space: nowrap; }
 .moment-card-media { position: relative; display: block; width: 100%; height: auto; overflow: hidden; border-radius: inherit; }
 .moment-carousel-set .moment-card-media > img, .moment-carousel-set .moment-card-media > video, .moment-carousel-set .moment-card-media > .moment-text-preview { display: block; width: 100%; height: 56px; object-fit: cover; object-position: 50% 50%; }
 .moment-carousel-set .moment-card .moment-card-copy { position: static; box-sizing: border-box; width: 100%; max-width: 100%; min-height: 0; padding: 5px 8px 6px; border-radius: 0; background: #fff; color: var(--color-text-primary); text-align: left; }
