@@ -77,9 +77,16 @@ export function activityInsightReviewFor(reviews: ActivityInsightReview[], insig
 
 export function attentionActivityInsights(insights: RankedDailyActivityInsight[], reviews: ActivityInsightReview[]) {
   return insights
+    .filter(insight => activityInsightReviewFor(reviews, insight)?.status !== 'normal');
+}
+
+export function dialAttentionActivityInsights(insights: RankedDailyActivityInsight[], reviews: ActivityInsightReview[]) {
+  return insights
     .map((insight, rank) => ({ insight, rank, review: activityInsightReviewFor(reviews, insight) }))
-    .filter(entry => entry.review?.status !== 'normal')
-    .sort((left, right) => Number(right.review?.status === 'watch') - Number(left.review?.status === 'watch') || left.rank - right.rank)
+    // Keep explicit “watch” reviews visible on the Today dial. A “normal” review
+    // is the only action that clears the attention ring.
+    .filter(entry => !entry.review || entry.review.status === 'watch')
+    .sort((left, right) => left.rank - right.rank)
     .map(entry => entry.insight);
 }
 

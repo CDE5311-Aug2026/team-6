@@ -120,17 +120,15 @@ test('uses a stable per-day activity and metric id for insight reviews', () => {
   assert.notEqual(activityInsightReviewId(duration), activityInsightReviewId(food));
 });
 
-test('hides normal reviews from Today and prioritizes changes marked for attention', () => {
+test('keeps the highest ranked change until it is marked normal', () => {
   const currentDate = new Date(2026, 9, 21);
   const insight = (activityKey, key = 'duration') => ({ activityKey, activityLabel: activityKey, key, currentDate });
   const insights = [insight('breakfast'), insight('play'), insight('rest')];
-  const reviews = [
-    { id: activityInsightReviewId(insights[0]), status: 'normal' },
-    { id: activityInsightReviewId(insights[2]), status: 'watch' },
-  ];
-
+  const watchReview = { id: activityInsightReviewId(insights[2]), status: 'watch' };
+  assert.deepEqual(attentionActivityInsights(insights, [watchReview]).map(entry => entry.activityKey), ['breakfast', 'play', 'rest']);
+  const reviews = [{ id: activityInsightReviewId(insights[0]), status: 'normal' }, watchReview];
   assert.equal(activityInsightReviewFor(reviews, insights[0]).status, 'normal');
-  assert.deepEqual(attentionActivityInsights(insights, reviews).map(entry => entry.activityKey), ['rest', 'play']);
+  assert.deepEqual(attentionActivityInsights(insights, reviews).map(entry => entry.activityKey), ['play', 'rest']);
 });
 
 test('does not use a later same-day record until its event time has arrived', () => {

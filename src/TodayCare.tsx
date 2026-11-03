@@ -32,6 +32,11 @@ export default function TodayCare({ petName, patterns, observations, tasks, memb
   const helpers = members.filter(member => member.id !== currentUserId && member.access !== 'viewer' && member.role !== 'Viewer' && (!member.expiresAt || Date.parse(member.expiresAt) > +now));
   const requestCandidates = (task: CareTask) => helpers.filter(member => task.status !== 'declined' || member.id !== task.declinedBy);
   const name = (id?: string) => members.find(member => member.id === id)?.name ?? 'a caregiver';
+  const renderCareNote = (note: string) => {
+    const amount = /\b\d+(?:\.\d+)?\s?(?:g|kg|ml|oz|lb|minutes?|mins?|hours?|hrs?)\b/i.exec(note);
+    if (!amount || amount.index === undefined) return note;
+    return <>{note.slice(0, amount.index)}<strong className="today-care-emphasis">{amount[0]}</strong>{note.slice(amount.index + amount[0].length)}</>;
+  };
   const unread = careTaskUnreadCount(tasks, currentUserId);
   const incoming = tasks.filter(task => task.status === 'requested' && task.assignedTo === currentUserId).length;
   const reminderCount = tasks.filter(task => task.status !== 'done' && task.status !== 'skipped' && task.events?.some(event => event.type === 'reminded' && event.targetId === currentUserId && !(event.readBy ?? []).includes(currentUserId))).length;
@@ -80,7 +85,7 @@ export default function TodayCare({ petName, patterns, observations, tasks, memb
           {canRequestHelp && <button type="button" className="today-care-remind" aria-label={'Ask a caregiver to take ' + task.title} title="Ask a caregiver" aria-expanded={reminding === task.id} onClick={() => { if (reminding === task.id) setReminding(null); else openReminder(task); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg></button>}
         </div>
         <div id={'care-detail-' + task.id} className="today-care-task-detail" hidden={!isExpanded}>
-          {task.note && <p>{task.note}</p>}
+          {task.note && <p>{renderCareNote(task.note)}</p>}
           <p>{task.status === 'requested' ? 'Waiting for ' + name(task.assignedTo) + ' to accept.' : task.assignedTo ? name(task.assignedTo) + ' is assigned to this task.' : 'No caregiver assigned yet. Check with your care circle before acting.'}</p>
           {(timing === 'due' || timing === 'overdue') && <p>No completion confirmed. Check before repeating care.</p>}
           {task.status === 'requested' && task.assignedTo === currentUserId && <button className="today-care-plan" onClick={onOpenPlan}>Accept or decline →</button>}

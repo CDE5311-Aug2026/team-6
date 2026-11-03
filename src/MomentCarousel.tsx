@@ -27,8 +27,8 @@ export default function MomentCarousel({ children }: { children: ReactNode }) {
     const measure = () => {
       el.style.setProperty('--moment-carousel-width', `${el.clientWidth}px`);
       const set = el.querySelector<HTMLElement>('.moment-carousel-set');
-      segment = set ? set.getBoundingClientRect().width + 8 : 0;
-      el.scrollLeft = segment;
+      segment = set ? set.getBoundingClientRect().width + (parseFloat(getComputedStyle(el).columnGap) || 0) : 0;
+      el.scrollLeft = segment * 2;
     };
     measure();
     const resize = new ResizeObserver(measure); resize.observe(el);
@@ -53,9 +53,9 @@ export default function MomentCarousel({ children }: { children: ReactNode }) {
       onScroll={event => {
         if (cards.length < 2 || dragging.current) return;
         const el = event.currentTarget, set = el.querySelector<HTMLElement>('.moment-carousel-set');
-        const segment = set ? set.getBoundingClientRect().width + 8 : 0;
-        if (segment && el.scrollLeft < segment / 2) el.scrollLeft += segment;
-        else if (segment && el.scrollLeft > segment * 2) el.scrollLeft -= segment;
+        const segment = set ? set.getBoundingClientRect().width + (parseFloat(getComputedStyle(el).columnGap) || 0) : 0;
+        if (segment && el.scrollLeft < segment * 1.5) el.scrollLeft += segment;
+        else if (segment && el.scrollLeft > segment * 2.5) el.scrollLeft -= segment;
       }}
       onPointerDown={event => {
         pause(); suppressClick.current = false;
@@ -71,8 +71,8 @@ export default function MomentCarousel({ children }: { children: ReactNode }) {
       onPointerUp={() => { suppressClick.current = dragging.current?.moved ?? false; dragging.current = null; pause(); }}
       onPointerCancel={() => { dragging.current = null; pause(); }}
       onClickCapture={event => { if (suppressClick.current) { event.preventDefault(); event.stopPropagation(); suppressClick.current = false; } }}>
-      {(cards.length > 1 ? [0, 1, 2] : [1]).map(copy => <div className="moment-carousel-set" key={copy} aria-hidden={copy !== 1 ? true : undefined}>
-        {cards.map((card, index) => cloneElement(card as ReactElement<{ tabIndex?: number; draggable?: boolean }>, { key: `${copy}-${index}`, tabIndex: copy === 1 ? undefined : -1, draggable: false }))}
+      {(cards.length > 1 ? [0, 1, 2, 3, 4] : [2]).map(copy => <div className="moment-carousel-set" key={copy} aria-hidden={copy !== 2 ? true : undefined}>
+        {cards.map((card, index) => cloneElement(card as ReactElement<{ tabIndex?: number; draggable?: boolean }>, { key: `${copy}-${index}`, tabIndex: copy === 2 ? undefined : -1, draggable: false }))}
       </div>)}
     </div>
   </div>;
