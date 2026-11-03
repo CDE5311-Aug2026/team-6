@@ -7,7 +7,7 @@ import { breedAvatar, normalizePetSex, type PetSex } from './petBreeds';
 import ThinkingAvatar from './ThinkingAvatar';
 import PatternSuggestions from './PatternSuggestions';
 import SettingsPanels, { readPreferences } from './SettingsPanels';
-import { activityCategoryLabel, activityCategoryRecords, activityInsightReviewFor, activityInsightReviewId, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, attentionActivityInsights, unreviewedDialActivityInsights, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight, type ActivityInsightReview, type ActivityInsightReviewStatus, type ActivityPeriod, type RankedDailyActivityInsight } from './activitySummary';
+import { activityCategoryLabel, activityCategoryRecords, activityInsightReviewFor, activityInsightReviewId, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, attentionActivityInsights, dialAttentionActivityInsights, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight, type ActivityInsightReview, type ActivityInsightReviewStatus, type ActivityPeriod, type RankedDailyActivityInsight } from './activitySummary';
 import { clockMinute, type DailyPattern } from '../supabase/functions/_shared/dailyPatterns';
 import Welcome from './Welcome';
 import { requestAskAI } from './askAI';
@@ -248,8 +248,8 @@ function saveCareMembersToStorage(members: CareMember[]) {
 }
 type StoryMedia = { name: string; type: string; url: string };
 type StorySourceNote = { id: string; text: string; label: string };
-type StoryObservation = { careTaskId?: string; id: string; note: string; title: string; image: string; mediaType?: string; relatedPhotos?: StoryMedia[]; momentCount: number; momentIds?: string[]; sourceNotes?: StorySourceNote[]; context: string; privateRecord: boolean; sourceKind?: string; savedAt: string; authorId?: string; authorName?: string; authorAvatar?: string; synthetic?: boolean; observationKind?: 'meal' | 'walk' | 'play' | 'rest' | string; simulationKey?: string; metrics?: Record<string, number> };
-type StoryDraft = { id: string; selectedMoments: string[]; note: string; title?: string; momentAt?: string; momentEndAt?: string; intakeAmount?: string; relatedPhotos?: StoryMedia[]; context: string; savedAt: string; privateRecord?: boolean; uploadedMedia?: StoryMedia };
+type StoryObservation = { careTaskId?: string; id: string; note: string; title: string; image: string; mediaType?: string; relatedPhotos?: StoryMedia[]; momentCount: number; momentIds?: string[]; sourceNotes?: StorySourceNote[]; context: string; foodType?: string; privateRecord: boolean; sourceKind?: string; savedAt: string; authorId?: string; authorName?: string; authorAvatar?: string; synthetic?: boolean; observationKind?: 'meal' | 'walk' | 'play' | 'rest' | string; simulationKey?: string; metrics?: Record<string, number> };
+type StoryDraft = { id: string; selectedMoments: string[]; note: string; title?: string; momentAt?: string; momentEndAt?: string; intakeAmount?: string; foodType?: string; relatedPhotos?: StoryMedia[]; context: string; savedAt: string; privateRecord?: boolean; uploadedMedia?: StoryMedia };
 type AskAttachment = { url: string; name: string; kind: 'image' | 'audio'; type: string };
 type AskMessage = { role: 'user' | 'assistant'; text: string; attachment?: AskAttachment };
 type PetWorkspace = {
@@ -643,7 +643,9 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
   if (observation) {
     const details: string[] = [];
     if (observation.metrics?.durationMinutes != null) details.push(`Duration: ${formatActivityDuration(observation.metrics.durationMinutes)}`);
-    if (observation.metrics?.foodGrams != null) details.push(`Food eaten: ${observation.metrics.foodGrams} g`);
+    const recordedFoodGrams = observation.metrics?.foodGrams ?? observation.metrics?.consumedGrams;
+    if (recordedFoodGrams != null) details.push(`Food eaten: ${recordedFoodGrams} g`);
+    if (observation.foodType) details.push(`Food type: ${observation.foodType}`);
     if (observation.metrics?.waterMilliliters != null) details.push(`Water drunk: ${observation.metrics.waterMilliliters} ml`);
     return {
     id: observation.id,
@@ -664,7 +666,7 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
 }
 
 
-function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySummary, onOpenInsights, standoutActivity, dialStandoutActivity, patterns, careTasks, careMembers, onOpenCareTasks, onPatterns, dayOffset, onDayOffsetChange }: { petName: string; moments: StoryObservation[]; scheduledMoments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; standoutActivity?: RankedDailyActivityInsight; dialStandoutActivity?: RankedDailyActivityInsight; patterns: TypicalPattern[]; careTasks: CareTask[]; careMembers: CareMember[]; onOpenCareTasks: () => void; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void }) {
+function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySummary, onOpenInsights, standoutActivity, dialStandoutActivity, rankedActivities, insightReviews, patterns, careTasks, careMembers, onOpenCareTasks, onPatterns, dayOffset, onDayOffsetChange }: { petName: string; moments: StoryObservation[]; scheduledMoments: StoryObservation[]; onOpenActivitySummary: (moment: StoryObservation) => void; onOpenInsights: () => void; standoutActivity?: RankedDailyActivityInsight; dialStandoutActivity?: RankedDailyActivityInsight; rankedActivities: RankedDailyActivityInsight[]; insightReviews: ActivityInsightReview[]; patterns: TypicalPattern[]; careTasks: CareTask[]; careMembers: CareMember[]; onOpenCareTasks: () => void; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void }) {
   const [revealedActivityId, setRevealedActivityId] = useState<string | null>(null);
   const [fullDayDial, setFullDayDial] = useState(false);
   const [isRevealingFullDay, setIsRevealingFullDay] = useState(false);
@@ -821,6 +823,9 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
     const delta = ((targetAngle - startAngle + 540) % 360) - 180;
     const startedAt = performance.now();
     const duration = 740;
+    if (centerCopyTimer.current !== null) window.clearTimeout(centerCopyTimer.current);
+    centerCopyTimer.current = null;
+    setIsCenterCopyHidden(true);
     setDialRotationOverride(startAngle);
     if (nextFullDay) {
       setFullDayDial(true);
@@ -840,6 +845,10 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
         setIsRevealingFullDay(false);
         setIsRevealingHalfDay(false);
         setDialRotationOverride(null);
+        centerCopyTimer.current = window.setTimeout(() => {
+          centerCopyTimer.current = null;
+          setIsCenterCopyHidden(false);
+        }, 35);
       }
     };
     dialRotationFrame.current = requestAnimationFrame(tick);
@@ -958,7 +967,7 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
       </div>
     </header>
     <>
-    <div className="daily-rhythm-circle-heading"><span className="rhythm-circle-legend"><span><i className="pattern-key"/>Typical window</span><span><i className="done-key"/>Done</span><span><i className="upcoming-key"/>Upcoming</span><span className="attention-legend"><i className="pending-key" aria-hidden="true"/>Needs attention</span></span><span className="daily-rhythm-dial-controls">{isToday ? <span className={`daily-rhythm-dial-toggle ${fullDayDial && !isRevealingHalfDay ? 'is-full-day' : ''} ${isRevealingHalfDay ? 'is-instant' : ''}`} role="group" aria-label="Dial view"><span className="daily-rhythm-dial-toggle-thumb" aria-hidden="true"/><button type="button" aria-pressed={!fullDayDial || isRevealingHalfDay} onClick={() => transitionDialMode(false)}>Now</button><button type="button" aria-pressed={fullDayDial && !isRevealingHalfDay} onClick={() => transitionDialMode(true)}>Full day</button></span> : <span className="daily-rhythm-dial-toggle-spacer" aria-hidden="true"/>}<button type="button" onClick={() => onPatterns()}>{timedPatterns.length ? 'View →' : 'Set up →'}</button></span></div>
+    <div className="daily-rhythm-circle-heading"><span className="rhythm-circle-legend"><span><i className="pattern-key"/>Typical window</span><span><i className="done-key"/>Done</span><span><i className="upcoming-key"/>Upcoming</span><span className="attention-legend"><i className="pending-key" aria-hidden="true"/>Needs attention</span></span><span className="daily-rhythm-dial-controls">{isToday ? <span className={`daily-rhythm-dial-toggle ${fullDayDial && !isRevealingHalfDay ? 'is-full-day' : ''} ${isRevealingHalfDay ? 'is-instant' : ''}`} role="group" aria-label="Dial view"><span className="daily-rhythm-dial-toggle-thumb" aria-hidden="true"/><button type="button" aria-pressed={!fullDayDial || isRevealingHalfDay} onClick={() => transitionDialMode(false)}>Now</button><button type="button" aria-pressed={fullDayDial && !isRevealingHalfDay} onClick={() => transitionDialMode(true)}>Full day</button></span> : <span className="daily-rhythm-dial-toggle-spacer" aria-hidden="true"/>}<button type="button" onClick={() => onPatterns()}>{timedPatterns.length ? 'Patterns →' : 'Set up →'}</button></span></div>
     <div ref={dialChartRef} className={`daily-rhythm-circle-chart ${fullDayDial ? 'is-full-day' : 'is-half-day'} ${isRevealingFullDay ? 'is-revealing-full-day' : ''} ${isRevealingHalfDay ? 'is-revealing-half-day' : ''}`} onPointerDown={startDialDrag} onPointerMove={moveDialDrag} onPointerUp={endDialDrag} onPointerCancel={endDialDrag}>
       <svg viewBox={fullDayDial ? '0 0 600 600' : '0 0 600 300'} role="img" aria-label={`${displayName}’s ${fullDayDial ? 'full-day' : '12-hour'} activity timeline`}>
       <defs>
@@ -985,9 +994,9 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
       <circle className="rhythm-circle-guide outer" cx="300" cy="300" r="238"/><circle className="rhythm-circle-guide inner" cx="300" cy="300" r="165"/>
       {[0,360,720,1080].map(minute => { const point = circlePoint(minute, 290); const label = minute === 0 ? ['12', 'AM'] : minute === 360 ? ['6', 'AM'] : minute === 720 ? ['12', 'PM'] : ['6', 'PM']; const radians = wheelRotation * Math.PI / 180; const shownX = 300 + (point.x - 300) * Math.cos(radians) - (point.y - 300) * Math.sin(radians); const shownY = 300 + (point.x - 300) * Math.sin(radians) + (point.y - 300) * Math.cos(radians); const anchor = shownX < 60 ? 'start' : shownX > 540 ? 'end' : 'middle'; const labelY = point.y + (shownY < 40 ? 14 : -6); return <g key={minute}><line className="rhythm-circle-tick" x1={circlePoint(minute,242).x} y1={circlePoint(minute,242).y} x2={circlePoint(minute,258).x} y2={circlePoint(minute,258).y}/><text className="rhythm-circle-label" x={point.x} y={labelY} textAnchor={anchor} transform={wheelRotation ? `rotate(${-wheelRotation} ${point.x} ${point.y})` : undefined}><tspan className="rhythm-circle-label-hour">{label[0]}</tspan><tspan className="rhythm-circle-label-period">{' ' + label[1]}</tspan></text></g>; })}
       {timedPatterns.map(pattern => { const middle = (pattern.startMinute! + pattern.endMinute!) / 2; const point = circlePoint(middle,238); const icon = activityGlyphFor(pattern.activity!); return <g key={pattern.id} className="rhythm-circle-pattern" role="button" tabIndex={0} aria-label={`${pattern.activity}, ${clockMinute(pattern.startMinute!)} to ${clockMinute(pattern.endMinute!)}`} onClick={() => onPatterns(pattern.id)}><path d={circleArcPath(pattern.startMinute!,pattern.endMinute!,238)}/><circle cx={point.x} cy={point.y} r="20"/><text x={point.x} y={point.y+1} textAnchor="middle" dominantBaseline="middle" transform={wheelRotation ? `rotate(${-wheelRotation} ${point.x} ${point.y})` : undefined}>{icon}</text></g>; })}
-      {todayTimelineItems.map(item => { const date = new Date(item.at); const minute = date.getHours()*60+date.getMinutes(); const point = circlePoint(minute,165); const hasInsight = isToday && Boolean(dialStandoutActivity && item.moment && activitySummaryIdentity(item.moment).key === dialStandoutActivity.activityKey); const counterRotation = wheelRotation ? `rotate(${-wheelRotation} ${point.x} ${point.y})` : undefined; return <g key={item.id} className={`rhythm-circle-today is-${item.state} ${hasInsight ? 'has-insight' : ''}`} role="button" tabIndex={0} aria-label={`${item.title}${item.timeHint ? `, ${item.timeHint}` : ''}, ${item.stateLabel}${hasInsight ? ', worth a closer look' : ''}`} onClick={() => item.moment ? (hasInsight ? onOpenInsights() : onOpenActivitySummary(item.moment)) : onOpenCareTasks()} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.moment ? (hasInsight ? onOpenInsights() : onOpenActivitySummary(item.moment)) : onOpenCareTasks(); } }}><circle className="rhythm-circle-today-halo" cx={point.x} cy={point.y} r="22"/>{hasInsight && <circle className="rhythm-circle-insight-pulse" cx={point.x} cy={point.y} r="22" aria-hidden="true"/>}<circle className="rhythm-circle-today-main" cx={point.x} cy={point.y} r="16"/><text x={point.x} y={point.y+1} textAnchor="middle" dominantBaseline="middle" transform={counterRotation}>{item.glyph}</text>{hasInsight && <g className="rhythm-circle-alert is-insight" role="button" tabIndex={0} aria-label="Worth a closer look" transform={counterRotation} onClick={event => { event.stopPropagation(); onOpenInsights(); }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onOpenInsights(); } }}><circle cx={point.x+13} cy={point.y-13} r="10"/><text x={point.x+13} y={point.y-9} textAnchor="middle">!</text></g>}<title>{item.title} · {item.timeHint || item.stateLabel}{hasInsight ? ' · Worth a closer look' : ''}</title></g>; })}
+      {todayTimelineItems.map(item => { const date = new Date(item.at); const minute = date.getHours()*60+date.getMinutes(); const point = circlePoint(minute,165); const activityKey = item.moment ? activitySummaryIdentity(item.moment).key : ''; const matchingReview = isToday && activityKey ? rankedActivities.filter(insight => insight.activityKey === activityKey).map(insight => activityInsightReviewFor(insightReviews, insight)).filter((review): review is ActivityInsightReview => Boolean(review)).sort((left, right) => right.reviewedAt.localeCompare(left.reviewedAt))[0] : undefined; const isDefaultInsight = isToday && Boolean(dialStandoutActivity && activityKey === dialStandoutActivity.activityKey); const hasInsight = isDefaultInsight && !matchingReview; const reviewedAttention = matchingReview?.status === 'watch'; const reviewedNormal = matchingReview?.status === 'normal'; const attentionLabel = reviewedAttention ? ', marked to keep an eye on' : reviewedNormal ? ', marked as normal' : hasInsight ? ', worth a closer look' : ''; const counterRotation = wheelRotation ? `rotate(${-wheelRotation} ${point.x} ${point.y})` : undefined; return <g key={item.id} className={`rhythm-circle-today is-${item.state} ${hasInsight ? 'has-insight' : ''} ${reviewedAttention ? 'is-review-watch' : ''} ${reviewedNormal ? 'is-review-normal' : ''}`} role="button" tabIndex={0} aria-label={`${item.title}${item.timeHint ? `, ${item.timeHint}` : ''}, ${item.stateLabel}${attentionLabel}`} onClick={() => item.moment ? (hasInsight ? onOpenInsights() : onOpenActivitySummary(item.moment)) : onOpenCareTasks()} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); item.moment ? (hasInsight ? onOpenInsights() : onOpenActivitySummary(item.moment)) : onOpenCareTasks(); } }}><circle className="rhythm-circle-today-halo" cx={point.x} cy={point.y} r="22"/>{hasInsight && <circle className="rhythm-circle-insight-pulse" cx={point.x} cy={point.y} r="22" aria-hidden="true"/>}<circle className="rhythm-circle-today-main" cx={point.x} cy={point.y} r="16"/><text x={point.x} y={point.y+1} textAnchor="middle" dominantBaseline="middle" transform={counterRotation}>{item.glyph}</text>{hasInsight && <g className="rhythm-circle-alert is-insight" role="button" tabIndex={0} aria-label="Worth a closer look" transform={counterRotation} onClick={event => { event.stopPropagation(); onOpenInsights(); }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onOpenInsights(); } }}><circle cx={point.x+13} cy={point.y-13} r="10"/><text x={point.x+13} y={point.y-9} textAnchor="middle">!</text></g>}<title>{item.title} · {item.timeHint || item.stateLabel}{attentionLabel}</title></g>; })}
       {isToday && <><line className="rhythm-circle-now" stroke="url(#daily-rhythm-now-hand)" x1="300" y1="300" x2={pointerTip.x} y2={pointerTip.y}/><circle className="rhythm-circle-now-dot" cx={pointerTip.x} cy={pointerTip.y} r="5"/></>}
-      </g><g className={`rhythm-circle-center-copy ${isCenterCopyHidden ? 'is-hidden' : ''}`} aria-hidden={isCenterCopyHidden}><text className="rhythm-circle-center-kicker" x="300" y={fullDayDial ? isToday ? 277 : 290 : 238} textAnchor="middle">{dayTitle}</text><text className="rhythm-circle-center-date" x="300" y={fullDayDial ? isToday ? 303 : 320 : 260} textAnchor="middle">{selectedDateLabel}</text>{isToday && !isRevealingHalfDay && <text className="rhythm-circle-center-time" x="300" y={fullDayDial ? 354 : 288} textAnchor="middle">{centerTimeLabel}</text>}</g>
+      </g><g className={`rhythm-circle-center-copy ${isCenterCopyHidden ? 'is-hidden' : ''}`} aria-hidden={isCenterCopyHidden} transform="translate(0 -20)"><text className="rhythm-circle-center-kicker" x="300" y={fullDayDial ? isToday ? 277 : 290 : 238} textAnchor="middle">{dayTitle}</text><text className="rhythm-circle-center-date" x="300" y={fullDayDial ? isToday ? 303 : 320 : 260} textAnchor="middle">{selectedDateLabel}</text>{isToday && !isRevealingHalfDay && <text className="rhythm-circle-center-time" x="300" y={fullDayDial ? 354 : 288} textAnchor="middle">{centerTimeLabel}</text>}</g>
       </g>
     </svg></div>
     {isToday && (!fullDayDial || isRevealingHalfDay) && standoutActivity && <div className="daily-rhythm-insight-row"><button type="button" className="daily-rhythm-insight-link" onClick={onOpenInsights}>Worth a closer look →</button></div>}
@@ -1130,30 +1139,41 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
   const related = activityRecordsThroughDate(categoryRecords, selectedDate);
   const recordsThroughSelectedDate = related;
   const duration = (entry: StoryObservation) => Math.max(0, Number(entry.metrics?.durationMinutes) || 0);
+  // Older simulated records use `consumedGrams`; newer manually saved meals use `foodGrams`.
+  const foodAmount = (entry: StoryObservation) => Math.max(0, Number(entry.metrics?.foodGrams ?? entry.metrics?.consumedGrams) || 0);
+  const isFoodSummary = summaryIdentity.kind === 'meal';
   const totalMinutes = recordsThroughSelectedDate.reduce((sum, entry) => sum + duration(entry), 0);
+  const totalFoodAmount = recordsThroughSelectedDate.reduce((sum, entry) => sum + foodAmount(entry), 0);
   const selectedDayMoments = activityRecordsOnDate(categoryRecords, selectedDate);
   const selectedDayMinutes = selectedDayMoments.reduce((sum, entry) => sum + duration(entry), 0);
+  const selectedDayFoodAmount = selectedDayMoments.reduce((sum, entry) => sum + foodAmount(entry), 0);
   const category = summaryIdentity.label;
   const statCategory = activityCategoryLabel(summaryIdentity.kind);
   const days = activitySummaryDateWindow(selectedDate);
   const weeklyComparison = compareActivityWeeks(related, selectedDate);
-  const weeklyHighlight = selectWeeklyInsight(weeklyComparison.current, weeklyComparison.previous);
+  const weeklyHighlight = isFoodSummary
+    ? selectWeeklyInsight({ ...weeklyComparison.current, durationRecordCount: 0 }, { ...weeklyComparison.previous, durationRecordCount: 0 })
+    : selectWeeklyInsight(weeklyComparison.current, weeklyComparison.previous);
   const wallClockToday = new Date();
   const wallClockYesterday = new Date(wallClockToday);
   wallClockYesterday.setDate(wallClockYesterday.getDate() - 1);
   const isSelectedToday = isSameLocalDay(moment.savedAt, wallClockToday);
   const isSelectedYesterday = isSameLocalDay(moment.savedAt, wallClockYesterday);
   const selectedDayLabel = isSelectedToday ? 'Today' : isSelectedYesterday ? 'Yesterday' : new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(selectedDate);
-  const selectedDayTitle = isSelectedToday ? `Today’s ${statCategory} time`
-    : isSelectedYesterday ? `Yesterday’s ${statCategory} time`
-      : `${statCategory} time · ${selectedDayLabel}`;
+  const selectedDayTitle = isFoodSummary
+    ? isSelectedToday ? 'Today’s food amount'
+      : isSelectedYesterday ? 'Yesterday’s food amount'
+        : `Food amount · ${selectedDayLabel}`
+    : isSelectedToday ? `Today’s ${statCategory} time`
+      : isSelectedYesterday ? `Yesterday’s ${statCategory} time`
+        : `${statCategory} time · ${selectedDayLabel}`;
   const selectedDayCountLabel = `${selectedDayMoments.length} ${selectedDayMoments.length === 1 ? 'moment' : 'moments'} ${isSelectedToday ? 'today' : isSelectedYesterday ? 'yesterday' : `on ${selectedDayLabel}`}`;
   const formatSummaryDate = (date: Date) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
   const weeklyEvidence = `${formatSummaryDate(weeklyComparison.current.startDate)}–${formatSummaryDate(weeklyComparison.current.endDate)} vs ${formatSummaryDate(weeklyComparison.previous.startDate)}–${formatSummaryDate(weeklyComparison.previous.endDate)}`;
   const formatDelta = (value: number) => `${value > 0 ? '+' : ''}${value}`;
   const weeklyMetrics = [
     { label: 'Records/week', current: weeklyComparison.current.recordCount, previous: weeklyComparison.previous.recordCount, unit: '' },
-    ...(weeklyComparison.current.durationRecordCount && weeklyComparison.previous.durationRecordCount ? [{ label: 'Avg min/record', current: weeklyComparison.current.durationMinutes / weeklyComparison.current.durationRecordCount, previous: weeklyComparison.previous.durationMinutes / weeklyComparison.previous.durationRecordCount, unit: 'm' }] : []),
+    ...(!isFoodSummary && weeklyComparison.current.durationRecordCount && weeklyComparison.previous.durationRecordCount ? [{ label: 'Avg min/record', current: weeklyComparison.current.durationMinutes / weeklyComparison.current.durationRecordCount, previous: weeklyComparison.previous.durationMinutes / weeklyComparison.previous.durationRecordCount, unit: 'm' }] : []),
     ...(weeklyComparison.current.consumptionRecordCount && weeklyComparison.previous.consumptionRecordCount ? [{ label: 'Avg g/record', current: weeklyComparison.current.consumedGrams / weeklyComparison.current.consumptionRecordCount, previous: weeklyComparison.previous.consumedGrams / weeklyComparison.previous.consumptionRecordCount, unit: 'g' }] : []),
   ];
   const weeklyInsightLabel = weeklyHighlight?.key === 'duration' ? 'Average duration per record'
@@ -1216,11 +1236,16 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
       }
     }
   };
-  const hasDurations = related.some(entry => duration(entry) > 0);
+  const hasFoodAmounts = related.some(entry => foodAmount(entry) > 0);
+  const hasDurations = !isFoodSummary && related.some(entry => duration(entry) > 0);
+  const formatSummaryValue = (value: number) => isFoodSummary
+    ? hasFoodAmounts ? `${Number(value).toLocaleString('en-US', { maximumFractionDigits: 1 })} g` : 'Not recorded'
+    : formatActivityDuration(value);
+  const trendMetricLabel = isFoodSummary ? 'food amount' : hasDurations ? 'duration' : 'recorded moments';
   const periodFor = activityPeriodFor;
   const periodSummary = (entries: StoryObservation[]) => (['morning', 'afternoon', 'evening'] as const).map(period => {
     const matches = entries.filter(entry => periodFor(entry) === period);
-    return { period, count: matches.length, minutes: matches.reduce((sum, entry) => sum + duration(entry), 0) };
+    return { period, count: matches.length, value: matches.reduce((sum, entry) => sum + (isFoodSummary ? foodAmount(entry) : duration(entry)), 0) };
   });
   const totalPeriodSummary = periodSummary(recordsThroughSelectedDate);
   const selectedDayPeriodSummary = periodSummary(selectedDayMoments);
@@ -1228,11 +1253,12 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
     const entries = related.filter(entry => isSameLocalDay(entry.savedAt, date));
     const valueForPeriod = (period: 'morning' | 'afternoon' | 'evening') => {
       const periodEntries = entries.filter(entry => periodFor(entry) === period);
+      if (isFoodSummary) return periodEntries.reduce((sum, entry) => sum + foodAmount(entry), 0);
       return hasDurations ? periodEntries.reduce((sum, entry) => sum + duration(entry), 0) : periodEntries.length;
     };
     return {
       date,
-      total: hasDurations ? entries.reduce((sum, entry) => sum + duration(entry), 0) : entries.length,
+      total: isFoodSummary ? entries.reduce((sum, entry) => sum + foodAmount(entry), 0) : hasDurations ? entries.reduce((sum, entry) => sum + duration(entry), 0) : entries.length,
       morning: valueForPeriod('morning'),
       afternoon: valueForPeriod('afternoon'),
       evening: valueForPeriod('evening'),
@@ -1243,6 +1269,7 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
   const chartY = (value: number) => 96 - (chartMax ? value / chartMax * 68 : 0);
   const trendX = (index: number) => 50 + index * 45;
   const formatTrendValue = (value: number) => {
+    if (isFoodSummary) return `${Number(value).toLocaleString('en-US', { maximumFractionDigits: 1 })} g`;
     if (!hasDurations) return `${value} ${value === 1 ? 'moment' : 'moments'}`;
     const minutes = Math.round(value);
     const hours = Math.floor(minutes / 60);
@@ -1278,16 +1305,16 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
       <div><p className="eyebrow">PET ACTIVITY</p><h1>{category} summary</h1></div>
     </header>
     <div className="activity-summary-pet"><Avatar name={petName} src={petAvatar} /><span><strong>{petName}</strong><small>{dateLabel} · {formatObservationTime(moment.savedAt).replace('\n', ' · ')}</small></span></div>
-    <section className="activity-summary-stats" aria-label="Activity duration">
-      {([
-        { key: 'total' as const, title: `Total ${statCategory} time`, value: totalMinutes, count: recordsThroughSelectedDate.length, label: `${recordsThroughSelectedDate.length} recorded ${recordsThroughSelectedDate.length === 1 ? 'moment' : 'moments'}`, breakdown: totalPeriodSummary },
-        { key: 'today' as const, title: selectedDayTitle, value: selectedDayMinutes, count: selectedDayMoments.length, label: selectedDayCountLabel, breakdown: selectedDayPeriodSummary },
+    <section className="activity-summary-stats" aria-label={isFoodSummary ? 'Food amount' : 'Activity duration'}>
+      {([ 
+        { key: 'total' as const, title: isFoodSummary ? 'Total Food Amount' : `Total ${statCategory} time`, value: isFoodSummary ? totalFoodAmount : totalMinutes, count: recordsThroughSelectedDate.length, label: `${recordsThroughSelectedDate.length} recorded ${recordsThroughSelectedDate.length === 1 ? 'moment' : 'moments'}`, breakdown: totalPeriodSummary },
+        { key: 'today' as const, title: selectedDayTitle, value: isFoodSummary ? selectedDayFoodAmount : selectedDayMinutes, count: selectedDayMoments.length, label: selectedDayCountLabel, breakdown: selectedDayPeriodSummary },
       ]).map(card => <button type="button" key={card.key} className={`activity-summary-stat-flip ${flippedStats[card.key] ? 'is-flipped' : ''}`} aria-pressed={flippedStats[card.key]} aria-label={`${card.title}. ${flippedStats[card.key] ? 'Show total' : 'Show morning, afternoon and evening breakdown'}`} onClick={() => setFlippedStats(current => ({ ...current, [card.key]: !current[card.key] }))}>
         <span className="activity-summary-stat-face activity-summary-stat-front" aria-hidden={flippedStats[card.key]}>
-          <span>{card.title}</span><strong>{formatActivityDuration(card.value)}</strong><small>{card.label}</small>
+          <span>{card.title}</span><strong>{formatSummaryValue(card.value)}</strong><small>{card.label}</small>
         </span>
         <span className="activity-summary-stat-face activity-summary-stat-back" aria-hidden={!flippedStats[card.key]}>
-          {card.breakdown.map(row => <span className="activity-summary-stat-period" key={row.period}><span><b>{row.period[0].toUpperCase() + row.period.slice(1)}</b><small>{row.count} {row.count === 1 ? 'record' : 'records'}</small></span><strong>{row.minutes ? formatActivityDuration(row.minutes) : '0 min'}</strong></span>)}
+          {card.breakdown.map(row => <span className="activity-summary-stat-period" key={row.period}><span><b>{row.period[0].toUpperCase() + row.period.slice(1)}</b><small>{row.count} {row.count === 1 ? 'record' : 'records'}</small></span><strong>{formatSummaryValue(row.value)}</strong></span>)}
         </span>
       </button>)}
     </section>
@@ -1301,12 +1328,12 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
       {weeklyInsightError && <p className="activity-summary-ai-error" role="alert">{weeklyInsightError}</p>}
     </section>
     <section className="activity-summary-trend">
-      <div className="activity-summary-section-heading"><div><h2>Activity trend</h2><p>Last 7 days · {hasDurations ? 'duration' : 'recorded moments'}</p></div></div>
+      <div className="activity-summary-section-heading"><div><h2>Activity trend</h2><p>Last 7 days · {trendMetricLabel}</p></div></div>
       <div className="activity-summary-chart-legend" aria-label="Chart series">
         {trendSeries.map(series => <button className={`activity-summary-legend-item ${series.key} ${focusedTrendSeries && focusedTrendSeries !== series.key ? 'is-muted' : ''} ${focusedTrendSeries === series.key ? 'is-focused' : ''}`} key={series.key} type="button" aria-pressed={focusedTrendSeries === series.key} aria-label={`${focusedTrendSeries === series.key ? 'Show all curves; currently highlighting' : 'Highlight'} ${series.label}`} onClick={() => setFocusedTrendSeries(current => current === series.key ? null : series.key)}><i aria-hidden="true"/>{series.label}</button>)}
       </div>
       <p className="activity-summary-period-note">By start time · Morning 05:00–12:00 · Afternoon 12:00–17:30 · Evening 17:30–05:00</p>
-      <svg viewBox="0 0 360 132" role="img" aria-label={`Activity trend for the last seven days, in ${hasDurations ? 'duration' : 'recorded moments'}. Total: ${trend.map(entry => formatTrendValue(entry.total)).join(', ')}.`}>
+      <svg viewBox="0 0 360 132" role="img" aria-label={`Activity trend for the last seven days, in ${trendMetricLabel}. Total: ${trend.map(entry => formatTrendValue(entry.total)).join(', ')}.`}>
         <path className="activity-summary-chart-grid" d="M44 28H344 M44 62H344 M44 96H344" />
         {[chartMax, chartMax / 2, 0].map((value, index) => <text key={`y-${index}`} className="activity-summary-chart-axis-label" x="38" y={31 + index * 34} textAnchor="end">{formatTrendValue(value)}</text>)}
         {trendSeries.map(series => <polyline className={`activity-summary-chart-line ${series.key} ${focusedTrendSeries && focusedTrendSeries !== series.key ? 'is-muted' : ''}`} key={`${series.key}-line`} points={series.values.map((value, index) => `${trendX(index)},${chartY(value)}`).join(' ')} />)}
@@ -1338,7 +1365,7 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
           <time dateTime={displayedMoment.savedAt}>{recordDateLabel(displayedMoment)}</time>
           <h2>{displayedMoment.title}</h2>
           <p>{displayedMoment.note || 'No additional notes for this moment.'}</p>
-          {duration(displayedMoment) > 0 && <small>{formatActivityDuration(duration(displayedMoment))}</small>}
+          {(isFoodSummary ? foodAmount(displayedMoment) > 0 : duration(displayedMoment) > 0) && <small>{formatSummaryValue(isFoodSummary ? foodAmount(displayedMoment) : duration(displayedMoment))}</small>}
         </div>
         {displayedMoment.image ? <img className="activity-summary-selected-image" src={displayedMoment.image} alt="" /> : <span className="activity-summary-record-fallback" aria-hidden="true">{activityIcon(displayedMoment)}</span>}
       </article>
@@ -1350,7 +1377,7 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
         {showMoreRecords && <div className="activity-summary-more-records" id="activity-summary-more-records">
           {displayedOtherRecords.map(entry => <article className="activity-summary-more-record" key={entry.id}>
             {entry.image ? <img src={entry.image} alt="" /> : <span className="activity-summary-record-fallback" aria-hidden="true">{activityIcon(entry)}</span>}
-            <div><time dateTime={entry.savedAt}>{recordDateLabel(entry)}</time><strong>{entry.title}</strong><p>{entry.note || 'No additional notes for this moment.'}</p>{duration(entry) > 0 && <small>{formatActivityDuration(duration(entry))}</small>}</div>
+            <div><time dateTime={entry.savedAt}>{recordDateLabel(entry)}</time><strong>{entry.title}</strong><p>{entry.note || 'No additional notes for this moment.'}</p>{(isFoodSummary ? foodAmount(entry) > 0 : duration(entry) > 0) && <small>{formatSummaryValue(isFoodSummary ? foodAmount(entry) : duration(entry))}</small>}</div>
           </article>)}
         </div>}
       </>}
@@ -1384,7 +1411,7 @@ function ActivityInsightsPage({ records, petName, reviews, canReview, onReview, 
       const record = latestRecordFor(insight.activityKey, insight.currentDate);
       const review = activityInsightReviewFor(reviews, insight);
       return <article className="activity-insight-card" key={insight.activityKey}>
-        <div className="activity-insight-main"><span className="activity-insight-rank" aria-label={`Rank ${index + 1}`}>{index + 1}</span><div className="activity-insight-copy"><h2><span className="activity-insight-icon" aria-hidden="true">{activityIcon(insight.activityLabel)}</span>{insight.activityLabel}</h2><p>Today’s {insight.label.toLowerCase()} {direction} {Math.round(Math.abs(insight.relativeChange) * 100)}% vs usual</p><strong>{currentValue} vs {previousValue} {insight.unit}</strong><small>Today: {insight.currentSampleSize} {insight.currentSampleSize === 1 ? 'record' : 'records'} · baseline: {insight.baselineSampleSize} records across {insight.baselineDays} recorded days</small><small>{insight.meetsThreshold ? 'Meets the main change threshold' : 'Smaller shift · shown to complete the daily list'}</small><small>Ranked #{index + 1} by relative change</small></div>{record && <button className="activity-insight-link" type="button" onClick={() => onActivitySummary(record)}>View activity →</button>}</div>
+        <div className="activity-insight-main"><span className="activity-insight-rank" aria-label={`Rank ${index + 1}`}>{index + 1}</span><div className="activity-insight-copy"><h2><span className="activity-insight-icon" aria-hidden="true">{activityIcon(insight.activityLabel)}</span>{insight.activityLabel}</h2><p>Today’s {insight.label.toLowerCase()} {direction} {Math.round(Math.abs(insight.relativeChange) * 100)}% vs usual</p><strong>{currentValue} vs {previousValue} {insight.unit}</strong><small>Today: {insight.currentSampleSize} {insight.currentSampleSize === 1 ? 'record' : 'records'} · baseline: {insight.baselineSampleSize} records across {insight.baselineDays} recorded days</small><small>Ranked #{index + 1} by relative change</small></div>{record && <button className="activity-insight-link" type="button" onClick={() => onActivitySummary(record)}>View activity →</button>}</div>
         <div className="activity-insight-review"><p>How does this look to you?</p><div className="activity-insight-review-actions" role="group" aria-label={`Review ${insight.activityLabel}`}><button type="button" className={review?.status === 'watch' ? 'is-selected watch' : ''} aria-pressed={review?.status === 'watch'} disabled={!canReview} onClick={() => onReview(insight, 'watch')}>Keep an eye on it</button><button type="button" className={review?.status === 'normal' ? 'is-selected normal' : ''} aria-pressed={review?.status === 'normal'} disabled={!canReview} onClick={() => onReview(insight, 'normal')}>Looks normal for {petName}</button></div>{review && <small className={`activity-insight-review-meta ${review.status}`}>{review.status === 'watch' ? 'Marked for attention' : `Marked as normal for ${petName}`} by {review.reviewerName} · {formatReviewTime(review.reviewedAt)}</small>}{!canReview && !review && <small className="activity-insight-review-meta">View-only members can’t review changes.</small>}</div>
       </article>;
     })}</div> : <div className="activity-insights-empty"><span aria-hidden="true">✦</span><p>No standout change today. Metrics need recorded values on at least 3 prior days and must exceed the change thresholds.</p></div>}
@@ -1401,7 +1428,7 @@ function TodayPage({ onRequestCareTask, onStory, onPetsNavigate, onAddPet, onAct
     .sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime());
   const rankedActivities = rankDailyActivityInsights(visibleRecords, now);
   const standoutActivity = attentionActivityInsights(rankedActivities, insightReviews)[0];
-  const dialStandoutActivity = unreviewedDialActivityInsights(rankedActivities, insightReviews)[0];
+  const dialStandoutActivity = dialAttentionActivityInsights(rankedActivities, insightReviews)[0];
   const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
   const featuredRecords = todayRecords.slice(0, 8);
   const allChangesLookNormal = rankedActivities.length > 0 && !standoutActivity;
@@ -1411,7 +1438,7 @@ function TodayPage({ onRequestCareTask, onStory, onPetsNavigate, onAddPet, onAct
       <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       {!noPetYet && <>
       <section className="today-rhythm-care-group">
-        <DailyRhythmCard petName={petName} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} onOpenInsights={onOpenInsights} standoutActivity={standoutActivity} dialStandoutActivity={dialStandoutActivity} patterns={patterns} careTasks={careTasks} careMembers={careMembers} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
+        <DailyRhythmCard petName={petName} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} onOpenInsights={onOpenInsights} standoutActivity={standoutActivity} dialStandoutActivity={dialStandoutActivity} rankedActivities={rankedActivities} insightReviews={insightReviews} patterns={patterns} careTasks={careTasks} careMembers={careMembers} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
         <TodayCare key={currentUserId + petName} petName={petName} patterns={patterns} observations={observations} tasks={careTasks} members={careMembers} currentUserId={currentUserId} canAct={canAct && dayOffset === 0} isPrimary={isPrimary} dayOffset={dayOffset} onDone={onToggleCareTask} onRequestHelp={onRequestCareTask} onOpenPlan={onCareTasks} onPatterns={() => onPatterns()} />
       </section>
       {featuredRecords.length > 0 && <section className="today-section">
@@ -1639,7 +1666,17 @@ function StoryPage({ onMoment, onEditStory, onEditMoment, onDeleteMoment, onPets
   const [summaryDateKey, setSummaryDateKey] = useState(todayKey);
   const [summaryCompact, setSummaryCompact] = useState(false);
   const getTimelineContexts = (momentId: string) => contexts.filter((entry) => entry.momentId === momentId).map((entry) => ({ author: (entry.authorId && accounts.find((account) => account.id === entry.authorId)?.name) || entry.authorName || ownerName, text: entry.note }));
-  const visibleObservations = visibleStoryObservations(observations.filter(observation => !isObservationSkippedForToday(observation, careTasks)), includedMoments)
+  // When a caregiver confirms a simulated observation manually, keep its
+  // database-backed content/media but show it at the actual completion time.
+  // Automatic simulation remains anchored to the observation's scheduled time.
+  const storyObservationsAtCareTime = observations.map((observation) => {
+    if (!observation.synthetic) return observation;
+    const task = careTasks.find((entry) => entry.sourceObservationId === observation.id);
+    if (task?.status !== 'done' || task.autoCompleted || task.completionOverridden || !task.completedAt
+      || !Number.isFinite(Date.parse(task.completedAt))) return observation;
+    return { ...observation, savedAt: task.completedAt, careTaskId: task.id };
+  });
+  const visibleObservations = visibleStoryObservations(storyObservationsAtCareTime.filter(observation => !isObservationSkippedForToday(observation, careTasks)), includedMoments)
     .filter((observation) => new Date(observation.savedAt).getTime() <= now.getTime());
   const hasGeneratedSimulation = observations.some((observation) => observation.synthetic === true);
   const moments = (hasDemoMoments && !hasGeneratedSimulation ? baseMomentDefinitions : []).map((moment) => {
@@ -1834,12 +1871,17 @@ function titleFromObservation(value: string) {
   return cleaned.length <= 42 ? cleaned : `${cleaned.slice(0, 39).trimEnd()}…`;
 }
 
-function MomentDateTimePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function MomentDateTimePicker({ value, onChange, label, placeholder, minDateTime, maxDateTime, requiredDay, open, onToggle, onClose, align = 'left' }: { value: string; onChange: (value: string) => void; label: string; placeholder?: string; minDateTime?: string; maxDateTime?: string; requiredDay?: string; open: boolean; onToggle: () => void; onClose: () => void; align?: 'left' | 'right' }) {
+  const fieldRef = useRef<HTMLElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [opensAbove, setOpensAbove] = useState(false);
   const now = new Date();
   now.setSeconds(0, 0);
-  const selectedDate = value ? new Date(value) : new Date();
+  const selectedDate = value ? new Date(value) : minDateTime ? new Date(minDateTime) : new Date();
   const safeDate = Number.isNaN(selectedDate.getTime()) ? new Date() : selectedDate;
-  const [open, setOpen] = useState(false);
+  const minimum = minDateTime ? new Date(minDateTime) : null;
+  const maximum = maxDateTime ? new Date(maxDateTime) : now;
+  const requiredDayDate = requiredDay ? new Date(requiredDay) : null;
   const [visibleMonth, setVisibleMonth] = useState(() => new Date(safeDate.getFullYear(), safeDate.getMonth(), 1));
   const monthStart = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
   const firstDay = (monthStart.getDay() + 6) % 7;
@@ -1850,26 +1892,58 @@ function MomentDateTimePicker({ value, onChange }: { value: string; onChange: (v
   const isToday = safeDate.toDateString() === now.toDateString();
   const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const isAfterCurrentMonth = monthStart.getTime() >= currentMonth.getTime();
+  useLayoutEffect(() => {
+    if (!open) { setOpensAbove(false); return; }
+    const field = fieldRef.current;
+    const panel = panelRef.current;
+    if (!field || !panel) return;
+    const updatePlacement = () => {
+      const fieldRect = field.getBoundingClientRect();
+      const panelHeight = panel.getBoundingClientRect().height;
+      const phone = field.closest('.phone');
+      const footer = phone?.querySelector<HTMLElement>('.add-moment-sticky-action');
+      const topLimit = phone?.getBoundingClientRect().top ?? 0;
+      const bottomLimit = footer?.getBoundingClientRect().top ?? window.innerHeight;
+      const spaceBelow = bottomLimit - fieldRect.bottom - 8;
+      const spaceAbove = fieldRect.top - topLimit - 8;
+      setOpensAbove((current) => {
+        const next = spaceBelow < panelHeight && spaceAbove > spaceBelow;
+        return current === next ? current : next;
+      });
+    };
+    updatePlacement();
+    const scrollContainer = field.closest('.screen-scroll');
+    window.addEventListener('resize', updatePlacement);
+    scrollContainer?.addEventListener('scroll', updatePlacement, { passive: true });
+    return () => {
+      window.removeEventListener('resize', updatePlacement);
+      scrollContainer?.removeEventListener('scroll', updatePlacement);
+    };
+  }, [open]);
   useEffect(() => {
-    if (safeDate.getTime() > now.getTime()) {
-      onChange(formatLocalDateTime(now));
+    if (value && safeDate.getTime() > maximum.getTime()) {
+      onChange(formatLocalDateTime(maximum));
       setVisibleMonth(currentMonth);
     }
-  }, [value]);
-  const updateDateTime = (date: Date) => onChange(formatLocalDateTime(date.getTime() > now.getTime() ? now : date));
+  }, [value, maxDateTime]);
+  const updateDateTime = (date: Date) => {
+    const bounded = new Date(Math.min(maximum.getTime(), Math.max(minimum?.getTime() ?? 0, date.getTime())));
+    onChange(formatLocalDateTime(bounded));
+  };
+  const matchesRequiredDay = (date: Date) => !requiredDayDate || date.toDateString() === requiredDayDate.toDateString();
 
-  return <section className={`observation-time-field ${open ? 'picker-open' : ''}`}>
-    <strong>When did this moment happen?</strong>
-    <button type="button" className="moment-datetime-trigger" aria-expanded={open} onClick={() => { setVisibleMonth(new Date(safeDate.getFullYear(), safeDate.getMonth(), 1)); setOpen(!open); }}><span>{dateLabel}</span><span>{timeLabel}</span><span className="moment-calendar-icon" aria-hidden="true">▦</span></button>
-    {open && <div className="moment-datetime-panel">
+  return <section ref={fieldRef} className={`observation-time-field moment-time-card ${open ? 'picker-open' : ''}`}>
+    <strong>{label}</strong>
+    <button type="button" className={`moment-datetime-trigger ${!value && placeholder ? 'is-placeholder' : ''}`} aria-expanded={open} onClick={() => { setVisibleMonth(new Date(safeDate.getFullYear(), safeDate.getMonth(), 1)); onToggle(); }}><span className="moment-trigger-date">{value ? dateLabel : placeholder ?? dateLabel}</span>{value && <span className="moment-trigger-time">{timeLabel}</span>}<span className="moment-calendar-icon" aria-hidden="true">▦</span></button>
+    {open && <div ref={panelRef} className={`moment-datetime-panel ${align === 'right' ? 'align-right' : ''} ${opensAbove ? 'opens-above' : ''}`}>
       <div className="moment-calendar-heading"><button type="button" aria-label="Previous month" onClick={() => setVisibleMonth(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1))}>‹</button><strong>{new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(visibleMonth)}</strong><button type="button" aria-label="Next month" disabled={isAfterCurrentMonth} onClick={() => setVisibleMonth(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1))}>›</button></div>
-      <div className="moment-calendar-grid">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, index) => <span className="moment-calendar-weekday" key={`${day}-${index}`}>{day}</span>)}{days.map((day, index) => { const inMonth = day.getMonth() === visibleMonth.getMonth(); const selected = day.toDateString() === safeDate.toDateString(); const future = day.getTime() > new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime(); return <button type="button" key={`${day.toISOString()}-${index}`} disabled={future} className={`${inMonth ? '' : 'outside-month'} ${selected ? 'selected' : ''}`} onClick={() => updateDateTime(new Date(day.getFullYear(), day.getMonth(), day.getDate(), safeDate.getHours(), safeDate.getMinutes()))}>{day.getDate()}</button>; })}</div>
-      <div className="moment-time-controls"><strong>Time</strong><label><span>Hour</span><select aria-label="Hour" value={safeDate.getHours()} onChange={(event) => { const next = new Date(safeDate); next.setHours(Number(event.target.value)); updateDateTime(next); }}>{Array.from({ length: 24 }, (_, hour) => <option key={hour} value={hour} disabled={isToday && hour > now.getHours()}>{String(hour).padStart(2, '0')}</option>)}</select></label><span className="moment-time-separator">:</span><label><span>Minute</span><select aria-label="Minute" value={safeDate.getMinutes()} onChange={(event) => { const next = new Date(safeDate); next.setMinutes(Number(event.target.value)); updateDateTime(next); }}>{Array.from({ length: 60 }, (_, minute) => <option key={minute} value={minute} disabled={isToday && safeDate.getHours() === now.getHours() && minute > now.getMinutes()}>{String(minute).padStart(2, '0')}</option>)}</select></label><button type="button" className="moment-picker-done" onClick={() => setOpen(false)}>Done</button></div>
+      <div className="moment-calendar-grid">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, index) => <span className="moment-calendar-weekday" key={`${day}-${index}`}>{day}</span>)}{days.map((day, index) => { const inMonth = day.getMonth() === visibleMonth.getMonth(); const selected = day.toDateString() === safeDate.toDateString(); const future = day.getTime() > new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime(); const beforeMinimum = Boolean(minimum && day < new Date(minimum.getFullYear(), minimum.getMonth(), minimum.getDate())); const outsideRequiredDay = !matchesRequiredDay(day); return <button type="button" key={`${day.toISOString()}-${index}`} disabled={future || beforeMinimum || outsideRequiredDay} className={`${inMonth ? '' : 'outside-month'} ${selected ? 'selected' : ''}`} onClick={() => updateDateTime(new Date(day.getFullYear(), day.getMonth(), day.getDate(), safeDate.getHours(), safeDate.getMinutes()))}>{day.getDate()}</button>; })}</div>
+      <div className="moment-time-controls"><strong>Time</strong><label><span>Hour</span><select aria-label={`${label} hour`} value={safeDate.getHours()} onChange={(event) => { const next = new Date(safeDate); next.setHours(Number(event.target.value)); updateDateTime(next); }}>{Array.from({ length: 24 }, (_, hour) => <option key={hour} value={hour} disabled={(isToday && hour > now.getHours()) || Boolean(minimum && safeDate.toDateString() === minimum.toDateString() && hour < minimum.getHours()) || Boolean(maximum && safeDate.toDateString() === maximum.toDateString() && hour > maximum.getHours())}>{String(hour).padStart(2, '0')}</option>)}</select></label><span className="moment-time-separator">:</span><label><span>Minute</span><select aria-label={`${label} minute`} value={safeDate.getMinutes()} onChange={(event) => { const next = new Date(safeDate); next.setMinutes(Number(event.target.value)); updateDateTime(next); }}>{Array.from({ length: 60 }, (_, minute) => <option key={minute} value={minute} disabled={(isToday && safeDate.getHours() === now.getHours() && minute > now.getMinutes()) || Boolean(minimum && safeDate.toDateString() === minimum.toDateString() && safeDate.getHours() === minimum.getHours() && minute < minimum.getMinutes()) || Boolean(maximum && safeDate.toDateString() === maximum.toDateString() && safeDate.getHours() === maximum.getHours() && minute > maximum.getMinutes())}>{String(minute).padStart(2, '0')}</option>)}</select></label><button type="button" className="moment-picker-done" onClick={onClose}>Done</button></div>
     </div>}
   </section>;
 }
 
-function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMoments, uploadedMedia, setUploadedMedia, title, setTitle, momentAt, setMomentAt, momentEndAt, setMomentEndAt, intakeAmount, setIntakeAmount, relatedPhotos, setRelatedPhotos, note, setNote, context, setContext, privateRecord, setPrivateRecord, petName, ownerName, hasDemoMoments, saveError, savedObservation, canSaveDraft, onSaveDraft, onSave, onEdit }: {
+function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMoments, uploadedMedia, setUploadedMedia, title, setTitle, momentAt, setMomentAt, momentEndAt, setMomentEndAt, intakeAmount, setIntakeAmount, foodType, setFoodType, relatedPhotos, setRelatedPhotos, note, setNote, context, setContext, privateRecord, setPrivateRecord, petName, ownerName, hasDemoMoments, saveError, savedObservation, canSaveDraft, onSaveDraft, onSave, onEdit }: {
   step: 'moments' | 'compose' | 'preview' | 'saved';
   onBack: () => void;
   onCancel: () => void;
@@ -1885,6 +1959,8 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   setMomentEndAt: (value: string) => void;
   intakeAmount: string;
   setIntakeAmount: (value: string) => void;
+  foodType: string;
+  setFoodType: (value: string) => void;
   relatedPhotos: StoryMedia[];
   setRelatedPhotos: (photos: StoryMedia[]) => void;
   note: string;
@@ -1905,6 +1981,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   onEdit: () => void;
 }) {
   const [uploadError, setUploadError] = useState('');
+  const [openMomentPicker, setOpenMomentPicker] = useState<'start' | 'end' | null>(null);
   const quickActivities = [
     { label: 'Meal', icon: '🥣', text: `${petName} had a meal.` },
     { label: 'Water', icon: '💧', text: `${petName} drank water.` },
@@ -1919,9 +1996,14 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   const selectedActivity = selectedMoments.length === 0 && !uploadedMedia
     ? quickActivities.find((activity) => title === activity.label) : undefined;
   const intakeUnit = title === 'Meal' ? 'g' : title === 'Water' ? 'ml' : null;
-  const timingAndIntake = <><div className="moment-extra-fields"><label className="moment-range-toggle"><input type="checkbox" checked={Boolean(momentEndAt)} onChange={(event) => setMomentEndAt(event.target.checked ? momentAt : '')} /> Add an end time</label>{momentEndAt && <label className="moment-extra-field"><strong>End time</strong><input type="datetime-local" value={momentEndAt} min={momentAt} max={toLocalDateTimeInput(new Date())} onChange={(event) => setMomentEndAt(event.target.value)} /><small>Start and end must be on the same day.</small></label>}{intakeUnit && <label className="moment-extra-field"><strong>{title === 'Meal' ? 'Food eaten' : 'Water drunk'} (optional)</strong><span className="moment-amount-input"><input type="number" min="0" step="any" inputMode="decimal" value={intakeAmount} onChange={(event) => setIntakeAmount(event.target.value)} placeholder="Amount" /><span>{intakeUnit}</span></span></label>}</div></>;
+  const startDate = momentAt ? new Date(momentAt) : new Date();
+  const endOfStartDay = new Date(startDate);
+  endOfStartDay.setHours(23, 59, 0, 0);
+  const endMaximum = endOfStartDay.getTime() < Date.now() ? endOfStartDay : new Date();
+  const momentTimeFields = title === 'Meal' ? null : <div className="moment-time-range"><strong className="moment-time-range-heading">When did this moment happen?</strong><div className="moment-time-range-cards"><MomentDateTimePicker label="Start time" value={momentAt} onChange={setMomentAt} maxDateTime={toLocalDateTimeInput(new Date())} open={openMomentPicker === 'start'} onToggle={() => setOpenMomentPicker(current => current === 'start' ? null : 'start')} onClose={() => setOpenMomentPicker(null)} /><MomentDateTimePicker label="End time" placeholder="Choose time" value={momentEndAt} onChange={setMomentEndAt} minDateTime={momentAt} maxDateTime={toLocalDateTimeInput(endMaximum)} requiredDay={momentAt} open={openMomentPicker === 'end'} onToggle={() => setOpenMomentPicker(current => current === 'end' ? null : 'end')} onClose={() => setOpenMomentPicker(null)} align="right" /></div><small className="moment-time-range-hint">End time is optional and must be later on the same day.</small></div>;
+  const timingAndIntake = <>{intakeUnit && <div className="moment-extra-fields">{title === 'Meal' ? <><label className="moment-extra-field"><strong>Food amount</strong><span className="moment-amount-input"><input type="number" min="0" step="any" inputMode="decimal" value={intakeAmount} onChange={(event) => setIntakeAmount(event.target.value)} placeholder="Amount" /><span>{intakeUnit}</span></span></label><label className="moment-extra-field"><strong>Food type (optional)</strong><input type="text" value={foodType} onChange={(event) => setFoodType(event.target.value)} placeholder="e.g. Kibble, wet food" /></label></> : <label className="moment-extra-field"><strong>Water drunk (optional)</strong><span className="moment-amount-input"><input type="number" min="0" step="any" inputMode="decimal" value={intakeAmount} onChange={(event) => setIntakeAmount(event.target.value)} placeholder="Amount" /><span>{intakeUnit}</span></span></label>}</div>}</>;
   const invalidRange = Boolean(momentEndAt && (new Date(momentEndAt).getTime() < new Date(momentAt).getTime() || new Date(momentEndAt).toDateString() !== new Date(momentAt).toDateString() || new Date(momentEndAt).getTime() > Date.now()));
-  const invalidAmount = Boolean(intakeUnit && intakeAmount && (!Number.isFinite(Number(intakeAmount)) || Number(intakeAmount) <= 0));
+  const invalidAmount = Boolean(intakeUnit && ((title === 'Meal' && !intakeAmount.trim()) || (intakeAmount && (!Number.isFinite(Number(intakeAmount)) || Number(intakeAmount) <= 0))));
   function startWrittenMoment() {
     setUploadedMedia(null); setSelectedMoments([]); setTitle('');
     setRelatedPhotos([]); setNote(''); onEdit();
@@ -1996,9 +2078,9 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
     {header('Add a moment', `A LITTLE MOMENT WITH ${petName.toUpperCase()}`)}
     <div className="quick-moment-intro"><strong>What has {petName} been up to?</strong><p>Pick an activity and save. No photo or typing needed.</p></div>
     <section className="quick-moment-content">
-      <div className="quick-activity-grid" aria-label="Common pet activities">{quickActivities.map((activity) => <button type="button" key={activity.label} aria-pressed={selectedActivity?.label === activity.label} className={`quick-activity ${selectedActivity?.label === activity.label ? 'selected' : ''}`} onClick={() => { setUploadedMedia(null); setSelectedMoments([]); setRelatedPhotos([]); if (title !== activity.label) setIntakeAmount(''); setTitle(activity.label); setNote(activity.text); }}><span aria-hidden="true">{activity.icon}</span><strong>{activity.label}</strong>{selectedActivity?.label === activity.label && <span className="quick-activity-check" aria-hidden="true">✓</span>}</button>)}</div>
+      <div className="quick-activity-grid" aria-label="Common pet activities">{quickActivities.map((activity) => <button type="button" key={activity.label} aria-pressed={selectedActivity?.label === activity.label} className={`quick-activity ${selectedActivity?.label === activity.label ? 'selected' : ''}`} onClick={() => { setUploadedMedia(null); setSelectedMoments([]); setRelatedPhotos([]); if (title !== activity.label) { setIntakeAmount(''); setFoodType(''); } setTitle(activity.label); setNote(activity.text); }}><span aria-hidden="true">{activity.icon}</span><strong>{activity.label}</strong>{selectedActivity?.label === activity.label && <span className="quick-activity-check" aria-hidden="true">✓</span>}</button>)}</div>
       <button type="button" className="quick-custom-moment" onClick={startWrittenMoment}>＋ Something else</button>
-      {selectedActivity && <div className="quick-moment-summary"><strong>Ready to save</strong><p aria-live="polite">{note}</p><MomentDateTimePicker value={momentAt} onChange={setMomentAt} />{timingAndIntake}<button type="button" className="quick-details-button" onClick={onEdit}>＋ Add details or photo/video</button><label className="quick-private-choice"><input type="checkbox" checked={privateRecord} onChange={(event) => setPrivateRecord(event.target.checked)} />Keep as a private record</label><small>{privateRecord ? 'Only you can see this moment.' : `Visible in ${petName}’s Story to your care group.`}</small></div>}
+      {selectedActivity && <div className="quick-moment-summary"><strong>Ready to save</strong><p aria-live="polite">{note}</p>{momentTimeFields}{timingAndIntake}<button type="button" className="quick-details-button" onClick={onEdit}>＋ Add details or photo/video</button><label className="quick-private-choice"><input type="checkbox" checked={privateRecord} onChange={(event) => setPrivateRecord(event.target.checked)} />Keep as a private record</label><small>{privateRecord ? 'Only you can see this moment.' : `Visible in ${petName}’s Story to your care group.`}</small></div>}
     </section>
     {saveError && <p className="inline-save-error" role="alert">{saveError}</p>}
     <div className="sticky-action add-moment-sticky-action"><button className="save-draft-button" type="button" onClick={onSaveDraft} disabled={!canSaveDraft || !selectedActivity}>Save draft</button><button className="primary-button full" onClick={onSave} disabled={!selectedActivity || !note.trim() || invalidRange || invalidAmount}>{privateRecord ? 'Save private moment' : 'Save moment'}</button></div>
@@ -2008,7 +2090,7 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
     {header('Moment details', 'ADD ONLY WHAT MATTERS')}
     {hasVisual || selectedNotes.length > 0 ? <><div className="compose-section-label"><strong>Selected moment</strong></div>{hasVisual ? <div className="selected-moments-strip">{selected.map((moment) => <img key={moment.id} src={asset(moment.image)} alt={moment.title} />)}{uploadedSelected && uploadedMedia && <StoryMediaView src={uploadedMedia.url} type={uploadedMedia.type} alt={uploadedMedia.name} />}</div> : <div className="selected-note-strip">{selectedNotes.map((entry) => <div key={entry.id}><span>{entry.text}</span><small>{entry.label}</small></div>)}</div>}</> : <><div className="written-observation-mode"><strong>Written observation</strong></div><div className="written-observation-note"><strong>A note is enough</strong><span>You can describe a moment without a photo or camera clip.</span></div></>}
     <label className="moment-media-button">＋ {uploadedSelected ? 'Replace photo/video' : 'Add photo/video'}<input type="file" accept="image/*,video/*" onChange={(event) => { uploadMedia(event.target.files?.[0]); event.currentTarget.value = ''; }} /></label>
-    {isOwnerCreatedMoment && <><MomentDateTimePicker value={momentAt} onChange={setMomentAt} />{timingAndIntake}</>}
+    {isOwnerCreatedMoment && <>{momentTimeFields}{timingAndIntake}</>}
     <label className="observation-title-field"><strong>Title</strong><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Add a title for this moment" maxLength={70} /></label>
     <section className="observation-writing-card"><strong>What happened with {petName}?</strong><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Describe what you noticed…" />{relatedPhotos.length > 0 && <div className="related-photos-strip">{relatedPhotos.map((media, index) => <div className={media.type.startsWith('audio/') ? 'audio-attachment-thumb' : ''} key={`${media.name}-${index}`}><StoryMediaView src={media.url} type={media.type} alt={media.name} controls={media.type.startsWith('audio/')} /><button type="button" aria-label={`Remove attachment ${index + 1}`} onClick={() => setRelatedPhotos(relatedPhotos.filter((_, mediaIndex) => mediaIndex !== index))}>×</button></div>)}</div>}{uploadError && <p className="upload-error" role="alert">{uploadError}</p>}<div className="observation-writing-tools">{<label aria-label="Add photos"><input type="file" accept="image/*" multiple onChange={(event) => { addRelatedPhotos(event.target.files); event.currentTarget.value = ''; }} /><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" /><circle cx="9" cy="9" r="1.5" /><path d="m5 17 5-5 3 3 2-2 5 5" /></svg></label>}<label aria-label="Add a voice note"><input type="file" accept="audio/*" capture onChange={(event) => { addRelatedPhotos(event.target.files); event.currentTarget.value = ''; }} /><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8" /></svg></label><span className="observation-attachment-hint">Photos and voice notes are optional.</span></div></section>
     <section className="add-context-choices"><strong>Add context</strong><div>{['Visitors at home', 'Routine changed', 'Not sure yet'].map((item) => <button key={item} className={context === item ? 'active' : ''} onClick={() => setContext(context === item ? '' : item)}>{item}</button>)}</div></section>
@@ -3528,6 +3610,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const [draftMomentAt, setDraftMomentAt] = useState(() => toLocalDateTimeInput(new Date()));
   const [draftMomentEndAt, setDraftMomentEndAt] = useState('');
   const [draftIntakeAmount, setDraftIntakeAmount] = useState('');
+  const [draftFoodType, setDraftFoodType] = useState('');
   const [draftRelatedPhotos, setDraftRelatedPhotos] = useState<StoryMedia[]>([]);
   const [draftObservation, setDraftObservation] = useState('');
   const [draftObservationContext, setDraftObservationContext] = useState('');
@@ -4510,6 +4593,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setDraftMomentAt(toLocalDateTimeInput(new Date()));
     setDraftMomentEndAt('');
     setDraftIntakeAmount('');
+    setDraftFoodType('');
     setDraftRelatedPhotos([]);
     setDraftObservation('');
     setDraftObservationContext('');
@@ -4529,7 +4613,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   function saveStoryDraft() {
     if (!canContributeToSharedPet || editingStoryObservationId || !(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)) return;
     setStorySaveError('');
-    const draft: StoryDraft = { id: activeStoryDraftId ?? `story-draft-${Date.now()}`, selectedMoments: draftMoments, note: draftObservation, title: draftObservationTitle, momentAt: draftMomentAt, momentEndAt: draftMomentEndAt, intakeAmount: draftIntakeAmount, relatedPhotos: draftRelatedPhotos, context: draftObservationContext, savedAt: new Date().toISOString(), privateRecord: draftPrivateRecord, uploadedMedia: draftUploadedMedia ?? undefined };
+    const draft: StoryDraft = { id: activeStoryDraftId ?? `story-draft-${Date.now()}`, selectedMoments: draftMoments, note: draftObservation, title: draftObservationTitle, momentAt: draftMomentAt, momentEndAt: draftMomentEndAt, intakeAmount: draftIntakeAmount, foodType: draftFoodType, relatedPhotos: draftRelatedPhotos, context: draftObservationContext, savedAt: new Date().toISOString(), privateRecord: draftPrivateRecord, uploadedMedia: draftUploadedMedia ?? undefined };
     const next = [draft, ...storyDrafts.filter((entry) => entry.id !== draft.id)];
     if (!persistWorkspacePatch({ drafts: next })) {
       setStorySaveError('This draft could not be saved on this device. Remove a large photo or video, then try again.');
@@ -4543,22 +4627,23 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   function saveStoryObservation() {
     if (!canContributeToSharedPet) return;
     setStorySaveError('');
-    const start = new Date(draftMomentAt);
-    const end = draftMomentEndAt ? new Date(draftMomentEndAt) : null;
+    const existing = storyObservations.find((entry) => entry.id === editingStoryObservationId);
+    const isMeal = draftObservationTitle === 'Meal';
+    const start = isMeal ? new Date(existing?.savedAt ?? Date.now()) : new Date(draftMomentAt);
+    const end = !isMeal && draftMomentEndAt ? new Date(draftMomentEndAt) : null;
     if (end && (end.getTime() < start.getTime() || end.toDateString() !== start.toDateString() || end.getTime() > Date.now())) {
       setStorySaveError('Choose an end time after the start, on the same day and no later than now.');
       return;
     }
     const intakeUnit = draftObservationTitle === 'Meal' ? 'foodGrams' : draftObservationTitle === 'Water' ? 'waterMilliliters' : null;
     const amount = draftIntakeAmount.trim() ? Number(draftIntakeAmount) : null;
-    if (intakeUnit && amount !== null && (!Number.isFinite(amount) || amount <= 0)) {
+    if (intakeUnit && ((isMeal && amount === null) || (amount !== null && (!Number.isFinite(amount) || amount <= 0)))) {
       setStorySaveError('Enter an amount greater than zero.');
       return;
     }
     const selected = momentChoices.filter((moment) => draftMoments.includes(moment.id));
     const selectedNotes = getNoteChoices(petName).filter((entry) => draftMoments.includes(entry.id));
     const uploadedSelected = Boolean(draftUploadedMedia && draftMoments.includes('uploaded'));
-    const existing = storyObservations.find((entry) => entry.id === editingStoryObservationId);
     const generatedTitle = selected[0]?.title ?? (uploadedSelected ? `A moment with ${petName}` : titleFromObservation(selectedNotes[0]?.text ?? draftObservation));
     const title = draftObservationTitle.trim() || generatedTitle;
     const metrics = { ...(existing?.metrics ?? {}) };
@@ -4579,8 +4664,9 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       momentIds: draftMoments,
       sourceNotes: selectedNotes,
       context: draftObservationContext,
+      foodType: isMeal ? draftFoodType.trim() || undefined : undefined,
       privateRecord: draftPrivateRecord,
-      savedAt: draftMomentAt ? new Date(draftMomentAt).toISOString() : new Date().toISOString(),
+      savedAt: start.toISOString(),
       metrics,
       authorId: existing?.authorId ?? activeAccount?.id ?? undefined,
       authorName: existing?.authorName ?? ownerName,
@@ -4788,6 +4874,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setDraftMomentAt(toLocalDateTimeInput(existing ? new Date(existing.savedAt) : new Date()));
     setDraftMomentEndAt(existing?.metrics?.durationMinutes ? toLocalDateTimeInput(new Date(new Date(existing.savedAt).getTime() + existing.metrics.durationMinutes * 60000)) : '');
     setDraftIntakeAmount(String(existing?.metrics?.foodGrams ?? existing?.metrics?.waterMilliliters ?? ''));
+    setDraftFoodType(existing?.foodType ?? '');
     setDraftRelatedPhotos(existing?.relatedPhotos ?? []);
     setDraftObservationContext(existing?.context ?? '');
     setDraftPrivateRecord(existing?.privateRecord ?? false);
@@ -4803,6 +4890,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setDraftMomentAt(draft.momentAt ?? toLocalDateTimeInput(new Date()));
     setDraftMomentEndAt(draft.momentEndAt ?? '');
     setDraftIntakeAmount(draft.intakeAmount ?? '');
+    setDraftFoodType(draft.foodType ?? '');
     setDraftRelatedPhotos(draft.relatedPhotos ?? []);
     setDraftObservationContext(draft.context);
     setDraftPrivateRecord(Boolean(draft.privateRecord));
@@ -5025,10 +5113,10 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
               /* Keep the selection for this session. */
             } navigateTo('story'); }} />}
             {view === 'drafts' && <StoryDraftsPage drafts={storyDrafts} onBack={() => goBack('story')} onResume={resumeStoryDraft} onDelete={deleteStoryDraft} />}
-            {view === 'addMoments' && <StoryAddPage step="moments" saveError={storySaveError} onBack={cancelStoryObservation} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
-            {view === 'addCompose' && <StoryAddPage step="compose" saveError={storySaveError} onBack={() => goBack('addMoments')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addPreview')} />}
-            {view === 'addPreview' && <StoryAddPage step="preview" saveError={storySaveError} onBack={() => goBack('addCompose')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
-            {view === 'addSaved' && <StoryAddPage savedObservation={savedStoryObservation} step="saved" saveError={storySaveError} onBack={() => goBack('addPreview')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
+            {view === 'addMoments' && <StoryAddPage step="moments" saveError={storySaveError} onBack={cancelStoryObservation} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} foodType={draftFoodType} setFoodType={setDraftFoodType} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
+            {view === 'addCompose' && <StoryAddPage step="compose" saveError={storySaveError} onBack={() => goBack('addMoments')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} foodType={draftFoodType} setFoodType={setDraftFoodType} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addPreview')} />}
+            {view === 'addPreview' && <StoryAddPage step="preview" saveError={storySaveError} onBack={() => goBack('addCompose')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} foodType={draftFoodType} setFoodType={setDraftFoodType} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
+            {view === 'addSaved' && <StoryAddPage savedObservation={savedStoryObservation} step="saved" saveError={storySaveError} onBack={() => goBack('addPreview')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} foodType={draftFoodType} setFoodType={setDraftFoodType} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
             {view === 'momentDetail' && <MomentDetailPage moment={selectedMoment} contexts={selectedMomentContexts} accounts={prototypeSession.accounts} careMembers={displayedCareMembers} ownerName={ownerName} ownerAvatar={ownerAvatar} currentAccountId={activeAccount.id} groupOwnerAccountId={activePetRecord.sharedGroupId ? groupOwnerAccountId : undefined} petName={petName} canContribute={canContributeToSharedPet} canInteract={canInteractWithGroupContext} engagement={momentEngagement[selectedMoment.id] ?? { likes: [], favorites: [] }} onToggleMomentLike={() => toggleMomentEngagement(selectedMoment.id, 'likes')} onToggleMomentFavorite={() => toggleMomentEngagement(selectedMoment.id, 'favorites')} onBack={() => goBack('story')} onAddContext={() => startContextForMoment(selectedMoment.id)} onEditContext={(context) => startContextForMoment(selectedMoment.id, context)} onDeleteContext={deleteOwnerContext} onToggleLike={toggleContextLike} onAddComment={addContextComment} onEditOwnComment={editOwnContextComment} onDeleteOwnComment={deleteOwnContextComment} />}
             {view === 'overview' && <OverviewPage onBack={() => goBack('today')} onClip={() => { setSelectedMomentId('window'); navigateTo('clip'); }} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} onSaved={() => openMomentDetail('window')} petName={petName}/>}
             {view === 'clip' && <ClipPage onBack={() => goBack('overview')} onContext={() => startContextForMoment('window')} petName={petName} ownerName={ownerName} canContribute={canContributeToSharedPet} />}
