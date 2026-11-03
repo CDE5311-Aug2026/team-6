@@ -15,6 +15,7 @@ import { visibleStoryObservations } from './storyVisibility';
 import { buildRollingStorySimulation, isSyntheticSunnyProfile } from './storySimulation';
 import { mergeSharedStoryObservations } from './sharedStoryObservations';
 import { careRhythmForDate, careTaskTiming, canToggleCareTaskCompletion, toggleCareTaskCompletion, appendCareTaskEvent, canViewCareTaskEvent, careTaskAttentionCount, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask, type CareTask, type CareTaskEvent, type CareTaskEventType } from './careTasks';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
 
 type View =
   | 'help'
@@ -5261,6 +5262,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     </div>
   );
 }
+
 
 
 
