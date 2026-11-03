@@ -2051,6 +2051,18 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .quick-moment-content { padding-bottom: 16px; }
 .quick-moment-summary { margin-top: 6px; padding: 12px; }
 .quick-moment-summary .observation-time-field { padding: 10px; }
+.moment-extra-fields { margin: 0 20px 12px; display: grid; gap: 10px; }
+.quick-moment-summary .moment-extra-fields { margin: 0 0 12px; }
+.add-flow-page .sticky-action:has(.save-draft-button) { display: grid; gap: 8px; }
+.save-draft-button { min-height: 40px; border: 1px solid #c9d3ca; border-radius: 999px; background: #fff; color: var(--color-text-primary); font: 600 12px/18px 'Poppins', sans-serif; }
+.save-draft-button:disabled { opacity: .45; cursor: default; }
+.moment-range-toggle { display: flex; align-items: center; gap: 8px; min-height: 36px; font: 400 13px/20px 'Roboto', sans-serif; }
+.moment-range-toggle input { width: 18px; height: 18px; accent-color: #b18818; }
+.moment-extra-field { display: grid; gap: 6px; padding: 11px 12px; border: 1px solid var(--color-border); border-radius: 14px; background: #fff; font: 400 13px/20px 'Roboto', sans-serif; }
+.moment-extra-field strong { font: 600 12px/18px 'Poppins', sans-serif; }
+.moment-extra-field input { width: 100%; min-width: 0; min-height: 34px; padding: 5px 8px; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; color: var(--color-text-primary); font: inherit; }
+.moment-extra-field small { color: var(--color-text-muted); }
+.moment-amount-input { display: flex; align-items: center; gap: 8px; }
 .add-flow-page .add-moment-sticky-action { background: var(--color-page-bg); }
 .quick-moment-summary .text-link { color: var(--color-text-primary); text-decoration: underline; text-underline-offset: 3px; }
 

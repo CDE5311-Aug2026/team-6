@@ -77,9 +77,14 @@ export function activityInsightReviewFor(reviews: ActivityInsightReview[], insig
 
 export function attentionActivityInsights(insights: RankedDailyActivityInsight[], reviews: ActivityInsightReview[]) {
   return insights
+    .filter(insight => activityInsightReviewFor(reviews, insight)?.status !== 'normal');
+}
+
+export function unreviewedDialActivityInsights(insights: RankedDailyActivityInsight[], reviews: ActivityInsightReview[]) {
+  return insights
     .map((insight, rank) => ({ insight, rank, review: activityInsightReviewFor(reviews, insight) }))
-    .filter(entry => entry.review?.status !== 'normal')
-    .sort((left, right) => Number(right.review?.status === 'watch') - Number(left.review?.status === 'watch') || left.rank - right.rank)
+    .filter(entry => !entry.review)
+    .sort((left, right) => left.rank - right.rank)
     .map(entry => entry.insight);
 }
 
