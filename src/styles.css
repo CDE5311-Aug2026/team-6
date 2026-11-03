@@ -79,6 +79,11 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .pets-empty-state { min-height: 360px; margin-top: 8px; }
 .pet-photo-placeholder { display: grid; place-items: center; background: var(--color-accent-soft); color: #d4a700; font-size: 34px; }
 .today-section { margin-top: 16px; }
+.home-screen .today-moments-strip { display: flex; align-items: stretch; gap: 8px; margin-top: 0; margin-bottom: 0; }
+.home-screen .today-moments-strip .moment-carousel { flex: 0 0 55%; min-width: 0; margin-top: 0; }
+.home-screen .today-moments-strip .moment-carousel-viewport { width: 100%; }
+.home-screen .today-moments-strip .moment-carousel-set .moment-card { width: calc(var(--moment-carousel-width, 350px) * .47); }
+.home-screen .today-rhythm-care-group { margin-top: 12px; }
 .today-section h2, .section-heading h2 { margin: 0; color: #000; font: 600 20px/28px 'Poppins', sans-serif; letter-spacing: -.3px; }
 .daily-rhythm-card { margin-top: 18px; padding: 13px 12px 10px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 22px; background: #fffcf5; box-shadow: 0 3px 12px #1a29210a; }
 .today-rhythm-care-group { margin-top: 18px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 22px; background: #fffcf5; box-shadow: 0 3px 12px #1a29210a; }
@@ -1833,8 +1838,18 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .moment-carousel-viewport:active { cursor: grabbing; }
 .moment-carousel-set { flex: none; display: flex; gap: 8px; }
 .moment-carousel-set .moment-card { flex: none; width: calc(var(--moment-carousel-width, 350px) * .28); height: auto; border-radius: 12px; user-select: none; }
+.today-moments-strip .home-moment-insight-card { flex: 1 1 0; box-sizing: border-box; min-width: 0; min-height: 86px; align-self: stretch; margin: 0; padding: 11px 12px; border-radius: 16px; }
+.today-moments-strip.insight-only .home-moment-insight-card { flex-basis: 100%; }
+.today-moments-strip .home-moment-insight-card .notice-card-alert,
+.today-moments-strip .home-moment-insight-card .notice-card-reviewed { width: 32px; height: 32px; flex: 0 0 32px; }
+.today-moments-strip .home-moment-insight-card { align-items: flex-start; }
+.today-moments-strip .home-moment-insight-card .notice-card-alert,
+.today-moments-strip .home-moment-insight-card .notice-card-reviewed { margin-top: 2px; }
+.today-moments-strip .home-moment-insight-card > span:last-child { min-width: 0; }
+.today-moments-strip .home-moment-insight-card strong { overflow-wrap: anywhere; }
+.today-moments-strip .home-moment-insight-card small { line-height: 16px; }
 .moment-card-media { position: relative; display: block; width: 100%; height: auto; overflow: hidden; border-radius: inherit; }
-.moment-carousel-set .moment-card-media > img, .moment-carousel-set .moment-card-media > video, .moment-carousel-set .moment-card-media > .moment-text-preview { display: block; width: 100%; height: 60px; object-fit: cover; object-position: center center; }
+.moment-carousel-set .moment-card-media > img, .moment-carousel-set .moment-card-media > video, .moment-carousel-set .moment-card-media > .moment-text-preview { display: block; width: 100%; height: 56px; object-fit: cover; object-position: 50% 50%; }
 .moment-carousel-set .moment-card .moment-card-copy { position: static; box-sizing: border-box; width: 100%; max-width: 100%; min-height: 0; padding: 5px 8px 6px; border-radius: 0; background: #fff; color: var(--color-text-primary); text-align: left; }
 .moment-carousel-set .moment-card .moment-card-copy strong { display: block; overflow: hidden; color: var(--color-text-primary); font: 600 11px/15px 'Roboto',sans-serif; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .moment-carousel-set .moment-card img { object-position: center center; pointer-events: none; -webkit-user-drag: none; }

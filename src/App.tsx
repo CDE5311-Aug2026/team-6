@@ -885,7 +885,8 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
   };
   const centerTimeLabel = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(now);
   const timeLabel = (date: Date) => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
-  const activityGlyphFor = (title: string, kind?: string) => kind === 'meal' ? '🥣'
+  const activityGlyphFor = (title: string, kind?: string) => kind === 'water' || /\bwater\b|hydration|drinking/i.test(title) ? '💧'
+    : kind === 'meal' ? '🥣'
     : kind === 'walk' ? '🐾'
       : kind === 'rest' ? '💤'
         : kind === 'play' ? '🎾'
@@ -1142,11 +1143,16 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
   // Older simulated records use `consumedGrams`; newer manually saved meals use `foodGrams`.
   const foodAmount = (entry: StoryObservation) => Math.max(0, Number(entry.metrics?.foodGrams ?? entry.metrics?.consumedGrams) || 0);
   const isFoodSummary = summaryIdentity.kind === 'meal';
+  const isWaterSummary = summaryIdentity.kind === 'water';
+  const amountForSummary = (entry: StoryObservation) => isWaterSummary
+    ? Math.max(0, Number(entry.metrics?.waterMilliliters) || 0)
+    : foodAmount(entry);
+  const amountUnit = isWaterSummary ? 'ml' : 'g';
   const totalMinutes = recordsThroughSelectedDate.reduce((sum, entry) => sum + duration(entry), 0);
-  const totalFoodAmount = recordsThroughSelectedDate.reduce((sum, entry) => sum + foodAmount(entry), 0);
+  const totalFoodAmount = recordsThroughSelectedDate.reduce((sum, entry) => sum + amountForSummary(entry), 0);
   const selectedDayMoments = activityRecordsOnDate(categoryRecords, selectedDate);
   const selectedDayMinutes = selectedDayMoments.reduce((sum, entry) => sum + duration(entry), 0);
-  const selectedDayFoodAmount = selectedDayMoments.reduce((sum, entry) => sum + foodAmount(entry), 0);
+  const selectedDayFoodAmount = selectedDayMoments.reduce((sum, entry) => sum + amountForSummary(entry), 0);
   const category = summaryIdentity.label;
   const statCategory = activityCategoryLabel(summaryIdentity.kind);
   const days = activitySummaryDateWindow(selectedDate);
@@ -1160,10 +1166,10 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
   const isSelectedToday = isSameLocalDay(moment.savedAt, wallClockToday);
   const isSelectedYesterday = isSameLocalDay(moment.savedAt, wallClockYesterday);
   const selectedDayLabel = isSelectedToday ? 'Today' : isSelectedYesterday ? 'Yesterday' : new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(selectedDate);
-  const selectedDayTitle = isFoodSummary
-    ? isSelectedToday ? 'Today’s food amount'
-      : isSelectedYesterday ? 'Yesterday’s food amount'
-        : `Food amount · ${selectedDayLabel}`
+  const selectedDayTitle = isFoodSummary || isWaterSummary
+    ? isSelectedToday ? `Today’s ${isWaterSummary ? 'water amount' : 'food amount'}`
+      : isSelectedYesterday ? `Yesterday’s ${isWaterSummary ? 'water amount' : 'food amount'}`
+        : `${isWaterSummary ? 'Water' : 'Food'} amount · ${selectedDayLabel}`
     : isSelectedToday ? `Today’s ${statCategory} time`
       : isSelectedYesterday ? `Yesterday’s ${statCategory} time`
         : `${statCategory} time · ${selectedDayLabel}`;
@@ -1236,16 +1242,17 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
       }
     }
   };
-  const hasFoodAmounts = related.some(entry => foodAmount(entry) > 0);
-  const hasDurations = !isFoodSummary && related.some(entry => duration(entry) > 0);
-  const formatSummaryValue = (value: number) => isFoodSummary
-    ? hasFoodAmounts ? `${Number(value).toLocaleString('en-US', { maximumFractionDigits: 1 })} g` : 'Not recorded'
+  const hasFoodAmounts = related.some(entry => amountForSummary(entry) > 0);
+  const hasDurations = !isFoodSummary && !isWaterSummary && related.some(entry => duration(entry) > 0);
+  const isAmountSummary = isFoodSummary || isWaterSummary;
+  const formatSummaryValue = (value: number) => isAmountSummary
+    ? hasFoodAmounts ? `${Number(value).toLocaleString('en-US', { maximumFractionDigits: 1 })} ${amountUnit}` : 'Not recorded'
     : formatActivityDuration(value);
-  const trendMetricLabel = isFoodSummary ? 'food amount' : hasDurations ? 'duration' : 'recorded moments';
+  const trendMetricLabel = isFoodSummary ? 'food amount' : isWaterSummary ? 'water amount' : hasDurations ? 'duration' : 'recorded moments';
   const periodFor = activityPeriodFor;
   const periodSummary = (entries: StoryObservation[]) => (['morning', 'afternoon', 'evening'] as const).map(period => {
     const matches = entries.filter(entry => periodFor(entry) === period);
-    return { period, count: matches.length, value: matches.reduce((sum, entry) => sum + (isFoodSummary ? foodAmount(entry) : duration(entry)), 0) };
+    return { period, count: matches.length, value: matches.reduce((sum, entry) => sum + (isAmountSummary ? amountForSummary(entry) : duration(entry)), 0) };
   });
   const totalPeriodSummary = periodSummary(recordsThroughSelectedDate);
   const selectedDayPeriodSummary = periodSummary(selectedDayMoments);
@@ -1253,12 +1260,12 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
     const entries = related.filter(entry => isSameLocalDay(entry.savedAt, date));
     const valueForPeriod = (period: 'morning' | 'afternoon' | 'evening') => {
       const periodEntries = entries.filter(entry => periodFor(entry) === period);
-      if (isFoodSummary) return periodEntries.reduce((sum, entry) => sum + foodAmount(entry), 0);
+      if (isAmountSummary) return periodEntries.reduce((sum, entry) => sum + amountForSummary(entry), 0);
       return hasDurations ? periodEntries.reduce((sum, entry) => sum + duration(entry), 0) : periodEntries.length;
     };
     return {
       date,
-      total: isFoodSummary ? entries.reduce((sum, entry) => sum + foodAmount(entry), 0) : hasDurations ? entries.reduce((sum, entry) => sum + duration(entry), 0) : entries.length,
+      total: isAmountSummary ? entries.reduce((sum, entry) => sum + amountForSummary(entry), 0) : hasDurations ? entries.reduce((sum, entry) => sum + duration(entry), 0) : entries.length,
       morning: valueForPeriod('morning'),
       afternoon: valueForPeriod('afternoon'),
       evening: valueForPeriod('evening'),
@@ -1269,7 +1276,7 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
   const chartY = (value: number) => 96 - (chartMax ? value / chartMax * 68 : 0);
   const trendX = (index: number) => 50 + index * 45;
   const formatTrendValue = (value: number) => {
-    if (isFoodSummary) return `${Number(value).toLocaleString('en-US', { maximumFractionDigits: 1 })} g`;
+    if (isAmountSummary) return `${Number(value).toLocaleString('en-US', { maximumFractionDigits: 1 })} ${amountUnit}`;
     if (!hasDurations) return `${value} ${value === 1 ? 'moment' : 'moments'}`;
     const minutes = Math.round(value);
     const hours = Math.floor(minutes / 60);
@@ -1278,7 +1285,8 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
     if (hours) return `${hours}h`;
     return `${remainder}m`;
   };
-  const activityIcon = (entry: StoryObservation) => entry.observationKind === 'meal' ? '🥣'
+  const activityIcon = (entry: StoryObservation) => entry.observationKind === 'water' || /\bwater\b|hydration|drinking/i.test(entry.title) ? '💧'
+    : entry.observationKind === 'meal' ? '🥣'
     : entry.observationKind === 'walk' ? '🐾'
       : entry.observationKind === 'rest' ? '💤'
         : entry.observationKind === 'play' ? '🎾'
@@ -1305,10 +1313,10 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
       <div><p className="eyebrow">PET ACTIVITY</p><h1>{category} summary</h1></div>
     </header>
     <div className="activity-summary-pet"><Avatar name={petName} src={petAvatar} /><span><strong>{petName}</strong><small>{dateLabel} · {formatObservationTime(moment.savedAt).replace('\n', ' · ')}</small></span></div>
-    <section className="activity-summary-stats" aria-label={isFoodSummary ? 'Food amount' : 'Activity duration'}>
+    <section className="activity-summary-stats" aria-label={isFoodSummary ? 'Food amount' : isWaterSummary ? 'Water amount' : 'Activity duration'}>
       {([ 
-        { key: 'total' as const, title: isFoodSummary ? 'Total Food Amount' : `Total ${statCategory} time`, value: isFoodSummary ? totalFoodAmount : totalMinutes, count: recordsThroughSelectedDate.length, label: `${recordsThroughSelectedDate.length} recorded ${recordsThroughSelectedDate.length === 1 ? 'moment' : 'moments'}`, breakdown: totalPeriodSummary },
-        { key: 'today' as const, title: selectedDayTitle, value: isFoodSummary ? selectedDayFoodAmount : selectedDayMinutes, count: selectedDayMoments.length, label: selectedDayCountLabel, breakdown: selectedDayPeriodSummary },
+        { key: 'total' as const, title: isAmountSummary ? `Total ${isWaterSummary ? 'Water' : 'Food'} Amount` : `Total ${statCategory} time`, value: isAmountSummary ? totalFoodAmount : totalMinutes, count: recordsThroughSelectedDate.length, label: `${recordsThroughSelectedDate.length} recorded ${recordsThroughSelectedDate.length === 1 ? 'moment' : 'moments'}`, breakdown: totalPeriodSummary },
+        { key: 'today' as const, title: selectedDayTitle, value: isAmountSummary ? selectedDayFoodAmount : selectedDayMinutes, count: selectedDayMoments.length, label: selectedDayCountLabel, breakdown: selectedDayPeriodSummary },
       ]).map(card => <button type="button" key={card.key} className={`activity-summary-stat-flip ${flippedStats[card.key] ? 'is-flipped' : ''}`} aria-pressed={flippedStats[card.key]} aria-label={`${card.title}. ${flippedStats[card.key] ? 'Show total' : 'Show morning, afternoon and evening breakdown'}`} onClick={() => setFlippedStats(current => ({ ...current, [card.key]: !current[card.key] }))}>
         <span className="activity-summary-stat-face activity-summary-stat-front" aria-hidden={flippedStats[card.key]}>
           <span>{card.title}</span><strong>{formatSummaryValue(card.value)}</strong><small>{card.label}</small>
@@ -1365,7 +1373,7 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
           <time dateTime={displayedMoment.savedAt}>{recordDateLabel(displayedMoment)}</time>
           <h2>{displayedMoment.title}</h2>
           <p>{displayedMoment.note || 'No additional notes for this moment.'}</p>
-          {(isFoodSummary ? foodAmount(displayedMoment) > 0 : duration(displayedMoment) > 0) && <small>{formatSummaryValue(isFoodSummary ? foodAmount(displayedMoment) : duration(displayedMoment))}</small>}
+          {(isAmountSummary ? amountForSummary(displayedMoment) > 0 : duration(displayedMoment) > 0) && <small>{formatSummaryValue(isAmountSummary ? amountForSummary(displayedMoment) : duration(displayedMoment))}</small>}
         </div>
         {displayedMoment.image ? <img className="activity-summary-selected-image" src={displayedMoment.image} alt="" /> : <span className="activity-summary-record-fallback" aria-hidden="true">{activityIcon(displayedMoment)}</span>}
       </article>
@@ -1377,7 +1385,7 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
         {showMoreRecords && <div className="activity-summary-more-records" id="activity-summary-more-records">
           {displayedOtherRecords.map(entry => <article className="activity-summary-more-record" key={entry.id}>
             {entry.image ? <img src={entry.image} alt="" /> : <span className="activity-summary-record-fallback" aria-hidden="true">{activityIcon(entry)}</span>}
-            <div><time dateTime={entry.savedAt}>{recordDateLabel(entry)}</time><strong>{entry.title}</strong><p>{entry.note || 'No additional notes for this moment.'}</p>{(isFoodSummary ? foodAmount(entry) > 0 : duration(entry) > 0) && <small>{formatSummaryValue(isFoodSummary ? foodAmount(entry) : duration(entry))}</small>}</div>
+            <div><time dateTime={entry.savedAt}>{recordDateLabel(entry)}</time><strong>{entry.title}</strong><p>{entry.note || 'No additional notes for this moment.'}</p>{(isAmountSummary ? amountForSummary(entry) > 0 : duration(entry) > 0) && <small>{formatSummaryValue(isAmountSummary ? amountForSummary(entry) : duration(entry))}</small>}</div>
           </article>)}
         </div>}
       </>}
@@ -1430,31 +1438,27 @@ function TodayPage({ onRequestCareTask, onStory, onPetsNavigate, onAddPet, onAct
   const standoutActivity = attentionActivityInsights(rankedActivities, insightReviews)[0];
   const dialStandoutActivity = dialAttentionActivityInsights(rankedActivities, insightReviews)[0];
   const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
-  const featuredRecords = todayRecords.slice(0, 8);
+  const featuredRecords = todayRecords.filter(observationHasPrimaryMedia).slice(0, 2);
   const allChangesLookNormal = rankedActivities.length > 0 && !standoutActivity;
 
   return (
     <>
       <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       {!noPetYet && <>
-      <section className="today-rhythm-care-group">
-        <DailyRhythmCard petName={petName} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} onOpenInsights={onOpenInsights} standoutActivity={standoutActivity} dialStandoutActivity={dialStandoutActivity} rankedActivities={rankedActivities} insightReviews={insightReviews} patterns={patterns} careTasks={careTasks} careMembers={careMembers} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
-        <TodayCare key={currentUserId + petName} petName={petName} patterns={patterns} observations={observations} tasks={careTasks} members={careMembers} currentUserId={currentUserId} canAct={canAct && dayOffset === 0} isPrimary={isPrimary} dayOffset={dayOffset} onDone={onToggleCareTask} onRequestHelp={onRequestCareTask} onOpenPlan={onCareTasks} onPatterns={() => onPatterns()} />
-      </section>
-      {featuredRecords.length > 0 && <section className="today-section">
-        <h2>Moments you might love</h2>
-        <MomentCarousel>
+      {(featuredRecords.length > 0 || standoutActivity || allChangesLookNormal) && <section className={`today-section today-moments-strip ${featuredRecords.length ? 'has-moments' : 'insight-only'}`} aria-label="Recent moments and activity insight">
+        {featuredRecords.length > 0 && <MomentCarousel>
           {featuredRecords.map(record => <button className="moment-card" key={record.id} type="button" onClick={() => onOpenMomentDetail(record.id)}>
             <span className="moment-card-media">{observationHasPrimaryMedia(record) ? <StoryMediaView src={record.image} type={record.mediaType} alt={record.title} /> : <span className="moment-text-preview" aria-hidden="true">✦</span>}<span className="moment-card-copy"><strong>{record.title}</strong></span></span>
           </button>)}
-        </MomentCarousel>
-      </section>}
-      <section className="today-section closer-look">
-        <h2>Worth a closer look</h2>
-        <button className="notice-card" type="button" onClick={onOpenInsights}>
+        </MomentCarousel>}
+        <button className="notice-card home-moment-insight-card" type="button" onClick={onOpenInsights}>
           {allChangesLookNormal ? <span className="notice-card-reviewed" aria-hidden="true">✓</span> : <span className="notice-card-alert" aria-hidden="true">!</span>}
-          <span><strong>{standoutActivity ? `${standoutActivity.activityLabel} · ${standoutActivity.key === 'duration' ? 'avg duration' : 'avg food/record'} ${standoutActivity.relativeChange > 0 ? '+' : '−'}${Math.round(Math.abs(standoutActivity.relativeChange) * 100)}% today` : allChangesLookNormal ? 'No changes need your attention today' : 'No change recorded today'}</strong><small>{standoutActivity ? `${standoutActivity.current.toFixed(1)} vs ${standoutActivity.previous.toFixed(1)} ${standoutActivity.unit} · ${standoutActivity.meetsThreshold ? 'meets main threshold' : 'small shift'} vs recorded history` : allChangesLookNormal ? `All reviewed changes look normal for ${displayName}.` : 'No measured change to compare against prior recorded history.'}</small></span>
+          <span className="home-moment-insight-copy"><strong>{standoutActivity?.activityLabel ?? (allChangesLookNormal ? 'Looking good' : 'Activity update')}</strong><small>{standoutActivity ? `${standoutActivity.key === 'duration' ? 'avg duration' : 'avg food/record'} ${standoutActivity.relativeChange > 0 ? '+' : '−'}${Math.round(Math.abs(standoutActivity.relativeChange) * 100)}% today` : allChangesLookNormal ? `No changes need ${displayName}’s attention` : 'See today’s activity insights'}</small></span>
         </button>
+      </section>}
+      <section className="today-rhythm-care-group">
+        <DailyRhythmCard petName={petName} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} onOpenInsights={onOpenInsights} standoutActivity={standoutActivity} dialStandoutActivity={dialStandoutActivity} rankedActivities={rankedActivities} insightReviews={insightReviews} patterns={patterns} careTasks={careTasks} careMembers={careMembers} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
+        <TodayCare key={currentUserId + petName} petName={petName} patterns={patterns} observations={observations} tasks={careTasks} members={careMembers} currentUserId={currentUserId} canAct={canAct && dayOffset === 0} isPrimary={isPrimary} dayOffset={dayOffset} onDone={onToggleCareTask} onRequestHelp={onRequestCareTask} onOpenPlan={onCareTasks} onPatterns={() => onPatterns()} />
       </section>
       </>}
       {!hasDemoMoments && !visibleRecords.length && (noPetYet ? <section className="today-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section>)}
@@ -2000,10 +2004,10 @@ function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMome
   const endOfStartDay = new Date(startDate);
   endOfStartDay.setHours(23, 59, 0, 0);
   const endMaximum = endOfStartDay.getTime() < Date.now() ? endOfStartDay : new Date();
-  const momentTimeFields = title === 'Meal' ? null : <div className="moment-time-range"><strong className="moment-time-range-heading">When did this moment happen?</strong><div className="moment-time-range-cards"><MomentDateTimePicker label="Start time" value={momentAt} onChange={setMomentAt} maxDateTime={toLocalDateTimeInput(new Date())} open={openMomentPicker === 'start'} onToggle={() => setOpenMomentPicker(current => current === 'start' ? null : 'start')} onClose={() => setOpenMomentPicker(null)} /><MomentDateTimePicker label="End time" placeholder="Choose time" value={momentEndAt} onChange={setMomentEndAt} minDateTime={momentAt} maxDateTime={toLocalDateTimeInput(endMaximum)} requiredDay={momentAt} open={openMomentPicker === 'end'} onToggle={() => setOpenMomentPicker(current => current === 'end' ? null : 'end')} onClose={() => setOpenMomentPicker(null)} align="right" /></div><small className="moment-time-range-hint">End time is optional and must be later on the same day.</small></div>;
-  const timingAndIntake = <>{intakeUnit && <div className="moment-extra-fields">{title === 'Meal' ? <><label className="moment-extra-field"><strong>Food amount</strong><span className="moment-amount-input"><input type="number" min="0" step="any" inputMode="decimal" value={intakeAmount} onChange={(event) => setIntakeAmount(event.target.value)} placeholder="Amount" /><span>{intakeUnit}</span></span></label><label className="moment-extra-field"><strong>Food type (optional)</strong><input type="text" value={foodType} onChange={(event) => setFoodType(event.target.value)} placeholder="e.g. Kibble, wet food" /></label></> : <label className="moment-extra-field"><strong>Water drunk (optional)</strong><span className="moment-amount-input"><input type="number" min="0" step="any" inputMode="decimal" value={intakeAmount} onChange={(event) => setIntakeAmount(event.target.value)} placeholder="Amount" /><span>{intakeUnit}</span></span></label>}</div>}</>;
+  const momentTimeFields = <div className="moment-time-range"><strong className="moment-time-range-heading">When did this moment happen?</strong><div className="moment-time-range-cards"><MomentDateTimePicker label="Start time" value={momentAt} onChange={setMomentAt} maxDateTime={toLocalDateTimeInput(new Date())} open={openMomentPicker === 'start'} onToggle={() => setOpenMomentPicker(current => current === 'start' ? null : 'start')} onClose={() => setOpenMomentPicker(null)} /><MomentDateTimePicker label="End time (optional)" placeholder="Choose time" value={momentEndAt} onChange={setMomentEndAt} minDateTime={momentAt} maxDateTime={toLocalDateTimeInput(endMaximum)} requiredDay={momentAt} open={openMomentPicker === 'end'} onToggle={() => setOpenMomentPicker(current => current === 'end' ? null : 'end')} onClose={() => setOpenMomentPicker(null)} align="right" /></div><small className="moment-time-range-hint">End time is optional and must be later on the same day.</small></div>;
+  const timingAndIntake = <>{intakeUnit && <div className="moment-extra-fields">{title === 'Meal' ? <><label className="moment-extra-field"><strong>Food amount</strong><span className="moment-amount-input"><input type="number" min="0" step="any" inputMode="decimal" value={intakeAmount} onChange={(event) => setIntakeAmount(event.target.value)} placeholder="Amount" /><span>{intakeUnit}</span></span></label><label className="moment-extra-field"><strong>Food type (optional)</strong><input type="text" value={foodType} onChange={(event) => setFoodType(event.target.value)} placeholder="e.g. Kibble, wet food" /></label></> : <label className="moment-extra-field"><strong>Water drunk</strong><span className="moment-amount-input"><input type="number" min="0" step="any" inputMode="decimal" required value={intakeAmount} onChange={(event) => setIntakeAmount(event.target.value)} placeholder="Amount" /><span>{intakeUnit}</span></span></label>}</div>}</>;
   const invalidRange = Boolean(momentEndAt && (new Date(momentEndAt).getTime() < new Date(momentAt).getTime() || new Date(momentEndAt).toDateString() !== new Date(momentAt).toDateString() || new Date(momentEndAt).getTime() > Date.now()));
-  const invalidAmount = Boolean(intakeUnit && ((title === 'Meal' && !intakeAmount.trim()) || (intakeAmount && (!Number.isFinite(Number(intakeAmount)) || Number(intakeAmount) <= 0))));
+  const invalidAmount = Boolean(intakeUnit && ((title === 'Meal' || title === 'Water') && !intakeAmount.trim() || (intakeAmount && (!Number.isFinite(Number(intakeAmount)) || Number(intakeAmount) <= 0))));
   function startWrittenMoment() {
     setUploadedMedia(null); setSelectedMoments([]); setTitle('');
     setRelatedPhotos([]); setNote(''); onEdit();
@@ -4629,15 +4633,15 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setStorySaveError('');
     const existing = storyObservations.find((entry) => entry.id === editingStoryObservationId);
     const isMeal = draftObservationTitle === 'Meal';
-    const start = isMeal ? new Date(existing?.savedAt ?? Date.now()) : new Date(draftMomentAt);
-    const end = !isMeal && draftMomentEndAt ? new Date(draftMomentEndAt) : null;
+    const start = new Date(draftMomentAt || existing?.savedAt || Date.now());
+    const end = draftMomentEndAt ? new Date(draftMomentEndAt) : null;
     if (end && (end.getTime() < start.getTime() || end.toDateString() !== start.toDateString() || end.getTime() > Date.now())) {
       setStorySaveError('Choose an end time after the start, on the same day and no later than now.');
       return;
     }
     const intakeUnit = draftObservationTitle === 'Meal' ? 'foodGrams' : draftObservationTitle === 'Water' ? 'waterMilliliters' : null;
     const amount = draftIntakeAmount.trim() ? Number(draftIntakeAmount) : null;
-    if (intakeUnit && ((isMeal && amount === null) || (amount !== null && (!Number.isFinite(amount) || amount <= 0)))) {
+    if (intakeUnit && (((isMeal || draftObservationTitle === 'Water') && amount === null) || (amount !== null && (!Number.isFinite(amount) || amount <= 0)))) {
       setStorySaveError('Enter an amount greater than zero.');
       return;
     }
