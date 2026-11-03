@@ -209,7 +209,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-split > .daily-rhythm-chart,
 .daily-rhythm-split > .daily-rhythm-today-lane { display:none; }
 .daily-rhythm-circle-chart svg { display:block; width:100%; height:auto; overflow:visible; }
-.daily-rhythm-atmosphere { opacity:.84; filter:saturate(1.5) contrast(1.1) brightness(.92); mix-blend-mode:multiply; pointer-events:none; }
+.daily-rhythm-atmosphere { opacity:.94; filter:blur(4px) saturate(1.08) brightness(1.04); mix-blend-mode:normal; pointer-events:none; }
 .daily-rhythm-insight-row { position:relative; z-index:2; display:flex; justify-content:flex-end; min-height:22px; margin:0 0 2px; }
 .daily-rhythm-insight-link { border:0; padding:4px 7px; background:transparent; color:#a15b2f; font:600 10px/14px 'Roboto',sans-serif; }
 .rhythm-circle-guide { fill:none; stroke:#eadfc4; stroke-width:2; filter:drop-shadow(0 2px 2px #8d774033); }
@@ -247,6 +247,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .rhythm-circle-legend i { width:9px; height:9px; border-radius:50%; background:#f4d783; }
 .rhythm-circle-legend .done-key { background:#80b45e; }
 .rhythm-circle-legend .upcoming-key { background:#c5c7c2; }
+.rhythm-circle-legend .pending-key { background:#c9362f; box-shadow:0 1px 2px #6b1b1b55; }
+.rhythm-circle-legend .attention-legend { color:#c9362f; }
 .daily-rhythm-circle-heading .rhythm-circle-legend { justify-content:flex-start; padding:0; gap:9px; }
 .daily-rhythm-circle-heading .rhythm-circle-legend span { gap:4px; }
 .daily-rhythm-circle-heading { align-items:flex-start; margin-bottom:6px; }

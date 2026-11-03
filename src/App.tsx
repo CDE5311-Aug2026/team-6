@@ -858,7 +858,7 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
     const distance = event.clientX - drag.x;
     if (!drag.active) return;
     event.preventDefault();
-    setDialTimeOffset(drag.offset + Math.round(distance * 3));
+    setDialTimeOffset(drag.offset - Math.round(distance * 3));
   };
   const endDialDrag = () => {
     const drag = dialDrag.current;
@@ -950,18 +950,18 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
       </div>
     </header>
     <>
-    <div className="daily-rhythm-circle-heading"><span className="rhythm-circle-legend"><span><i className="pattern-key"/>Typical window</span><span><i className="done-key"/>Done</span><span><i className="upcoming-key"/>Upcoming</span></span><span className="daily-rhythm-dial-controls">{isToday ? <span className={`daily-rhythm-dial-toggle ${fullDayDial && !isRevealingHalfDay ? 'is-full-day' : ''} ${isRevealingHalfDay ? 'is-instant' : ''}`} role="group" aria-label="Dial view"><span className="daily-rhythm-dial-toggle-thumb" aria-hidden="true"/><button type="button" aria-pressed={!fullDayDial || isRevealingHalfDay} onClick={() => transitionDialMode(false)}>Now</button><button type="button" aria-pressed={fullDayDial && !isRevealingHalfDay} onClick={() => transitionDialMode(true)}>Full day</button></span> : <span className="daily-rhythm-dial-toggle-spacer" aria-hidden="true"/>}<button type="button" onClick={() => onPatterns()}>{timedPatterns.length ? 'View →' : 'Set up →'}</button></span></div>
+    <div className="daily-rhythm-circle-heading"><span className="rhythm-circle-legend"><span><i className="pattern-key"/>Typical window</span><span><i className="done-key"/>Done</span><span><i className="upcoming-key"/>Upcoming</span><span className="attention-legend"><i className="pending-key" aria-hidden="true"/>Needs attention</span></span><span className="daily-rhythm-dial-controls">{isToday ? <span className={`daily-rhythm-dial-toggle ${fullDayDial && !isRevealingHalfDay ? 'is-full-day' : ''} ${isRevealingHalfDay ? 'is-instant' : ''}`} role="group" aria-label="Dial view"><span className="daily-rhythm-dial-toggle-thumb" aria-hidden="true"/><button type="button" aria-pressed={!fullDayDial || isRevealingHalfDay} onClick={() => transitionDialMode(false)}>Now</button><button type="button" aria-pressed={fullDayDial && !isRevealingHalfDay} onClick={() => transitionDialMode(true)}>Full day</button></span> : <span className="daily-rhythm-dial-toggle-spacer" aria-hidden="true"/>}<button type="button" onClick={() => onPatterns()}>{timedPatterns.length ? 'View →' : 'Set up →'}</button></span></div>
     <div ref={dialChartRef} className={`daily-rhythm-circle-chart ${fullDayDial ? 'is-full-day' : 'is-half-day'} ${isRevealingFullDay ? 'is-revealing-full-day' : ''} ${isRevealingHalfDay ? 'is-revealing-half-day' : ''}`} onPointerDown={startDialDrag} onPointerMove={moveDialDrag} onPointerUp={endDialDrag} onPointerCancel={endDialDrag}>
       <svg viewBox={fullDayDial ? '0 0 600 600' : '0 0 600 300'} role="img" aria-label={`${displayName}’s ${fullDayDial ? 'full-day' : '12-hour'} activity timeline`}>
       <defs>
         <clipPath id="daily-rhythm-dial-clip"><rect x="0" y="0" width="600" height={fullDayDial ? 600 : 300}/></clipPath>
         <radialGradient id="daily-rhythm-atmosphere-fade" cx="300" cy="300" r="245" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="white" stopOpacity="1"/>
-          <stop offset=".3" stopColor="white" stopOpacity=".98"/>
+          <stop offset=".35" stopColor="white" stopOpacity=".99"/>
           <stop offset=".5" stopColor="white" stopOpacity=".9"/>
-          <stop offset=".7" stopColor="white" stopOpacity=".74"/>
-          <stop offset=".85" stopColor="white" stopOpacity=".52"/>
-          <stop offset=".95" stopColor="white" stopOpacity=".22"/>
+          <stop offset=".62" stopColor="white" stopOpacity=".66"/>
+          <stop offset=".74" stopColor="white" stopOpacity=".34"/>
+          <stop offset=".86" stopColor="white" stopOpacity=".08"/>
           <stop offset="1" stopColor="white" stopOpacity="0"/>
         </radialGradient>
         <mask id="daily-rhythm-atmosphere-mask" x="0" y="0" width="600" height="600" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse"><rect width="600" height="600" fill="url(#daily-rhythm-atmosphere-fade)"/></mask>
