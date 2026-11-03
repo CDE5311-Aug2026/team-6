@@ -4,7 +4,6 @@ import TodayCare from './TodayCare';
 import MomentCarousel from './MomentCarousel';
 import BreedPicker from './BreedPicker';
 import { breedAvatar, normalizePetSex, type PetSex } from './petBreeds';
-import ThinkingAvatar from './ThinkingAvatar';
 import PatternSuggestions from './PatternSuggestions';
 import SettingsPanels, { readPreferences } from './SettingsPanels';
 import { activityCategoryLabel, activityCategoryRecords, activityInsightReviewFor, activityInsightReviewId, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, attentionActivityInsights, dialAttentionActivityInsights, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight, type ActivityInsightReview, type ActivityInsightReviewStatus, type ActivityPeriod, type RankedDailyActivityInsight } from './activitySummary';
@@ -16,7 +15,6 @@ import { visibleStoryObservations } from './storyVisibility';
 import { buildRollingStorySimulation, isSyntheticSunnyProfile } from './storySimulation';
 import { mergeSharedStoryObservations } from './sharedStoryObservations';
 import { careRhythmForDate, careTaskTiming, canToggleCareTaskCompletion, toggleCareTaskCompletion, appendCareTaskEvent, canViewCareTaskEvent, careTaskAttentionCount, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask, type CareTask, type CareTaskEvent, type CareTaskEventType } from './careTasks';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
 
 type View =
   | 'help'
@@ -3024,10 +3022,6 @@ function PatternKnowledgePage({ petName, ownerName, patterns, initialPatternId, 
     if (timed && (!draftStart || !draftEnd || minute(draftStart) >= minute(draftEnd))) { setSaveError('Choose a valid same-day time window.'); return; }
     const error = onSave({ ...selected, ...timing, title: draftTitle.trim(), detail: draftDetail.trim(), evidence: draftEvidence.trim() || selected.evidence, updatedAt: new Date().toISOString() });
     setSaveError(error); if (!error) setEditing(false);
-  }
-  function toggleArchive(pattern: TypicalPattern) {
-    const error = onSave({ ...pattern, status: pattern.status === 'archived' ? 'confirmed' : 'archived', updatedAt: new Date().toISOString() });
-    setSaveError(error); if (!error) setSelectedId(null);
   }
   function deletePattern() {
     if (!pendingDelete) return;
