@@ -255,6 +255,7 @@ export function activityPeriodFor(record: Pick<ActivitySummaryRecord, 'savedAt'>
 function inferredKind(record: ActivitySummaryRecord) {
   if (record.observationKind) return record.observationKind;
   const title = record.title.toLowerCase();
+  if (/\bwater\b|hydration|drinking/.test(title)) return 'water';
   if (/breakfast|lunch|dinner|food|feed|meal|bowl/.test(title)) return 'meal';
   if (/walk|stroll|outdoor|potty/.test(title)) return 'walk';
   if (/play|fetch|toy|tug|chase|game/.test(title)) return 'play';
@@ -310,6 +311,6 @@ export function activityCategoryRecords<T extends ActivitySummaryRecord>(records
 }
 
 export function activityCategoryLabel(kind: string) {
-  return kind === 'meal' ? 'Feeding' : kind === 'walk' ? 'Walk' : kind === 'play' ? 'Play' : kind === 'rest' ? 'Sleeping' : 'Activity';
+  return kind === 'meal' ? 'Feeding' : kind === 'water' ? 'Water' : kind === 'walk' ? 'Walk' : kind === 'play' ? 'Play' : kind === 'rest' ? 'Sleeping' : 'Activity';
 }
 
