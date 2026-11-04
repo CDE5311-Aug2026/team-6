@@ -46,7 +46,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .detail-content { min-height: calc(100% - var(--status-bar-height)); display: flex; flex-direction: column; padding-top: 0; }
 
 .main-header { position: sticky; z-index: 8; top: var(--status-bar-height); height: 97px; display: flex; align-items: flex-start; justify-content: space-between; margin: 0 -20px; padding: 0 20px; background: var(--color-page-bg); }
-.story-main-header { position: relative; top: auto; }
+.story-main-header { position: sticky; top: var(--status-bar-height); }
 .home-screen .status-bar, .home-screen .main-header { background: var(--color-home-bg); }
 .main-header > div { min-width: 0; flex: 1; padding-right: 10px; }
 .eyebrow { margin: 3px 0 0; color: var(--color-action); font: 700 11px/17px 'Poppins', sans-serif; letter-spacing: .8px; }
@@ -1832,7 +1832,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 
 /* Cover the scroll container's top padding behind every top-sticky surface. */
 .screen-scroll :is(
-  .main-header:not(.story-main-header),
+  .main-header,
   .story-summary-wrap,
   .timeline-day-group .section-heading,
   .add-flow-header,
@@ -2488,3 +2488,11 @@ button.profile-link, button.activity-insight-link {
 .rhythm-title h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .daily-rhythm-return-slot { display: flex; align-items: center; min-height: 38px; min-width: 0; }
 .daily-rhythm-circle-heading .daily-rhythm-return-today { padding: 8px 0; color: #5f4700; font: 600 11px/18px 'Roboto', sans-serif; text-align: left; }
+
+/* Stack Story's title, summary and day heading instead of scrolling the title away. */
+.main-content:has(> .story-main-header) { --story-header-height: 92px; }
+.story-main-header, .story-main-header:has(.main-subtitle) { height: var(--story-header-height); min-height: var(--story-header-height); }
+.story-main-header ~ .story-summary-wrap { top: calc(var(--status-bar-height) + var(--story-header-height)); }
+.story-main-header ~ .timeline-section .timeline-day-group .section-heading { top: calc(var(--status-bar-height) + var(--story-header-height) + 66px); }
+.story-main-header ~ .story-summary-wrap.is-compact ~ .timeline-section .timeline-day-group .section-heading { top: calc(var(--status-bar-height) + var(--story-header-height) + 56px); }
+.story-main-header ~ .timeline-section .timeline-day-group[id] { scroll-margin-top: calc(var(--status-bar-height) + var(--story-header-height) + 116px); }
