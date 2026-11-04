@@ -2314,7 +2314,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 /* UI review 2026-11-04: distinguish actions, selection and attention. */
 :root { --color-action-text: #5f4700; }
 .profile-link, .text-link { color: #5f4700; }
-.profile-link { min-height: 34px; padding: 6px 10px; border: 1px solid #c5b77f; border-radius: 12px; background: #fffdf5; white-space: normal; }
+.profile-link { min-height: 28px; padding: 4px 0; border: 0; border-radius: 0; background: transparent; color: #5f4700; white-space: normal; }
 .nav-item.active { color: #1a2921; }
 .nav-item.active .nav-icon img { filter: brightness(0); }
 .nav-item.active .you-icon { border-color: #1a2921; }
@@ -2329,7 +2329,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-dial-controls .daily-rhythm-dial-toggle button[aria-pressed="true"] { color: #1a2921; font-weight: 700; }
 .daily-rhythm-dial-toggle.is-full-day .daily-rhythm-dial-toggle-thumb { background: #e3ece7; }
 .rhythm-help { position: relative; z-index: 6; }
-.rhythm-help > summary { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid #c9d5cc; border-radius: 50%; background: #fff; color: #1a2921; font-weight: 700; cursor: pointer; list-style: none; }
+.rhythm-help > summary { display: grid; place-items: center; width: 28px; height: 32px; margin-left: -4px; padding: 6px; border: 0; border-radius: 0; background: transparent; color: #425349; font: 600 14px/20px Roboto, sans-serif; cursor: pointer; list-style: none; }
 .rhythm-help > summary::-webkit-details-marker { display: none; }
 .rhythm-help-panel { position: absolute; left: 0; top: 42px; width: min(292px, 76vw); max-height: 320px; overflow-y: auto; padding: 16px; border: 1px solid #c9d5cc; border-radius: 16px; background: #fff; box-shadow: 0 8px 28px #1a292126; }
 .rhythm-help-panel h3 { margin: 0 0 10px; font-size: 15px; }
@@ -2360,3 +2360,99 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .knowledge-icon, .media-icon { background: #edf2ee; color: #355545; }
 .header-settings-button { background: #edf2ee; }
 .today-care-remind:hover, .today-care-remind[aria-expanded="true"] { background: #dcebe1; color: #254d3d; }
+
+/* Round 2: consistent page, section and content alignment. */
+:root { --layout-section-gap: 24px; --layout-card-gap: 12px; }
+.main-header, .ask-page .main-header, .you-page .main-header, .home-screen .main-header { height: auto; min-height: 80px; padding-bottom: 16px; }
+.main-header:has(.main-subtitle) { min-height: 92px; }
+.main-header > div { padding-right: 12px; }
+.main-header h1 { margin-top: 4px; }
+.header-avatar-button, .header-settings-button { margin-top: 4px; }
+.section-heading, .profile-section-heading { min-width: 0; align-items: center; gap: 12px; }
+.section-heading h2, .profile-section-heading h2 { min-width: 0; margin: 0; }
+.profile-section-heading { padding: 0; min-height: 32px; }
+.profile-section-heading .profile-link, .section-heading .text-link { flex-shrink: 0; text-align: right; }
+.profile-section, .pets-page > .profile-section:not(.care-section), .you-section, .media-section, .context-section { margin-top: var(--layout-section-gap) !important; }
+.care-section > h2 { margin: 0 0 12px; }
+.profile-section-heading + .profile-card, .profile-section-heading + .you-list, .profile-section-heading + .pattern-card, .profile-section-heading + .media-card { margin-top: var(--layout-card-gap); }
+.pattern-card { min-height: 0; padding: 16px; }
+.pattern-card .knowledge-row { min-height: 68px; padding: 10px 0; gap: 12px; }
+.pattern-card .knowledge-row > span:nth-child(2) { gap: 4px; }
+.pattern-card .knowledge-row > i { margin-left: auto; flex: none; }
+.you-list { padding-right: 16px; padding-left: 16px; }
+.you-row, .media-row { gap: 12px; }
+.you-row > span, .media-row > span:nth-child(2) { min-width: 0; }
+.story-summary-wrap + .profile-link { min-height: 28px; margin: 8px 0 12px; padding: 4px 0; border: 0; background: none; border-radius: 0; }
+.timeline-day-group .section-heading { min-height: 44px; padding: 8px 0; gap: 12px; }
+.timeline-day-group .section-heading h2 { flex: 1; font-size: 17px; line-height: 24px; }
+.timeline-day-group > .timeline-list { margin-top: 12px; }
+.timeline-list { gap: 12px; }
+.timeline-row { grid-template-columns: 46px minmax(0, 1fr); gap: 10px; }
+.timeline-card-main { width: calc(100% - 36px); padding: 14px 0 14px 12px; gap: 12px; }
+.timeline-card-main > span { gap: 4px; }
+.timeline-more { top: 0; bottom: 0; width: 36px; height: auto; padding: 0; display: grid; place-items: center; border-radius: 0 20px 20px 0; }
+.daily-rhythm-header { align-items: center; }
+.daily-rhythm-circle-heading { min-height: 38px; margin-top: 4px; margin-bottom: 8px; }
+.daily-rhythm-circle-chart { margin-top: -8px; }
+.today-care-header { min-height: 32px; margin-bottom: 8px; gap: 12px; }
+.today-care-header > div { min-width: 0; flex-wrap: wrap; gap: 8px; }
+.today-care-plan { flex-shrink: 0; }
+.today-care-row { gap: 8px; min-height: 60px; }
+.today-care-task { padding: 10px 0; }
+.today-care-remind { margin-right: 0; }
+/* Back controls and titles share one vertical centre on every secondary header. */
+.settings-header, .settings-hub-header, .story-edit-header, .detail-title-row, .activity-summary-header, .favorites-page-header { height: auto; min-height: 60px; align-items: center; gap: 12px; }
+.settings-header h1, .settings-hub-header h1, .story-edit-header h1, .detail-title-row h1, .activity-summary-header h1, .favorites-page-header h1 { margin: 0; min-width: 0; }
+.settings-header .back-button, .settings-hub-header .back-button, .story-edit-header .back-button, .detail-title-row .back-button, .activity-summary-header .back-button, .favorites-page-header .back-button { margin: 0; flex: 0 0 28px; display: grid; align-items: center; }
+.activity-summary-header { padding-top: 8px; padding-bottom: 8px; }
+.favorites-page-header { padding: 12px 20px; }
+.settings-hub-content { padding-top: 20px; gap: 24px; }
+.settings-fields { margin-top: 20px; gap: 12px; }
+.settings-page .settings-field { height: auto; min-height: 88px; padding: 16px; gap: 8px; }
+.settings-page .settings-field p, .settings-page .settings-field input { margin-top: 0; }
+.settings-panel-header { align-items: center; padding: 20px; }
+.settings-panel-body { padding: 20px; }
+.settings-panel-body > h3:first-child { margin-top: 0; }
+.settings-panel-body h3 { margin: 20px 0 8px; }
+.settings-panel-body p { margin: 0 0 12px; }
+.settings-panel-body .settings-choice { margin: 12px 0; gap: 12px; }
+.settings-choice input { margin: 1px 0 0; }
+.settings-panel-footer { padding: 12px 20px 16px; }
+.activity-insight-card { gap: 12px; padding: 16px; }
+.activity-insight-main { gap: 12px; }
+.activity-insight-copy { gap: 4px; }
+.activity-insight-review { gap: 8px; padding-top: 12px; }
+.activity-insight-review > p { margin: 0; }
+.activity-insight-review-actions { gap: 8px; }
+@media (max-width: 359px) {
+  .main-header h1 { font-size: 28px; line-height: 36px; }
+  .main-subtitle { font-size: 14px; line-height: 20px; }
+  .header-avatar-button, .main-header .avatar { width: 48px; height: 48px; }
+  .profile-section-heading { flex-wrap: wrap; gap: 4px 12px; }
+  .profile-section-heading h2 { flex: 1 1 160px; }
+  .profile-section-heading .profile-link { margin-left: auto; }
+  .timeline-row { grid-template-columns: 42px minmax(0, 1fr); gap: 8px; }
+  .timeline-card-main { flex-wrap: wrap; gap: 8px; }
+  .timeline-card-main > span { flex: 1 1 100px; }
+  .timeline-day-group .section-heading h2 { font-size: 15px; }
+  .timeline-day-group .section-heading .text-link { font-size: 11px; }
+  .activity-insight-main { flex-direction: column; }
+  .activity-insight-link { align-self: flex-start; }
+}
+/* Keep Story actions in their own row, clear of record text. */
+.floating-add { position: relative; right: auto; bottom: auto; align-self: flex-end; flex: 0 0 40px; width: 82px; height: 40px; margin: 8px 20px; }
+.floating-add.is-open { width: 82px; min-width: 82px; height: 40px; border-radius: var(--radius-pill); }
+@media (max-width: 359px) {
+  .story-summary strong { font-size: 14px; line-height: 20px; }
+  .pet-profile-hero { gap: 12px; padding: 16px; }
+  .pet-profile-hero > .avatar { width: 64px !important; height: 64px !important; border-radius: 16px; }
+  .pet-profile-hero .profile-hero-copy > small { white-space: normal; }
+  .pet-hero-actions { flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .pet-hero-actions .mini-action { flex: 1 1 110px; min-height: 28px; }
+}
+
+.main-content:has(.story-main-header) { padding-bottom: 24px; }
+@media (max-width: 359px) {
+  .settings-header h1, .settings-hub-header h1, .story-edit-header h1, .detail-title-row h1, .activity-summary-header h1 { white-space: normal; overflow-wrap: anywhere; font-size: 18px; line-height: 26px; }
+  .settings-header, .settings-hub-header, .story-edit-header, .detail-title-row, .activity-summary-header { padding-top: 8px; padding-bottom: 8px; }
+}
