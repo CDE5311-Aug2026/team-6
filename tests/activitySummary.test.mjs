@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../src/activitySummary.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
-const { activityCategoryLabel, activityCategoryRecords, activityInsightReviewFor, activityInsightReviewId, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, attentionActivityInsights, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
+const { activityCategoryLabel, activityCategoryRecords, activityInsightReviewFor, activityInsightReviewId, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, attentionActivityInsights, hasActivityAttention, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
 
 test('selects the largest meaningful relative weekly change using per-record averages', () => {
   const current = { recordCount: 7, durationMinutes: 57, durationRecordCount: 7, consumedGrams: 1125, consumptionRecordCount: 7 };
@@ -253,4 +253,14 @@ test('keeps afternoon rest and night rest separate', () => {
   assert.equal(afternoon.label, 'Afternoon rest');
   assert.equal(night.label, 'Night rest');
   assert.notEqual(afternoon.key, night.key);
+});
+
+test('home status and overview title use the same actionable attention state', () => {
+  const insight = { activityKey: 'rest', key: 'duration', currentDate: new Date(2026, 10, 5), meetsThreshold: false };
+  const review = status => ({ id: activityInsightReviewId(insight), status });
+  assert.equal(hasActivityAttention([], []), false);
+  assert.equal(hasActivityAttention([insight], []), false);
+  assert.equal(hasActivityAttention([{ ...insight, meetsThreshold: true }], []), true);
+  assert.equal(hasActivityAttention([{ ...insight, meetsThreshold: true }], [review('normal')]), false);
+  assert.equal(hasActivityAttention([insight], [review('watch')]), true);
 });

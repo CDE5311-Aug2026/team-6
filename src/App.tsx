@@ -10,7 +10,7 @@ import BreedPicker from './BreedPicker';
 import { breedAvatar, normalizePetSex, type PetSex } from './petBreeds';
 import PatternSuggestions from './PatternSuggestions';
 import SettingsPanels, { readPreferences } from './SettingsPanels';
-import { activityCategoryLabel, activityCategoryRecords, activityInsightReviewFor, activityInsightReviewId, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, attentionActivityInsights, dialAttentionActivityInsights, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight, type ActivityInsightReview, type ActivityInsightReviewStatus, type ActivityPeriod, type RankedDailyActivityInsight } from './activitySummary';
+import { activityCategoryLabel, activityCategoryRecords, activityInsightReviewFor, activityInsightReviewId, activityPeriodFor, activityRecordsOnDate, activityRecordsThroughDate, activitySummaryDateWindow, activitySummaryIdentity, hasActivityAttention, dialAttentionActivityInsights, compareActivityWeeks, rankDailyActivityInsights, selectWeeklyInsight, type ActivityInsightReview, type ActivityInsightReviewStatus, type ActivityPeriod, type RankedDailyActivityInsight } from './activitySummary';
 import { clockMinute, type DailyPattern } from '../supabase/functions/_shared/dailyPatterns';
 import Welcome from './Welcome';
 import { requestAskAI } from './askAI';
@@ -964,14 +964,13 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
     <header className="daily-rhythm-header">
       <div><p className="eyebrow">DAILY RHYTHM</p><div className="rhythm-title"><h2 id="daily-rhythm-title">{displayName}’s day</h2><RhythmHelp /></div></div>
       <div className="daily-rhythm-date-nav" aria-label="Selected day">
-        {!isToday && <button type="button" className="daily-rhythm-today-button" onClick={() => navigateToDay(0)}>Today</button>}
         <button type="button" aria-label="Show previous day" onClick={goToPreviousDay}>‹</button>
         <span>{selectedDateLabel}</span>
         <button type="button" aria-label="Show newer day" disabled={isToday} onClick={goToNewerDay}>›</button>
       </div>
     </header>
     <>
-    <div className="daily-rhythm-circle-heading"><span className="daily-rhythm-dial-controls">{isToday ? <span className={`daily-rhythm-dial-toggle ${fullDayDial && !isRevealingHalfDay ? 'is-full-day' : ''} ${isRevealingHalfDay ? 'is-instant' : ''}`} role="group" aria-label="Dial view"><span className="daily-rhythm-dial-toggle-thumb" aria-hidden="true"/><button type="button" aria-pressed={!fullDayDial || isRevealingHalfDay} onClick={() => transitionDialMode(false)}>Now</button><button type="button" aria-pressed={fullDayDial && !isRevealingHalfDay} onClick={() => transitionDialMode(true)}>Full day</button></span> : <span className="daily-rhythm-dial-toggle-spacer" aria-hidden="true"/>}</span></div>
+    <div className="daily-rhythm-circle-heading"><span className="daily-rhythm-return-slot">{!isToday && <button type="button" className="daily-rhythm-return-today" onClick={() => navigateToDay(0)}>Back to today</button>}</span><span className="daily-rhythm-dial-controls">{isToday ? <span className={`daily-rhythm-dial-toggle ${fullDayDial && !isRevealingHalfDay ? 'is-full-day' : ''} ${isRevealingHalfDay ? 'is-instant' : ''}`} role="group" aria-label="Dial view"><span className="daily-rhythm-dial-toggle-thumb" aria-hidden="true"/><button type="button" aria-pressed={!fullDayDial || isRevealingHalfDay} onClick={() => transitionDialMode(false)}>Now</button><button type="button" aria-pressed={fullDayDial && !isRevealingHalfDay} onClick={() => transitionDialMode(true)}>Full day</button></span> : <span className="daily-rhythm-dial-toggle-spacer" aria-hidden="true"/>}</span></div>
     <div ref={dialChartRef} className={`daily-rhythm-circle-chart ${fullDayDial ? 'is-full-day' : 'is-half-day'} ${isRevealingFullDay ? 'is-revealing-full-day' : ''} ${isRevealingHalfDay ? 'is-revealing-half-day' : ''}`} onPointerDown={startDialDrag} onPointerMove={moveDialDrag} onPointerUp={endDialDrag} onPointerCancel={endDialDrag}>
       <svg viewBox={fullDayDial ? '0 0 600 600' : '0 0 600 300'} role="img" aria-label={`${displayName}’s ${fullDayDial ? 'full-day' : '12-hour'} activity timeline`}>
       <defs>
@@ -1401,6 +1400,7 @@ function ActivityInsightsPage({ records, petName, reviews, canReview, onReview, 
   const observedRecords = records.filter(record => new Date(record.savedAt).getTime() <= referenceDate.getTime());
   const rankedInsights = rankDailyActivityInsights(observedRecords, referenceDate);
   const topInsights = rankedInsights.slice(0, 3);
+  const needsAttention = hasActivityAttention(rankedInsights, reviews);
   const formatDate = (date: Date) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
   const formatReviewTime = (value: string) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value));
   const latestRecordFor = (activityKey: string, date: Date) => observedRecords
@@ -1408,7 +1408,7 @@ function ActivityInsightsPage({ records, petName, reviews, canReview, onReview, 
     .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime())[0];
 
   return <section className="activity-summary-page activity-insights-page">
-    <header className="activity-summary-header"><button className="back-button" aria-label="Go back" onClick={onBack}>←</button><div><p className="eyebrow">PET ACTIVITY</p><h1>Worth a closer look</h1></div></header>
+    <header className="activity-summary-header"><button className="back-button" aria-label="Go back" onClick={onBack}>←</button><div><p className="eyebrow">PET ACTIVITY</p><h1>{needsAttention ? 'Worth a closer look' : 'Activity overview'}</h1></div></header>
     <p className="activity-insights-intro">{petName}’s recorded changes today. Compare with usual, then tell us what looks normal.</p>
     {topInsights.length ? <div className="activity-insights-list">{topInsights.map((insight, index) => {
       const direction = insight.relativeChange > 0 ? 'increased' : 'decreased';
@@ -1434,7 +1434,7 @@ function TodayPage({ onRequestCareTask, onStory, onPetsNavigate, onAddPet, onAct
     .filter(record => new Date(record.savedAt).getTime() <= now.getTime())
     .sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime());
   const rankedActivities = rankDailyActivityInsights(visibleRecords, now);
-  const homeNeedsAttention = attentionActivityInsights(rankedActivities, insightReviews).some(insight => insight.meetsThreshold || activityInsightReviewFor(insightReviews, insight)?.status === 'watch');
+  const homeNeedsAttention = hasActivityAttention(rankedActivities, insightReviews);
   const dialStandoutActivity = dialAttentionActivityInsights(rankedActivities, insightReviews)[0];
   const featuredRecords = visibleRecords.slice(0, 2);
 

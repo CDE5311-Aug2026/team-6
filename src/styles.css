@@ -2481,3 +2481,10 @@ button.profile-link, button.activity-insight-link {
 .home-activity-status { flex: 0 0 44px; display: grid; place-items: center; align-self: center; width: 44px; height: 44px; margin-left: auto; padding: 0; border: 0; border-radius: 8px; background: transparent; color: #39745b; cursor: pointer; }
 .home-activity-status.needs-attention { color: #b64c3f; }
 .home-activity-status:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+/* Keep date navigation stable when the historical-day return action appears. */
+.daily-rhythm-header { flex-wrap: nowrap; }
+.daily-rhythm-header > div:first-child { flex: 1 1 0; overflow: hidden; }
+.rhythm-title h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.daily-rhythm-return-slot { display: flex; align-items: center; min-height: 38px; min-width: 0; }
+.daily-rhythm-circle-heading .daily-rhythm-return-today { padding: 8px 0; color: #5f4700; font: 600 11px/18px 'Roboto', sans-serif; text-align: left; }

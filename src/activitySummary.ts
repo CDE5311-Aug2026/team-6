@@ -80,6 +80,11 @@ export function attentionActivityInsights(insights: RankedDailyActivityInsight[]
     .filter(insight => activityInsightReviewFor(reviews, insight)?.status !== 'normal');
 }
 
+/** Shared by the home status and its detail-page heading. */
+export function hasActivityAttention(insights: RankedDailyActivityInsight[], reviews: ActivityInsightReview[]) {
+  return attentionActivityInsights(insights, reviews).some(insight => insight.meetsThreshold || activityInsightReviewFor(reviews, insight)?.status === 'watch');
+}
+
 export function dialAttentionActivityInsights(insights: RankedDailyActivityInsight[], reviews: ActivityInsightReview[]) {
   return insights
     .map((insight, rank) => ({ insight, rank, review: activityInsightReviewFor(reviews, insight) }))
