@@ -1,0 +1,1906 @@
+{
+  "id": "pet-demo-momo-20261105-v1",
+  "name": "Momo",
+  "breed": "Samoyed",
+  "species": "Dog",
+  "sex": "Female",
+  "age": "3",
+  "avatar": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/00_momo_portrait.jpg",
+  "hasDemoMoments": false,
+  "isEmptyProfile": false,
+  "testData": {
+    "datasetId": "momo-seven-days-20261105-v1",
+    "synthetic": true,
+    "timezone": "Asia/Singapore",
+    "periodStart": "2026-10-29",
+    "periodEnd": "2026-11-04",
+    "description": "A fictional demo pet and seven days of synthetic records. No real animal or household is represented.",
+    "photoUsage": "Every observation has its own distinct AI-generated illustration; no image is reused across observations. These pictures are not real camera captures or evidence.",
+    "fictionalProfile": {
+      "sex": "Female",
+      "weightKg": 21.5,
+      "dateOfBirth": "2023-07-12",
+      "coat": "White",
+      "traits": [
+        "Often carries a rope toy to the caregiver",
+        "Stops to sniff on familiar walks",
+        "Often rests on the mat beside the sofa"
+      ],
+      "routine": "Two walks and two meals, with an afternoon mat-rest period and short indoor play.",
+      "healthContext": "No medical history or diagnosis is asserted. Food amounts are fictional records, not feeding advice."
+    },
+    "dailySummaries": [
+      {
+        "date": "2026-10-29",
+        "timezone": "Asia/Singapore",
+        "synthetic": true,
+        "morningWalkMinutes": 32,
+        "eveningWalkMinutes": 35,
+        "totalWalkMinutes": 67,
+        "indoorPlayMinutes": 14,
+        "recordedWalkAndPlayMinutes": 81,
+        "afternoonRestMinutes": 88,
+        "foodConsumedGrams": 275,
+        "nightSleepHours": null,
+        "coverage": "partial-observation",
+        "cameraAvailableMinutes": 390,
+        "cameraCoverageOfDayPct": 27.1,
+        "cameraWindows": [
+          {
+            "start": "2026-10-29T09:00:00+08:00",
+            "end": "2026-10-29T12:00:00+08:00"
+          },
+          {
+            "start": "2026-10-29T13:00:00+08:00",
+            "end": "2026-10-29T16:30:00+08:00"
+          }
+        ],
+        "missingMetrics": [
+          "nightSleepHours"
+        ],
+        "context": "A familiar weekday routine.",
+        "baselineRole": "initial-reference"
+      },
+      {
+        "date": "2026-10-30",
+        "timezone": "Asia/Singapore",
+        "synthetic": true,
+        "morningWalkMinutes": 30,
+        "eveningWalkMinutes": 37,
+        "totalWalkMinutes": 67,
+        "indoorPlayMinutes": 12,
+        "recordedWalkAndPlayMinutes": 79,
+        "afternoonRestMinutes": 96,
+        "foodConsumedGrams": 270,
+        "nightSleepHours": null,
+        "coverage": "partial-observation",
+        "cameraAvailableMinutes": 410,
+        "cameraCoverageOfDayPct": 28.5,
+        "cameraWindows": [
+          {
+            "start": "2026-10-30T09:10:00+08:00",
+            "end": "2026-10-30T12:15:00+08:00"
+          },
+          {
+            "start": "2026-10-30T13:00:00+08:00",
+            "end": "2026-10-30T16:45:00+08:00"
+          }
+        ],
+        "missingMetrics": [
+          "nightSleepHours"
+        ],
+        "context": "The caregiver worked from home.",
+        "baselineRole": "initial-reference"
+      },
+      {
+        "date": "2026-10-31",
+        "timezone": "Asia/Singapore",
+        "synthetic": true,
+        "morningWalkMinutes": 42,
+        "eveningWalkMinutes": 41,
+        "totalWalkMinutes": 83,
+        "indoorPlayMinutes": 20,
+        "recordedWalkAndPlayMinutes": 103,
+        "afternoonRestMinutes": 105,
+        "foodConsumedGrams": 280,
+        "nightSleepHours": null,
+        "coverage": "partial-observation",
+        "cameraAvailableMinutes": 330,
+        "cameraCoverageOfDayPct": 22.9,
+        "cameraWindows": [
+          {
+            "start": "2026-10-31T10:00:00+08:00",
+            "end": "2026-10-31T12:00:00+08:00"
+          },
+          {
+            "start": "2026-10-31T13:00:00+08:00",
+            "end": "2026-10-31T16:30:00+08:00"
+          }
+        ],
+        "missingMetrics": [
+          "nightSleepHours"
+        ],
+        "context": "Weekend: a longer morning park visit.",
+        "baselineRole": "initial-reference"
+      },
+      {
+        "date": "2026-11-01",
+        "timezone": "Asia/Singapore",
+        "synthetic": true,
+        "morningWalkMinutes": 38,
+        "eveningWalkMinutes": 36,
+        "totalWalkMinutes": 74,
+        "indoorPlayMinutes": 15,
+        "recordedWalkAndPlayMinutes": 89,
+        "afternoonRestMinutes": 100,
+        "foodConsumedGrams": 275,
+        "nightSleepHours": null,
+        "coverage": "partial-observation",
+        "cameraAvailableMinutes": 360,
+        "cameraCoverageOfDayPct": 25,
+        "cameraWindows": [
+          {
+            "start": "2026-11-01T09:00:00+08:00",
+            "end": "2026-11-01T12:00:00+08:00"
+          },
+          {
+            "start": "2026-11-01T13:00:00+08:00",
+            "end": "2026-11-01T16:00:00+08:00"
+          }
+        ],
+        "missingMetrics": [
+          "nightSleepHours"
+        ],
+        "context": "A visitor stopped by from 15:30 to 16:00.",
+        "baselineRole": "initial-reference"
+      },
+      {
+        "date": "2026-11-02",
+        "timezone": "Asia/Singapore",
+        "synthetic": true,
+        "morningWalkMinutes": 20,
+        "eveningWalkMinutes": 24,
+        "totalWalkMinutes": 44,
+        "indoorPlayMinutes": 25,
+        "recordedWalkAndPlayMinutes": 69,
+        "afternoonRestMinutes": 112,
+        "foodConsumedGrams": 270,
+        "nightSleepHours": null,
+        "coverage": "partial-observation",
+        "cameraAvailableMinutes": 420,
+        "cameraCoverageOfDayPct": 29.2,
+        "cameraWindows": [
+          {
+            "start": "2026-11-02T09:00:00+08:00",
+            "end": "2026-11-02T12:00:00+08:00"
+          },
+          {
+            "start": "2026-11-02T13:00:00+08:00",
+            "end": "2026-11-02T17:00:00+08:00"
+          }
+        ],
+        "missingMetrics": [
+          "nightSleepHours"
+        ],
+        "context": "Fictional rain scenario: the caregiver shortened both walks and added an indoor scent game.",
+        "baselineRole": "context-change"
+      },
+      {
+        "date": "2026-11-03",
+        "timezone": "Asia/Singapore",
+        "synthetic": true,
+        "morningWalkMinutes": 31,
+        "eveningWalkMinutes": 34,
+        "totalWalkMinutes": 65,
+        "indoorPlayMinutes": 10,
+        "recordedWalkAndPlayMinutes": 75,
+        "afternoonRestMinutes": null,
+        "foodConsumedGrams": 270,
+        "nightSleepHours": null,
+        "coverage": "partial-observation",
+        "cameraAvailableMinutes": 145,
+        "cameraCoverageOfDayPct": 10.1,
+        "cameraWindows": [
+          {
+            "start": "2026-11-03T09:00:00+08:00",
+            "end": "2026-11-03T10:05:00+08:00"
+          },
+          {
+            "start": "2026-11-03T18:40:00+08:00",
+            "end": "2026-11-03T20:00:00+08:00"
+          }
+        ],
+        "missingMetrics": [
+          "nightSleepHours",
+          "afternoonRestMinutes"
+        ],
+        "context": "Camera disconnected from 10:05 to 18:40; caregiver notes cover meals and walks, but afternoon rest is unknown.",
+        "baselineRole": "context-change"
+      },
+      {
+        "date": "2026-11-04",
+        "timezone": "Asia/Singapore",
+        "synthetic": true,
+        "morningWalkMinutes": 33,
+        "eveningWalkMinutes": 38,
+        "totalWalkMinutes": 71,
+        "indoorPlayMinutes": 16,
+        "recordedWalkAndPlayMinutes": 87,
+        "afternoonRestMinutes": 92,
+        "foodConsumedGrams": 275,
+        "nightSleepHours": null,
+        "coverage": "partial-observation",
+        "cameraAvailableMinutes": 390,
+        "cameraCoverageOfDayPct": 27.1,
+        "cameraWindows": [
+          {
+            "start": "2026-11-04T09:00:00+08:00",
+            "end": "2026-11-04T12:00:00+08:00"
+          },
+          {
+            "start": "2026-11-04T13:00:00+08:00",
+            "end": "2026-11-04T16:30:00+08:00"
+          }
+        ],
+        "missingMetrics": [
+          "nightSleepHours"
+        ],
+        "context": "The camera connection was restored; the caregiver confirmed the walk times.",
+        "baselineRole": "initial-reference"
+      }
+    ],
+    "mediaRevision": "v2-all-50-observations-illustrated",
+    "dailyStories": [
+      {
+        "id": "momo-story-2026-10-29",
+        "date": "2026-10-29",
+        "title": "A morning of little discoveries",
+        "body": "Momo stopped to sniff leaves on the morning walk, rested on her mat in the afternoon, and walked again in the evening.",
+        "synthetic": true,
+        "status": "available-records-only",
+        "evidenceIds": [
+          "momo-2026-10-29-morning-walk",
+          "momo-2026-10-29-breakfast",
+          "momo-2026-10-29-afternoon-rest",
+          "momo-2026-10-29-indoor-play",
+          "momo-2026-10-29-evening-walk",
+          "momo-2026-10-29-dinner",
+          "momo-2026-10-29-settling"
+        ],
+        "sourceNote": "Fictional caregiver notes and 390 minutes of camera availability. Photos are AI-generated illustrations, not event evidence.",
+        "imageObservationId": "momo-2026-10-29-morning-walk",
+        "imageObservationIds": [
+          "momo-2026-10-29-morning-walk",
+          "momo-2026-10-29-breakfast",
+          "momo-2026-10-29-afternoon-rest",
+          "momo-2026-10-29-indoor-play",
+          "momo-2026-10-29-evening-walk",
+          "momo-2026-10-29-dinner",
+          "momo-2026-10-29-settling"
+        ]
+      },
+      {
+        "id": "momo-story-2026-10-30",
+        "date": "2026-10-30",
+        "title": "A quiet spot by the window",
+        "body": "Momo spent part of the afternoon lying by the sofa. A short rope-toy game and an evening walk were also recorded.",
+        "synthetic": true,
+        "status": "available-records-only",
+        "evidenceIds": [
+          "momo-2026-10-30-morning-walk",
+          "momo-2026-10-30-breakfast",
+          "momo-2026-10-30-afternoon-rest",
+          "momo-2026-10-30-indoor-play",
+          "momo-2026-10-30-evening-walk",
+          "momo-2026-10-30-dinner",
+          "momo-2026-10-30-settling"
+        ],
+        "sourceNote": "Fictional caregiver notes and 410 minutes of camera availability. Photos are AI-generated illustrations, not event evidence.",
+        "imageObservationId": "momo-2026-10-30-afternoon-rest",
+        "imageObservationIds": [
+          "momo-2026-10-30-morning-walk",
+          "momo-2026-10-30-breakfast",
+          "momo-2026-10-30-afternoon-rest",
+          "momo-2026-10-30-indoor-play",
+          "momo-2026-10-30-evening-walk",
+          "momo-2026-10-30-dinner",
+          "momo-2026-10-30-settling"
+        ]
+      },
+      {
+        "id": "momo-story-2026-10-31",
+        "date": "2026-10-31",
+        "title": "The rope toy made an appearance",
+        "body": "A longer park walk started the day. Later, Momo carried her rope toy to the caregiver and played indoors.",
+        "synthetic": true,
+        "status": "available-records-only",
+        "evidenceIds": [
+          "momo-2026-10-31-morning-walk",
+          "momo-2026-10-31-breakfast",
+          "momo-2026-10-31-afternoon-rest",
+          "momo-2026-10-31-indoor-play",
+          "momo-2026-10-31-evening-walk",
+          "momo-2026-10-31-dinner",
+          "momo-2026-10-31-settling"
+        ],
+        "sourceNote": "Fictional caregiver notes and 330 minutes of camera availability. Photos are AI-generated illustrations, not event evidence.",
+        "imageObservationId": "momo-2026-10-31-indoor-play",
+        "imageObservationIds": [
+          "momo-2026-10-31-morning-walk",
+          "momo-2026-10-31-breakfast",
+          "momo-2026-10-31-afternoon-rest",
+          "momo-2026-10-31-indoor-play",
+          "momo-2026-10-31-evening-walk",
+          "momo-2026-10-31-dinner",
+          "momo-2026-10-31-settling"
+        ]
+      },
+      {
+        "id": "momo-story-2026-11-01",
+        "date": "2026-11-01",
+        "title": "A visitor and the usual dinner",
+        "body": "Momo approached the visitor to sniff their shoes, then returned to her mat. Her two meals and both walks were recorded.",
+        "synthetic": true,
+        "status": "available-records-only",
+        "evidenceIds": [
+          "momo-2026-11-01-morning-walk",
+          "momo-2026-11-01-breakfast",
+          "momo-2026-11-01-afternoon-rest",
+          "momo-2026-11-01-visitor",
+          "momo-2026-11-01-indoor-play",
+          "momo-2026-11-01-evening-walk",
+          "momo-2026-11-01-dinner",
+          "momo-2026-11-01-settling"
+        ],
+        "sourceNote": "Fictional caregiver notes and 360 minutes of camera availability. Photos are AI-generated illustrations, not event evidence.",
+        "imageObservationId": "momo-2026-11-01-dinner",
+        "imageObservationIds": [
+          "momo-2026-11-01-morning-walk",
+          "momo-2026-11-01-breakfast",
+          "momo-2026-11-01-afternoon-rest",
+          "momo-2026-11-01-visitor",
+          "momo-2026-11-01-indoor-play",
+          "momo-2026-11-01-evening-walk",
+          "momo-2026-11-01-dinner",
+          "momo-2026-11-01-settling"
+        ]
+      },
+      {
+        "id": "momo-story-2026-11-02",
+        "date": "2026-11-02",
+        "title": "A rainy-day change of plan",
+        "body": "Both walks were shorter today. The caregiver also recorded a 25-minute indoor scent game. These records do not establish Momo’s mood.",
+        "synthetic": true,
+        "status": "available-records-only",
+        "evidenceIds": [
+          "momo-2026-11-02-morning-walk",
+          "momo-2026-11-02-breakfast",
+          "momo-2026-11-02-afternoon-rest",
+          "momo-2026-11-02-indoor-play",
+          "momo-2026-11-02-evening-walk",
+          "momo-2026-11-02-dinner",
+          "momo-2026-11-02-settling"
+        ],
+        "sourceNote": "Fictional caregiver notes and 420 minutes of camera availability. Photos are AI-generated illustrations, not event evidence.",
+        "imageObservationId": "momo-2026-11-02-indoor-play",
+        "imageObservationIds": [
+          "momo-2026-11-02-morning-walk",
+          "momo-2026-11-02-breakfast",
+          "momo-2026-11-02-afternoon-rest",
+          "momo-2026-11-02-indoor-play",
+          "momo-2026-11-02-evening-walk",
+          "momo-2026-11-02-dinner",
+          "momo-2026-11-02-settling"
+        ]
+      },
+      {
+        "id": "momo-story-2026-11-03",
+        "date": "2026-11-03",
+        "title": "A few moments, with a gap",
+        "body": "Caregiver notes describe both walks, meals, a short play session and evening brushing. Afternoon camera records are missing, so today’s story is incomplete.",
+        "synthetic": true,
+        "status": "partial",
+        "evidenceIds": [
+          "momo-2026-11-03-morning-walk",
+          "momo-2026-11-03-breakfast",
+          "momo-2026-11-03-indoor-play",
+          "momo-2026-11-03-evening-walk",
+          "momo-2026-11-03-dinner",
+          "momo-2026-11-03-brushing",
+          "momo-2026-11-03-settling"
+        ],
+        "sourceNote": "Fictional caregiver notes and 145 minutes of camera availability. Photos are AI-generated illustrations, not event evidence.",
+        "imageObservationId": "momo-2026-11-03-brushing",
+        "imageObservationIds": [
+          "momo-2026-11-03-morning-walk",
+          "momo-2026-11-03-breakfast",
+          "momo-2026-11-03-indoor-play",
+          "momo-2026-11-03-evening-walk",
+          "momo-2026-11-03-dinner",
+          "momo-2026-11-03-brushing",
+          "momo-2026-11-03-settling"
+        ]
+      },
+      {
+        "id": "momo-story-2026-11-04",
+        "date": "2026-11-04",
+        "title": "Back along the evening path",
+        "body": "Momo walked along the park connector at dusk. Earlier records include breakfast, a mat-rest period and a short game with her rope toy.",
+        "synthetic": true,
+        "status": "available-records-only",
+        "evidenceIds": [
+          "momo-2026-11-04-morning-walk",
+          "momo-2026-11-04-breakfast",
+          "momo-2026-11-04-afternoon-rest",
+          "momo-2026-11-04-indoor-play",
+          "momo-2026-11-04-evening-walk",
+          "momo-2026-11-04-dinner",
+          "momo-2026-11-04-settling"
+        ],
+        "sourceNote": "Fictional caregiver notes and 390 minutes of camera availability. Photos are AI-generated illustrations, not event evidence.",
+        "imageObservationId": "momo-2026-11-04-evening-walk",
+        "imageObservationIds": [
+          "momo-2026-11-04-morning-walk",
+          "momo-2026-11-04-breakfast",
+          "momo-2026-11-04-afternoon-rest",
+          "momo-2026-11-04-indoor-play",
+          "momo-2026-11-04-evening-walk",
+          "momo-2026-11-04-dinner",
+          "momo-2026-11-04-settling"
+        ]
+      }
+    ]
+  },
+  "workspace": {
+    "groupName": "Momo Demo Care Space",
+    "petSex": "Female",
+    "scenarioDate": "2026-11-04",
+    "contexts": [],
+    "observations": [
+      {
+        "id": "momo-2026-11-04-settling",
+        "title": "Settling on the mat",
+        "note": "Demo record. Lay on the living-room mat after the toys were put away. Overnight sleep duration was not measured. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-04-settling.jpg",
+        "momentCount": 1,
+        "context": "The camera connection was restored; the caregiver confirmed the walk times.",
+        "privateRecord": false,
+        "savedAt": "2026-11-04T21:29:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "settle",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-04T21:15:00+08:00",
+        "endedAt": "2026-11-04T21:27:00+08:00",
+        "metrics": {
+          "durationMinutes": 12
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-04-settling",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-04-dinner",
+        "title": "Dinner",
+        "note": "Demo record. About 140 g of the usual dry food was eaten, based on the caregiver’s bowl measurements. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-04-dinner.jpg",
+        "momentCount": 1,
+        "context": "The camera connection was restored; the caregiver confirmed the walk times.",
+        "privateRecord": false,
+        "savedAt": "2026-11-04T19:40:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "meal",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-04T19:30:00+08:00",
+        "endedAt": "2026-11-04T19:38:00+08:00",
+        "metrics": {
+          "consumedGrams": 140,
+          "durationMinutes": 8
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-04-dinner",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ],
+        "foodType": "Usual dry kibble"
+      },
+      {
+        "id": "momo-2026-11-04-evening-walk",
+        "title": "Evening walk",
+        "note": "Demo record. Walked along the familiar park connector for 38 minutes. Sniffing pauses are included in the duration. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/07_evening_walk.jpg",
+        "momentCount": 1,
+        "context": "The camera connection was restored; the caregiver confirmed the walk times.",
+        "privateRecord": false,
+        "savedAt": "2026-11-04T19:15:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "walk",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-04T18:35:00+08:00",
+        "endedAt": "2026-11-04T19:13:00+08:00",
+        "metrics": {
+          "durationMinutes": 38
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-04-evening-walk",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-04-indoor-play",
+        "title": "Rope-toy play",
+        "note": "Demo record. Carried the rope toy over and played with the caregiver for 16 minutes, then left the toy on the rug. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-04-indoor-play.jpg",
+        "momentCount": 1,
+        "context": "The camera connection was restored; the caregiver confirmed the walk times.",
+        "privateRecord": false,
+        "savedAt": "2026-11-04T16:38:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "play",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-04T16:20:00+08:00",
+        "endedAt": "2026-11-04T16:36:00+08:00",
+        "metrics": {
+          "durationMinutes": 16
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-04-indoor-play",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-04-afternoon-rest",
+        "title": "Resting by the sofa",
+        "note": "Demo record. Available camera footage shows 92 minutes of lying on the mat, with occasional head lifts. This is observed rest, not confirmed sleep or total daily rest. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-04-afternoon-rest.jpg",
+        "momentCount": 1,
+        "context": "The camera connection was restored; the caregiver confirmed the walk times.",
+        "privateRecord": false,
+        "savedAt": "2026-11-04T14:44:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "rest",
+        "sourceKind": "camera",
+        "observedAt": "2026-11-04T13:10:00+08:00",
+        "endedAt": "2026-11-04T14:42:00+08:00",
+        "metrics": {
+          "durationMinutes": 92
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-04-afternoon-rest",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-04-breakfast",
+        "title": "Breakfast",
+        "note": "Demo record. The caregiver weighed the usual dry food before and after breakfast; about 135 g was eaten. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-04-breakfast.jpg",
+        "momentCount": 1,
+        "context": "The camera connection was restored; the caregiver confirmed the walk times.",
+        "privateRecord": false,
+        "savedAt": "2026-11-04T08:14:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "meal",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-04T08:05:00+08:00",
+        "endedAt": "2026-11-04T08:12:00+08:00",
+        "metrics": {
+          "consumedGrams": 135,
+          "durationMinutes": 7
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-04-breakfast",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ],
+        "foodType": "Usual dry kibble"
+      },
+      {
+        "id": "momo-2026-11-04-morning-walk",
+        "title": "Morning sniff walk",
+        "note": "Demo record. Walked for 33 minutes with several stops to sniff. The caregiver recorded the start and end times. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-04-morning-walk.jpg",
+        "momentCount": 1,
+        "context": "The camera connection was restored; the caregiver confirmed the walk times.",
+        "privateRecord": false,
+        "savedAt": "2026-11-04T07:40:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "walk",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-04T07:05:00+08:00",
+        "endedAt": "2026-11-04T07:38:00+08:00",
+        "metrics": {
+          "durationMinutes": 33
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-04-morning-walk",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-03-settling",
+        "title": "Settling on the mat",
+        "note": "Demo record. Lay on the living-room mat after the toys were put away. Overnight sleep duration was not measured. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-03-settling.jpg",
+        "momentCount": 1,
+        "context": "Camera disconnected from 10:05 to 18:40; caregiver notes cover meals and walks, but afternoon rest is unknown.",
+        "privateRecord": false,
+        "savedAt": "2026-11-03T21:28:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "settle",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-03T21:15:00+08:00",
+        "endedAt": "2026-11-03T21:26:00+08:00",
+        "metrics": {
+          "durationMinutes": 11
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-03-settling",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-03-brushing",
+        "title": "Evening brushing",
+        "note": "Demo record. The caregiver brushed Momo’s shoulders and back for 9 minutes, with two short pauses. Momo remained seated for most of the session. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/06_brushing.jpg",
+        "momentCount": 1,
+        "context": "Camera disconnected from 10:05 to 18:40; caregiver notes cover meals and walks, but afternoon rest is unknown.",
+        "privateRecord": false,
+        "savedAt": "2026-11-03T20:21:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "grooming",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-03T20:10:00+08:00",
+        "endedAt": "2026-11-03T20:19:00+08:00",
+        "metrics": {
+          "durationMinutes": 9
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-03-brushing",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-03-dinner",
+        "title": "Dinner",
+        "note": "Demo record. About 140 g of the usual dry food was eaten, based on the caregiver’s bowl measurements. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-03-dinner.jpg",
+        "momentCount": 1,
+        "context": "Camera disconnected from 10:05 to 18:40; caregiver notes cover meals and walks, but afternoon rest is unknown.",
+        "privateRecord": false,
+        "savedAt": "2026-11-03T19:42:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "meal",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-03T19:30:00+08:00",
+        "endedAt": "2026-11-03T19:40:00+08:00",
+        "metrics": {
+          "consumedGrams": 140,
+          "durationMinutes": 10
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-03-dinner",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ],
+        "foodType": "Usual dry kibble"
+      },
+      {
+        "id": "momo-2026-11-03-evening-walk",
+        "title": "Evening walk",
+        "note": "Demo record. Walked along the familiar park connector for 34 minutes. Sniffing pauses are included in the duration. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-03-evening-walk.jpg",
+        "momentCount": 1,
+        "context": "Camera disconnected from 10:05 to 18:40; caregiver notes cover meals and walks, but afternoon rest is unknown.",
+        "privateRecord": false,
+        "savedAt": "2026-11-03T19:11:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "walk",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-03T18:35:00+08:00",
+        "endedAt": "2026-11-03T19:09:00+08:00",
+        "metrics": {
+          "durationMinutes": 34
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-03-evening-walk",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-03-indoor-play",
+        "title": "Rope-toy play",
+        "note": "Demo record. Carried the rope toy over and played with the caregiver for 10 minutes, then left the toy on the rug. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-03-indoor-play.jpg",
+        "momentCount": 1,
+        "context": "Camera disconnected from 10:05 to 18:40; caregiver notes cover meals and walks, but afternoon rest is unknown.",
+        "privateRecord": false,
+        "savedAt": "2026-11-03T16:32:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "play",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-03T16:20:00+08:00",
+        "endedAt": "2026-11-03T16:30:00+08:00",
+        "metrics": {
+          "durationMinutes": 10
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-03-indoor-play",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-03-breakfast",
+        "title": "Breakfast",
+        "note": "Demo record. The caregiver weighed the usual dry food before and after breakfast; about 130 g was eaten. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-03-breakfast.jpg",
+        "momentCount": 1,
+        "context": "Camera disconnected from 10:05 to 18:40; caregiver notes cover meals and walks, but afternoon rest is unknown.",
+        "privateRecord": false,
+        "savedAt": "2026-11-03T08:16:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "meal",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-03T08:05:00+08:00",
+        "endedAt": "2026-11-03T08:14:00+08:00",
+        "metrics": {
+          "consumedGrams": 130,
+          "durationMinutes": 9
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-03-breakfast",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ],
+        "foodType": "Usual dry kibble"
+      },
+      {
+        "id": "momo-2026-11-03-morning-walk",
+        "title": "Morning sniff walk",
+        "note": "Demo record. Walked for 31 minutes with several stops to sniff. The caregiver recorded the start and end times. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-03-morning-walk.jpg",
+        "momentCount": 1,
+        "context": "Camera disconnected from 10:05 to 18:40; caregiver notes cover meals and walks, but afternoon rest is unknown.",
+        "privateRecord": false,
+        "savedAt": "2026-11-03T07:38:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "walk",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-03T07:05:00+08:00",
+        "endedAt": "2026-11-03T07:36:00+08:00",
+        "metrics": {
+          "durationMinutes": 31
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-03-morning-walk",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-02-settling",
+        "title": "Settling on the mat",
+        "note": "Demo record. Lay on the living-room mat after the toys were put away. Overnight sleep duration was not measured. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-02-settling.jpg",
+        "momentCount": 1,
+        "context": "Fictional rain scenario: the caregiver shortened both walks and added an indoor scent game.",
+        "privateRecord": false,
+        "savedAt": "2026-11-02T21:27:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "settle",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-02T21:15:00+08:00",
+        "endedAt": "2026-11-02T21:25:00+08:00",
+        "metrics": {
+          "durationMinutes": 10
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-02-settling",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-02-dinner",
+        "title": "Dinner",
+        "note": "Demo record. About 135 g of the usual dry food was eaten, based on the caregiver’s bowl measurements. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-02-dinner.jpg",
+        "momentCount": 1,
+        "context": "Fictional rain scenario: the caregiver shortened both walks and added an indoor scent game.",
+        "privateRecord": false,
+        "savedAt": "2026-11-02T19:41:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "meal",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-02T19:30:00+08:00",
+        "endedAt": "2026-11-02T19:39:00+08:00",
+        "metrics": {
+          "consumedGrams": 135,
+          "durationMinutes": 9
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-02-dinner",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ],
+        "foodType": "Usual dry kibble"
+      },
+      {
+        "id": "momo-2026-11-02-evening-walk",
+        "title": "Evening walk",
+        "note": "Demo record. Walked along the familiar park connector for 24 minutes. Sniffing pauses are included in the duration. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-02-evening-walk.jpg",
+        "momentCount": 1,
+        "context": "Fictional rain scenario: the caregiver shortened both walks and added an indoor scent game.",
+        "privateRecord": false,
+        "savedAt": "2026-11-02T19:01:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "walk",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-02T18:35:00+08:00",
+        "endedAt": "2026-11-02T18:59:00+08:00",
+        "metrics": {
+          "durationMinutes": 24
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-02-evening-walk",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-02-indoor-play",
+        "title": "Indoor scent game",
+        "note": "Demo record. Explored a snuffle mat with the caregiver for 25 minutes. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/05_rainy_scent_game.jpg",
+        "momentCount": 1,
+        "context": "Fictional rain scenario: the caregiver shortened both walks and added an indoor scent game.",
+        "privateRecord": false,
+        "savedAt": "2026-11-02T16:47:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "play",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-02T16:20:00+08:00",
+        "endedAt": "2026-11-02T16:45:00+08:00",
+        "metrics": {
+          "durationMinutes": 25
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-02-indoor-play",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-02-afternoon-rest",
+        "title": "Resting by the sofa",
+        "note": "Demo record. Available camera footage shows 112 minutes of lying on the mat, with occasional head lifts. This is observed rest, not confirmed sleep or total daily rest. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-02-afternoon-rest.jpg",
+        "momentCount": 1,
+        "context": "Fictional rain scenario: the caregiver shortened both walks and added an indoor scent game.",
+        "privateRecord": false,
+        "savedAt": "2026-11-02T15:04:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "rest",
+        "sourceKind": "camera",
+        "observedAt": "2026-11-02T13:10:00+08:00",
+        "endedAt": "2026-11-02T15:02:00+08:00",
+        "metrics": {
+          "durationMinutes": 112
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-02-afternoon-rest",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-02-breakfast",
+        "title": "Breakfast",
+        "note": "Demo record. The caregiver weighed the usual dry food before and after breakfast; about 135 g was eaten. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-02-breakfast.jpg",
+        "momentCount": 1,
+        "context": "Fictional rain scenario: the caregiver shortened both walks and added an indoor scent game.",
+        "privateRecord": false,
+        "savedAt": "2026-11-02T08:15:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "meal",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-02T08:05:00+08:00",
+        "endedAt": "2026-11-02T08:13:00+08:00",
+        "metrics": {
+          "consumedGrams": 135,
+          "durationMinutes": 8
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-02-breakfast",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ],
+        "foodType": "Usual dry kibble"
+      },
+      {
+        "id": "momo-2026-11-02-morning-walk",
+        "title": "Morning sniff walk",
+        "note": "Demo record. Walked for 20 minutes with several stops to sniff. The caregiver recorded the start and end times. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-02-morning-walk.jpg",
+        "momentCount": 1,
+        "context": "Fictional rain scenario: the caregiver shortened both walks and added an indoor scent game.",
+        "privateRecord": false,
+        "savedAt": "2026-11-02T07:27:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "walk",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-02T07:05:00+08:00",
+        "endedAt": "2026-11-02T07:25:00+08:00",
+        "metrics": {
+          "durationMinutes": 20
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-02-morning-walk",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-01-settling",
+        "title": "Settling on the mat",
+        "note": "Demo record. Lay on the living-room mat after the toys were put away. Overnight sleep duration was not measured. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-01-settling.jpg",
+        "momentCount": 1,
+        "context": "A visitor stopped by from 15:30 to 16:00.",
+        "privateRecord": false,
+        "savedAt": "2026-11-01T21:30:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "settle",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-01T21:15:00+08:00",
+        "endedAt": "2026-11-01T21:28:00+08:00",
+        "metrics": {
+          "durationMinutes": 13
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-01-settling",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-01-dinner",
+        "title": "Dinner",
+        "note": "Demo record. About 140 g of the usual dry food was eaten, based on the caregiver’s bowl measurements. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/04_dinner.jpg",
+        "momentCount": 1,
+        "context": "A visitor stopped by from 15:30 to 16:00.",
+        "privateRecord": false,
+        "savedAt": "2026-11-01T19:40:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "meal",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-01T19:30:00+08:00",
+        "endedAt": "2026-11-01T19:38:00+08:00",
+        "metrics": {
+          "consumedGrams": 140,
+          "durationMinutes": 8
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-01-dinner",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ],
+        "foodType": "Usual dry kibble"
+      },
+      {
+        "id": "momo-2026-11-01-evening-walk",
+        "title": "Evening walk",
+        "note": "Demo record. Walked along the familiar park connector for 36 minutes. Sniffing pauses are included in the duration. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-01-evening-walk.jpg",
+        "momentCount": 1,
+        "context": "A visitor stopped by from 15:30 to 16:00.",
+        "privateRecord": false,
+        "savedAt": "2026-11-01T19:13:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "walk",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-01T18:35:00+08:00",
+        "endedAt": "2026-11-01T19:11:00+08:00",
+        "metrics": {
+          "durationMinutes": 36
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-01-evening-walk",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-01-indoor-play",
+        "title": "Rope-toy play",
+        "note": "Demo record. Carried the rope toy over and played with the caregiver for 15 minutes, then left the toy on the rug. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-01-indoor-play.jpg",
+        "momentCount": 1,
+        "context": "A visitor stopped by from 15:30 to 16:00.",
+        "privateRecord": false,
+        "savedAt": "2026-11-01T16:37:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "play",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-01T16:20:00+08:00",
+        "endedAt": "2026-11-01T16:35:00+08:00",
+        "metrics": {
+          "durationMinutes": 15
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-01-indoor-play",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-01-visitor",
+        "title": "A visitor at home",
+        "note": "Demo record. Approached the visitor’s shoes to sniff, then returned to the mat. The caregiver provided this context. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-01-visitor.jpg",
+        "momentCount": 1,
+        "context": "A visitor stopped by from 15:30 to 16:00.",
+        "privateRecord": false,
+        "savedAt": "2026-11-01T15:41:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "social",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-01T15:35:00+08:00",
+        "endedAt": "2026-11-01T15:39:00+08:00",
+        "metrics": {
+          "durationMinutes": 4
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-01-visitor",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-01-afternoon-rest",
+        "title": "Resting by the sofa",
+        "note": "Demo record. Available camera footage shows 100 minutes of lying on the mat, with occasional head lifts. This is observed rest, not confirmed sleep or total daily rest. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-01-afternoon-rest.jpg",
+        "momentCount": 1,
+        "context": "A visitor stopped by from 15:30 to 16:00.",
+        "privateRecord": false,
+        "savedAt": "2026-11-01T14:52:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "rest",
+        "sourceKind": "camera",
+        "observedAt": "2026-11-01T13:10:00+08:00",
+        "endedAt": "2026-11-01T14:50:00+08:00",
+        "metrics": {
+          "durationMinutes": 100
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-01-afternoon-rest",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-11-01-breakfast",
+        "title": "Breakfast",
+        "note": "Demo record. The caregiver weighed the usual dry food before and after breakfast; about 135 g was eaten. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-01-breakfast.jpg",
+        "momentCount": 1,
+        "context": "A visitor stopped by from 15:30 to 16:00.",
+        "privateRecord": false,
+        "savedAt": "2026-11-01T08:14:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "meal",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-01T08:05:00+08:00",
+        "endedAt": "2026-11-01T08:12:00+08:00",
+        "metrics": {
+          "consumedGrams": 135,
+          "durationMinutes": 7
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-01-breakfast",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ],
+        "foodType": "Usual dry kibble"
+      },
+      {
+        "id": "momo-2026-11-01-morning-walk",
+        "title": "Morning sniff walk",
+        "note": "Demo record. Walked for 38 minutes with several stops to sniff. The caregiver recorded the start and end times. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-11-01-morning-walk.jpg",
+        "momentCount": 1,
+        "context": "A visitor stopped by from 15:30 to 16:00.",
+        "privateRecord": false,
+        "savedAt": "2026-11-01T07:45:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "walk",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-11-01T07:05:00+08:00",
+        "endedAt": "2026-11-01T07:43:00+08:00",
+        "metrics": {
+          "durationMinutes": 38
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-11-01-morning-walk",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-10-31-settling",
+        "title": "Settling on the mat",
+        "note": "Demo record. Lay on the living-room mat after the toys were put away. Overnight sleep duration was not measured. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-31-settling.jpg",
+        "momentCount": 1,
+        "context": "Weekend: a longer morning park visit.",
+        "privateRecord": false,
+        "savedAt": "2026-10-31T21:29:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "settle",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-31T21:15:00+08:00",
+        "endedAt": "2026-10-31T21:27:00+08:00",
+        "metrics": {
+          "durationMinutes": 12
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-31-settling",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-10-31-dinner",
+        "title": "Dinner",
+        "note": "Demo record. About 140 g of the usual dry food was eaten, based on the caregiver’s bowl measurements. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-31-dinner.jpg",
+        "momentCount": 1,
+        "context": "Weekend: a longer morning park visit.",
+        "privateRecord": false,
+        "savedAt": "2026-10-31T19:42:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "meal",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-31T19:30:00+08:00",
+        "endedAt": "2026-10-31T19:40:00+08:00",
+        "metrics": {
+          "consumedGrams": 140,
+          "durationMinutes": 10
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-31-dinner",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ],
+        "foodType": "Usual dry kibble"
+      },
+      {
+        "id": "momo-2026-10-31-evening-walk",
+        "title": "Evening walk",
+        "note": "Demo record. Walked along the familiar park connector for 41 minutes. Sniffing pauses are included in the duration. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-31-evening-walk.jpg",
+        "momentCount": 1,
+        "context": "Weekend: a longer morning park visit.",
+        "privateRecord": false,
+        "savedAt": "2026-10-31T19:18:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "walk",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-31T18:35:00+08:00",
+        "endedAt": "2026-10-31T19:16:00+08:00",
+        "metrics": {
+          "durationMinutes": 41
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-31-evening-walk",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-10-31-indoor-play",
+        "title": "Rope-toy play",
+        "note": "Demo record. Carried the rope toy over and played with the caregiver for 20 minutes, then left the toy on the rug. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/03_rope_play.jpg",
+        "momentCount": 1,
+        "context": "Weekend: a longer morning park visit.",
+        "privateRecord": false,
+        "savedAt": "2026-10-31T16:42:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "play",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-31T16:20:00+08:00",
+        "endedAt": "2026-10-31T16:40:00+08:00",
+        "metrics": {
+          "durationMinutes": 20
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-31-indoor-play",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-10-31-afternoon-rest",
+        "title": "Resting by the sofa",
+        "note": "Demo record. Available camera footage shows 105 minutes of lying on the mat, with occasional head lifts. This is observed rest, not confirmed sleep or total daily rest. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-31-afternoon-rest.jpg",
+        "momentCount": 1,
+        "context": "Weekend: a longer morning park visit.",
+        "privateRecord": false,
+        "savedAt": "2026-10-31T14:57:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "rest",
+        "sourceKind": "camera",
+        "observedAt": "2026-10-31T13:10:00+08:00",
+        "endedAt": "2026-10-31T14:55:00+08:00",
+        "metrics": {
+          "durationMinutes": 105
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-31-afternoon-rest",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-10-31-breakfast",
+        "title": "Breakfast",
+        "note": "Demo record. The caregiver weighed the usual dry food before and after breakfast; about 140 g was eaten. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-31-breakfast.jpg",
+        "momentCount": 1,
+        "context": "Weekend: a longer morning park visit.",
+        "privateRecord": false,
+        "savedAt": "2026-10-31T08:16:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "meal",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-31T08:05:00+08:00",
+        "endedAt": "2026-10-31T08:14:00+08:00",
+        "metrics": {
+          "consumedGrams": 140,
+          "durationMinutes": 9
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-31-breakfast",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ],
+        "foodType": "Usual dry kibble"
+      },
+      {
+        "id": "momo-2026-10-31-morning-walk",
+        "title": "Morning sniff walk",
+        "note": "Demo record. Walked for 42 minutes with several stops to sniff. The caregiver recorded the start and end times. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-31-morning-walk.jpg",
+        "momentCount": 1,
+        "context": "Weekend: a longer morning park visit.",
+        "privateRecord": false,
+        "savedAt": "2026-10-31T07:49:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "walk",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-31T07:05:00+08:00",
+        "endedAt": "2026-10-31T07:47:00+08:00",
+        "metrics": {
+          "durationMinutes": 42
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-31-morning-walk",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-10-30-settling",
+        "title": "Settling on the mat",
+        "note": "Demo record. Lay on the living-room mat after the toys were put away. Overnight sleep duration was not measured. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-30-settling.jpg",
+        "momentCount": 1,
+        "context": "The caregiver worked from home.",
+        "privateRecord": false,
+        "savedAt": "2026-10-30T21:28:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "settle",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-30T21:15:00+08:00",
+        "endedAt": "2026-10-30T21:26:00+08:00",
+        "metrics": {
+          "durationMinutes": 11
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-30-settling",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-10-30-dinner",
+        "title": "Dinner",
+        "note": "Demo record. About 135 g of the usual dry food was eaten, based on the caregiver’s bowl measurements. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-30-dinner.jpg",
+        "momentCount": 1,
+        "context": "The caregiver worked from home.",
+        "privateRecord": false,
+        "savedAt": "2026-10-30T19:41:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "meal",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-30T19:30:00+08:00",
+        "endedAt": "2026-10-30T19:39:00+08:00",
+        "metrics": {
+          "consumedGrams": 135,
+          "durationMinutes": 9
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-30-dinner",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ],
+        "foodType": "Usual dry kibble"
+      },
+      {
+        "id": "momo-2026-10-30-evening-walk",
+        "title": "Evening walk",
+        "note": "Demo record. Walked along the familiar park connector for 37 minutes. Sniffing pauses are included in the duration. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-30-evening-walk.jpg",
+        "momentCount": 1,
+        "context": "The caregiver worked from home.",
+        "privateRecord": false,
+        "savedAt": "2026-10-30T19:14:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "walk",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-30T18:35:00+08:00",
+        "endedAt": "2026-10-30T19:12:00+08:00",
+        "metrics": {
+          "durationMinutes": 37
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-30-evening-walk",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-10-30-indoor-play",
+        "title": "Rope-toy play",
+        "note": "Demo record. Carried the rope toy over and played with the caregiver for 12 minutes, then left the toy on the rug. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-30-indoor-play.jpg",
+        "momentCount": 1,
+        "context": "The caregiver worked from home.",
+        "privateRecord": false,
+        "savedAt": "2026-10-30T16:34:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "play",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-30T16:20:00+08:00",
+        "endedAt": "2026-10-30T16:32:00+08:00",
+        "metrics": {
+          "durationMinutes": 12
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-30-indoor-play",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-10-30-afternoon-rest",
+        "title": "Resting by the sofa",
+        "note": "Demo record. Available camera footage shows 96 minutes of lying on the mat, with occasional head lifts. This is observed rest, not confirmed sleep or total daily rest. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/02_window_rest.jpg",
+        "momentCount": 1,
+        "context": "The caregiver worked from home.",
+        "privateRecord": false,
+        "savedAt": "2026-10-30T14:48:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "rest",
+        "sourceKind": "camera",
+        "observedAt": "2026-10-30T13:10:00+08:00",
+        "endedAt": "2026-10-30T14:46:00+08:00",
+        "metrics": {
+          "durationMinutes": 96
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-30-afternoon-rest",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-10-30-breakfast",
+        "title": "Breakfast",
+        "note": "Demo record. The caregiver weighed the usual dry food before and after breakfast; about 135 g was eaten. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-30-breakfast.jpg",
+        "momentCount": 1,
+        "context": "The caregiver worked from home.",
+        "privateRecord": false,
+        "savedAt": "2026-10-30T08:15:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "meal",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-30T08:05:00+08:00",
+        "endedAt": "2026-10-30T08:13:00+08:00",
+        "metrics": {
+          "consumedGrams": 135,
+          "durationMinutes": 8
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-30-breakfast",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ],
+        "foodType": "Usual dry kibble"
+      },
+      {
+        "id": "momo-2026-10-30-morning-walk",
+        "title": "Morning sniff walk",
+        "note": "Demo record. Walked for 30 minutes with several stops to sniff. The caregiver recorded the start and end times. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-30-morning-walk.jpg",
+        "momentCount": 1,
+        "context": "The caregiver worked from home.",
+        "privateRecord": false,
+        "savedAt": "2026-10-30T07:37:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "walk",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-30T07:05:00+08:00",
+        "endedAt": "2026-10-30T07:35:00+08:00",
+        "metrics": {
+          "durationMinutes": 30
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-30-morning-walk",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-10-29-settling",
+        "title": "Settling on the mat",
+        "note": "Demo record. Lay on the living-room mat after the toys were put away. Overnight sleep duration was not measured. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-29-settling.jpg",
+        "momentCount": 1,
+        "context": "A familiar weekday routine.",
+        "privateRecord": false,
+        "savedAt": "2026-10-29T21:27:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "settle",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-29T21:15:00+08:00",
+        "endedAt": "2026-10-29T21:25:00+08:00",
+        "metrics": {
+          "durationMinutes": 10
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-29-settling",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-10-29-dinner",
+        "title": "Dinner",
+        "note": "Demo record. About 140 g of the usual dry food was eaten, based on the caregiver’s bowl measurements. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-29-dinner.jpg",
+        "momentCount": 1,
+        "context": "A familiar weekday routine.",
+        "privateRecord": false,
+        "savedAt": "2026-10-29T19:40:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "meal",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-29T19:30:00+08:00",
+        "endedAt": "2026-10-29T19:38:00+08:00",
+        "metrics": {
+          "consumedGrams": 140,
+          "durationMinutes": 8
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-29-dinner",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ],
+        "foodType": "Usual dry kibble"
+      },
+      {
+        "id": "momo-2026-10-29-evening-walk",
+        "title": "Evening walk",
+        "note": "Demo record. Walked along the familiar park connector for 35 minutes. Sniffing pauses are included in the duration. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-29-evening-walk.jpg",
+        "momentCount": 1,
+        "context": "A familiar weekday routine.",
+        "privateRecord": false,
+        "savedAt": "2026-10-29T19:12:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "walk",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-29T18:35:00+08:00",
+        "endedAt": "2026-10-29T19:10:00+08:00",
+        "metrics": {
+          "durationMinutes": 35
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-29-evening-walk",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-10-29-indoor-play",
+        "title": "Rope-toy play",
+        "note": "Demo record. Carried the rope toy over and played with the caregiver for 14 minutes, then left the toy on the rug. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-29-indoor-play.jpg",
+        "momentCount": 1,
+        "context": "A familiar weekday routine.",
+        "privateRecord": false,
+        "savedAt": "2026-10-29T16:36:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "play",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-29T16:20:00+08:00",
+        "endedAt": "2026-10-29T16:34:00+08:00",
+        "metrics": {
+          "durationMinutes": 14
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-29-indoor-play",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-10-29-afternoon-rest",
+        "title": "Resting by the sofa",
+        "note": "Demo record. Available camera footage shows 88 minutes of lying on the mat, with occasional head lifts. This is observed rest, not confirmed sleep or total daily rest. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-29-afternoon-rest.jpg",
+        "momentCount": 1,
+        "context": "A familiar weekday routine.",
+        "privateRecord": false,
+        "savedAt": "2026-10-29T14:40:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "rest",
+        "sourceKind": "camera",
+        "observedAt": "2026-10-29T13:10:00+08:00",
+        "endedAt": "2026-10-29T14:38:00+08:00",
+        "metrics": {
+          "durationMinutes": 88
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-29-afternoon-rest",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      },
+      {
+        "id": "momo-2026-10-29-breakfast",
+        "title": "Breakfast",
+        "note": "Demo record. The caregiver weighed the usual dry food before and after breakfast; about 135 g was eaten. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/2026-10-29-breakfast.jpg",
+        "momentCount": 1,
+        "context": "A familiar weekday routine.",
+        "privateRecord": false,
+        "savedAt": "2026-10-29T08:14:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "meal",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-29T08:05:00+08:00",
+        "endedAt": "2026-10-29T08:12:00+08:00",
+        "metrics": {
+          "consumedGrams": 135,
+          "durationMinutes": 7
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-29-breakfast",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ],
+        "foodType": "Usual dry kibble"
+      },
+      {
+        "id": "momo-2026-10-29-morning-walk",
+        "title": "Morning sniff walk",
+        "note": "Demo record. Walked for 32 minutes with several stops to sniff. The caregiver recorded the start and end times. The photo is an AI-generated illustration.",
+        "image": "https://efihvahumvqyaumdqpcy.supabase.co/storage/v1/object/public/pawsona-demo/momo-v2/01_morning_sniff.jpg",
+        "momentCount": 1,
+        "context": "A familiar weekday routine.",
+        "privateRecord": false,
+        "savedAt": "2026-10-29T07:39:00+08:00",
+        "authorName": "Demo caregiver",
+        "synthetic": true,
+        "observationKind": "walk",
+        "sourceKind": "caregiver",
+        "observedAt": "2026-10-29T07:05:00+08:00",
+        "endedAt": "2026-10-29T07:37:00+08:00",
+        "metrics": {
+          "durationMinutes": 32
+        },
+        "mediaProvenance": "ai_generated_illustration",
+        "mediaType": "image",
+        "sourceNotes": [
+          {
+            "id": "demo-provenance-momo-2026-10-29-morning-walk",
+            "label": "Demo data",
+            "text": "Fictional activity record with a unique AI-generated illustration. Not a real camera capture."
+          }
+        ]
+      }
+    ],
+    "momentEngagement": {},
+    "drafts": [],
+    "visibility": null,
+    "askMessages": [],
+    "careMembers": [],
+    "careTasks": [],
+    "careEvent": null,
+    "mediaSources": [],
+    "patterns": [],
+    "lifeEvents": [],
+    "insightReviews": [],
+    "demoSeed": {
+      "datasetId": "momo-seven-days-20261105-v1",
+      "synthetic": true,
+      "mediaRevision": "v2-all-50-observations-illustrated"
+    }
+  }
+}
