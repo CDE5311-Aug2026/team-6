@@ -34,3 +34,40 @@ test('distinct fallback images round trip to their original media references', (
   assert.equal(stableReferenceForBlob(pa,encoded),a);
   assert.equal(stableReferenceForBlob(pb,encoded),b);
 });
+
+test('distinguishes failed Storage media from a genuine text-only moment or normal SVG', async () => {
+  const { isUnavailableMedia } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
+  assert.equal(isUnavailableMedia(unavailableMediaPlaceholder('pawsona-media://owner/photo')), true);
+  assert.equal(isUnavailableMedia(''), false);
+  assert.equal(isUnavailableMedia('https://example.com/photo.png'), false);
+  assert.equal(isUnavailableMedia('data:image/svg+xml,<svg/>'), false);
+});
+
+test('a denied download retries on the next sync and preserves the original upload reference', async () => {
+  let downloads = 0;
+  globalThis.__pawsonaMediaTest = {
+    supabase: { storage: { from: () => ({ download: async () => ++downloads === 1
+      ? { data: null, error: { statusCode: '404', message: 'Object not found' } }
+      : { data: new Blob(['test-image'], { type: 'image/jpeg' }), error: null } }) } },
+    verifiedUser: async () => ({ id: 'qa' }),
+  };
+  const helperUrl = 'data:text/javascript;base64,' + Buffer.from(compiled).toString('base64');
+  const mediaSource = readFileSync(new URL('../src/cloudMedia.ts', import.meta.url), 'utf8')
+    .replace(/^import .* from '\.\/cloud';$/m, 'const { supabase, verifiedUser } = globalThis.__pawsonaMediaTest;')
+    .replace(/^import (.*) from '\.\/cloudMediaReferences';$/m, `const $1 = await import('${helperUrl}');`);
+  const js = ts.transpileModule(mediaSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
+  const { CloudMedia } = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'));
+  const media = new CloudMedia('qa');
+  try {
+    const stable = 'pawsona-media://caregiver/photo';
+    const first = await media.decode({ image: stable });
+    assert.match(first.image, /^data:image\/svg\+xml/);
+    assert.deepEqual(await media.encode(first), { image: stable });
+    const recovered = await media.decode({ image: stable });
+    assert.equal(downloads, 2);
+    assert.match(recovered.image, /^blob:/);
+    assert.deepEqual(await media.encode(recovered), { image: stable });
+    await media.decode({ image: stable });
+    assert.equal(downloads, 2, 'successful downloads remain cached');
+  } finally { media.dispose(); delete globalThis.__pawsonaMediaTest; }
+});

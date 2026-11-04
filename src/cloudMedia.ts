@@ -57,8 +57,9 @@ export class CloudMedia {
         const { data, error } = await supabase!.storage.from('pawsona-media').download(path);
         if (error) {
           if (!isUnavailableMediaError(error)) throw error;
-          const placeholder = unavailableMediaPlaceholder(value);
-          this.decoded.set(value, placeholder);
+          const placeholder = unavailableMediaPlaceholder(value, /avatar/i.test(key));
+          // Do not permanently cache a denied/missing download. A later sync
+          // must retry after sharing permissions or upload completion changes.
           this.encoded.set(placeholder, value);
           return placeholder;
         }

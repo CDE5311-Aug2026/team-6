@@ -1,3 +1,4 @@
+import { isUnavailableMedia } from './cloudMediaReferences';
 import RhythmHelp, { RHYTHM_GUIDE_EVENT } from './RhythmHelp';
 import { activityGlyphFor } from './activityGlyph';
 import { SetupWizard, GuidedTour, HelpPage } from './Onboarding';
@@ -544,10 +545,12 @@ function Avatar({ name, src = '' }: { name: string; src?: string }) {
 }
 
 function StoryMediaView({ src, type, alt, controls = false }: { src: string; type?: string; alt: string; controls?: boolean }) {
-  if (type?.startsWith('audio/')) return <audio src={src} aria-label={alt} controls />;
+  const [failedSrc, setFailedSrc] = useState('');
+  if (isUnavailableMedia(src) || failedSrc === src) return <span className="story-media-unavailable" role="img" aria-label={`${alt ? alt + ': ' : ''}Media unavailable`}><span aria-hidden="true">▧</span><small>Media unavailable</small></span>;
+  if (type?.startsWith('audio/')) return <audio src={src} aria-label={alt} controls onError={() => setFailedSrc(src)} />;
   return type?.startsWith('video/')
-    ? <video src={src} aria-label={alt} controls={controls} muted playsInline preload="metadata" />
-    : <img src={src} alt={alt} />;
+    ? <video src={src} aria-label={alt} controls={controls} muted playsInline preload="metadata" onError={() => setFailedSrc(src)} />
+    : <img src={src} alt={alt} onError={() => setFailedSrc(src)} />;
 }
 
 function LinkedEvidenceCard({ moment, petName, detail }: { moment: MomentRecord; petName: string; detail: string }) {
@@ -1433,7 +1436,7 @@ function TodayPage({ onRequestCareTask, onStory, onPetsNavigate, onAddPet, onAct
   const standoutActivity = attentionActivityInsights(rankedActivities, insightReviews)[0];
   const dialStandoutActivity = dialAttentionActivityInsights(rankedActivities, insightReviews)[0];
   const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
-  const featuredRecords = todayRecords.filter(observationHasPrimaryMedia).slice(0, 2);
+  const featuredRecords = todayRecords.slice(0, 2);
   const allChangesLookNormal = rankedActivities.length > 0 && !standoutActivity;
 
   return (
@@ -1443,7 +1446,7 @@ function TodayPage({ onRequestCareTask, onStory, onPetsNavigate, onAddPet, onAct
       {(featuredRecords.length > 0 || standoutActivity || allChangesLookNormal) && <section className={`today-section today-moments-strip ${featuredRecords.length ? 'has-moments' : 'insight-only'}`} aria-label="Recent moments and activity insight">
         {featuredRecords.length > 0 && <MomentCarousel>
           {featuredRecords.map(record => <button className="moment-card" key={record.id} type="button" onClick={() => onOpenMomentDetail(record.id)}>
-            <span className="moment-card-media">{observationHasPrimaryMedia(record) ? <StoryMediaView src={record.image} type={record.mediaType} alt={record.title} /> : <span className="moment-text-preview" aria-hidden="true">✦</span>}<span className="moment-card-copy"><strong>{record.title}</strong></span></span>
+            <span className="moment-card-media">{observationHasPrimaryMedia(record) && !isUnavailableMedia(record.image) ? <StoryMediaView src={record.image} type={record.mediaType} alt={record.title} /> : <span className={`moment-text-preview ${record.image ? 'has-media-error' : ''}`}><span aria-hidden="true">{record.image ? '▧' : activityGlyphFor(record.title, record.observationKind)}</span><small>{record.image ? 'Media unavailable' : record.note || 'Written moment'}</small></span>}<span className="moment-card-copy"><strong>{record.title}</strong></span></span>
           </button>)}
         </MomentCarousel>}
         <button className="notice-card home-moment-insight-card" type="button" onClick={onOpenInsights}>

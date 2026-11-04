@@ -2482,3 +2482,13 @@ button.profile-link, button.activity-insight-link {
 .rhythm-guide-target.is-ring { border: 0; border-radius: 0; box-shadow: none; overflow: hidden; }
 .rhythm-guide-target.is-ring ellipse { fill: none; stroke: #a38831; stroke-width: 2.5; }
 .rhythm-guide-target.is-ring .rhythm-guide-ring-halo { stroke: #fffdf8; stroke-width: 7; }
+
+/* Text-only moments and unavailable uploads are separate, explicit states. */
+.story-media-unavailable { display: flex; flex: none; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 60px; height: 60px; padding: 6px; border-radius: 14px; background: #edf2ee; color: #52675a; text-align: center; }
+.story-media-unavailable > span { font-size: 22px; line-height: 24px; }
+.story-media-unavailable small { font: 400 10px/12px 'Roboto',sans-serif; }
+.moment-carousel-set .moment-card-media > .story-media-unavailable { width: 100%; height: 56px; border-radius: 0; }
+.moment-carousel-set .moment-card-media > .moment-text-preview { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; padding: 7px 8px; background: #edf2ee; color: #354f3d; }
+.moment-text-preview > span { flex: none; font-size: 16px; line-height: 18px; }
+.moment-text-preview small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font: 400 10px/12px 'Roboto',sans-serif; }
+.moment-carousel-set .moment-card-media > .moment-text-preview.has-media-error { background: #f2eee7; color: #756348; }
