@@ -20,6 +20,7 @@ test('Momo daily totals agree with the timestamped records and preserve the came
  assert.equal(new Set(pet.workspace.observations.map(o=>o.observedAt.slice(0,10))).size,7);
  for(const d of pet.testData.dailySummaries){
   const records=pet.workspace.observations.filter(o=>o.observedAt.startsWith(d.date));
+  assert.ok(!/weekday|weekend/i.test(d.context),'Relative demo dates must not retain fixed weekday claims');
   assert.equal(d.totalWalkMinutes,records.filter(o=>o.observationKind==='walk').reduce((n,o)=>n+o.metrics.durationMinutes,0));
   assert.equal(d.foodConsumedGrams,records.filter(o=>o.observationKind==='meal').reduce((n,o)=>n+o.metrics.consumedGrams,0));
   assert.equal(d.indoorPlayMinutes,records.filter(o=>o.observationKind==='play').reduce((n,o)=>n+o.metrics.durationMinutes,0));
