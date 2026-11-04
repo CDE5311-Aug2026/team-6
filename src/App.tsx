@@ -1435,8 +1435,7 @@ function TodayPage({ onRequestCareTask, onStory, onPetsNavigate, onAddPet, onAct
   const rankedActivities = rankDailyActivityInsights(visibleRecords, now);
   const standoutActivity = attentionActivityInsights(rankedActivities, insightReviews)[0];
   const dialStandoutActivity = dialAttentionActivityInsights(rankedActivities, insightReviews)[0];
-  const todayRecords = visibleRecords.filter(record => isSameLocalDay(record.savedAt));
-  const featuredRecords = todayRecords.slice(0, 2);
+  const featuredRecords = visibleRecords.slice(0, 2);
   const allChangesLookNormal = rankedActivities.length > 0 && !standoutActivity;
 
   return (
