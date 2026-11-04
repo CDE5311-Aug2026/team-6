@@ -5,6 +5,7 @@ import { SetupWizard, GuidedTour, HelpPage } from './Onboarding';
 import { QUICK_QUESTIONS, TOUR_STEPS, type SetupValues } from './gettingStarted';
 import TodayCare from './TodayCare';
 import MomentCarousel from './MomentCarousel';
+import HomeActivityStatus from './HomeActivityStatus';
 import BreedPicker from './BreedPicker';
 import { breedAvatar, normalizePetSex, type PetSex } from './petBreeds';
 import PatternSuggestions from './PatternSuggestions';
@@ -1433,26 +1434,21 @@ function TodayPage({ onRequestCareTask, onStory, onPetsNavigate, onAddPet, onAct
     .filter(record => new Date(record.savedAt).getTime() <= now.getTime())
     .sort((left, right) => new Date(right.savedAt).getTime() - new Date(left.savedAt).getTime());
   const rankedActivities = rankDailyActivityInsights(visibleRecords, now);
-  const standoutActivity = attentionActivityInsights(rankedActivities, insightReviews)[0];
+  const homeNeedsAttention = attentionActivityInsights(rankedActivities, insightReviews).some(insight => insight.meetsThreshold || activityInsightReviewFor(insightReviews, insight)?.status === 'watch');
   const dialStandoutActivity = dialAttentionActivityInsights(rankedActivities, insightReviews)[0];
   const featuredRecords = visibleRecords.slice(0, 2);
-  const allChangesLookNormal = rankedActivities.length > 0 && !standoutActivity;
 
   return (
     <>
       <MainHeader eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       {!noPetYet && <>
-      {(featuredRecords.length > 0 || standoutActivity || allChangesLookNormal) && <section className={`today-section today-moments-strip ${featuredRecords.length ? 'has-moments' : 'insight-only'}`} aria-label="Recent moments and activity insight">
+      {(featuredRecords.length > 0 || rankedActivities.length > 0) && <section className={`today-section today-moments-strip ${featuredRecords.length ? 'has-moments' : 'insight-only'}`} aria-label="Recent moments and activity insight">
         {featuredRecords.length > 0 && <MomentCarousel>
           {featuredRecords.map(record => <button className="moment-card" key={record.id} type="button" onClick={() => onOpenMomentDetail(record.id)}>
             <span className="moment-card-media">{observationHasPrimaryMedia(record) && !isUnavailableMedia(record.image) ? <StoryMediaView src={record.image} type={record.mediaType} alt={record.title} /> : <span className={`moment-text-preview ${record.image ? 'has-media-error' : ''}`}><span aria-hidden="true">{record.image ? '▧' : activityGlyphFor(record.title, record.observationKind)}</span><small>{record.image ? 'Media unavailable' : record.note || 'Written moment'}</small></span>}<span className="moment-card-copy"><strong>{record.title}</strong></span></span>
           </button>)}
         </MomentCarousel>}
-        <button className="notice-card home-moment-insight-card" type="button" onClick={onOpenInsights}>
-          <span className="home-moment-insight-heading">Worth a closer look</span>
-          {allChangesLookNormal ? <span className="notice-card-reviewed" aria-hidden="true">✓</span> : <span className="notice-card-alert" aria-hidden="true">!</span>}
-          <span className="home-moment-insight-copy"><strong>{standoutActivity?.activityLabel ?? (allChangesLookNormal ? 'Looking good' : 'Activity update')}</strong><small>{standoutActivity ? `${standoutActivity.key === 'duration' ? 'avg duration' : 'avg food/record'} ${standoutActivity.relativeChange > 0 ? '+' : '−'}${Math.round(Math.abs(standoutActivity.relativeChange) * 100)}% today` : allChangesLookNormal ? `No changes need ${displayName}’s attention` : 'See today’s activity insights'}</small></span>
-        </button>
+        <HomeActivityStatus needsAttention={homeNeedsAttention} onOpenInsights={onOpenInsights} />
       </section>}
       <section className="today-rhythm-care-group">
         <DailyRhythmCard petName={petName} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} onOpenInsights={onOpenInsights} dialStandoutActivity={dialStandoutActivity} rankedActivities={rankedActivities} insightReviews={insightReviews} patterns={patterns} careTasks={careTasks} careMembers={careMembers} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
