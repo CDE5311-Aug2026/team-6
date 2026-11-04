@@ -355,7 +355,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .activity-summary-header .eyebrow { margin: 0; font-size: 9px; line-height: 13px; }
 .activity-summary-header h1 { margin: 1px 0 0; font: 600 18px/24px 'Poppins', sans-serif; }
 .activity-insights-page { gap: 12px; }
-.activity-insights-intro { margin: 0; color: var(--color-text-secondary); font: 400 12px/18px 'Roboto', sans-serif; }
 .activity-insights-list { display: flex; flex-direction: column; gap: 10px; }
 .activity-insight-card { display: flex; flex-direction: column; gap: 7px; padding: 11px 12px; border: 1px solid var(--color-border); border-radius: 16px; background: #fff; }
 .activity-insight-main { display: flex; align-items: flex-start; gap: 10px; }
@@ -384,7 +383,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .activity-insights-method { padding: 12px; border: 1px solid var(--color-border); border-radius: 14px; background: #fff; }
 .activity-insights-method summary { color: var(--color-text-primary); font: 600 11px/16px 'Roboto', sans-serif; cursor: pointer; }
 .activity-insights-method p { margin: 8px 0 0; color: var(--color-text-secondary); font: 400 10px/15px 'Roboto', sans-serif; }
-.activity-insights-health-note { margin: 0; padding: 10px 12px; border-left: 3px solid #e3c86a; border-radius: 0 10px 10px 0; background: #fff9df; color: #706956; font: 400 10px/15px 'Roboto', sans-serif; }
 .activity-summary-pet { display: flex; align-items: center; gap: 11px; padding: 13px 14px; border-radius: 18px; background: #fff0a7; }
 .activity-summary-pet .avatar { width: 42px; height: 42px; border: 2px solid white; border-radius: 50%; object-fit: cover; }
 .activity-summary-pet > span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -2323,7 +2321,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .activity-insight-review > p { font-size: 12px; line-height: 18px; }
 .activity-insight-review-actions button { min-height: 40px; font-size: 12px; line-height: 16px; border-radius: 12px; }
 .activity-insight-review-actions button.is-selected.watch { color: #8a302c; background: #fff0ee; border-color: #ba675f; }
-.activity-insights-health-note { background: #f2f5f3; color: #425349; border-color: #84978b; font-size: 12px; line-height: 18px; }
 .activity-insights-method p { font-size: 12px; line-height: 18px; }
 .today-care-remind { color: #254d3d; background: #edf4ef; }
 /* Expand help in flow so the chart container cannot clip its contents. */
