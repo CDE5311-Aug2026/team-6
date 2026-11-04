@@ -10,7 +10,7 @@ type Props = {
   onRequestHelp: (task: CareTask, recipientId: string) => boolean;
 };
 
-export default function TodayCare({ petName, patterns, observations, tasks, members, currentUserId, canAct, isPrimary, onDone, onOpenPlan, onPatterns, onRequestHelp, dayOffset }: Props) {
+export default function TodayCare({ petName, patterns, observations, tasks, members, currentUserId, canAct, isPrimary, onDone, onOpenPlan, onRequestHelp, dayOffset }: Props) {
   const [now, setNow] = useState(() => new Date());
   const [reminding, setReminding] = useState<string | null>(null);
   const [recipient, setRecipient] = useState('');
@@ -67,7 +67,7 @@ export default function TodayCare({ petName, patterns, observations, tasks, memb
   return <section className="today-care-action" aria-labelledby="today-care-title">
     <header className="today-care-header"><div><h2 id="today-care-title">{selectedLabel}</h2><span className="today-care-progress">{completed.length}/{today.length} done</span></div><button className="today-care-plan" onClick={onOpenPlan}>View all{isSelectedToday && unread > 0 && <span>{unread}</span>}<span aria-hidden="true">→</span></button></header>
     {(incoming > 0 || reminderCount > 0) && <button className="today-care-incoming" onClick={onOpenPlan}>{incoming > 0 ? incoming + ' care requests · Respond' : reminderCount + ' care reminders · Check tasks'} →</button>}
-    {!today.length && <div className="today-care-empty"><p>{isSelectedToday ? `Add a task or confirm a routine to plan ${petName}’s day.` : `No care activities were planned for ${selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.`}</p><button className="primary-button" onClick={onOpenPlan}>{isPrimary && isSelectedToday ? 'Add task' : 'Open care plan'}</button>{isSelectedToday && <button className="today-care-plan" onClick={onPatterns}>Review routine →</button>}</div>}
+    {!today.length && <div className="today-care-empty"><p>{isSelectedToday ? 'Not enough recorded activity yet to generate care tasks automatically.' : `No care activities were planned for ${selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.`}</p></div>}
     {visiblePending.length > 0 && <ol className="today-care-checklist">{visiblePending.map(task => {
       const timing = careTaskTiming(task, now);
       const canComplete = canAct && canToggleCareTaskCompletion(task,currentUserId,isPrimary);
