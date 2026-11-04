@@ -1878,9 +1878,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .moment-carousel-set .moment-card .moment-card-copy { position: static; box-sizing: border-box; flex: 1 1 auto; width: 100%; max-width: 100%; min-height: 0; padding: 5px 8px 6px; border-radius: 0; background: #fff; color: var(--color-text-primary); text-align: left; }
 .moment-carousel-set .moment-card .moment-card-copy strong { display: block; overflow: hidden; color: var(--color-text-primary); font: 600 11px/15px 'Roboto',sans-serif; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .moment-carousel-set .moment-card img { object-position: center center; pointer-events: none; -webkit-user-drag: none; }
-.moment-carousel-pause { position: absolute; z-index: 2; right: 6px; top: 6px; border: 1px solid var(--color-border); border-radius: 12px; padding: 5px 8px; background: var(--color-surface); color: var(--color-text-primary); font-size: 11px; opacity: 0; }
-.moment-carousel:focus-within .moment-carousel-pause, .moment-carousel:hover .moment-carousel-pause { opacity: 1; }
-@media (hover: none) { .moment-carousel-pause { opacity: 1; } }
 
 .ask-thinking-avatar, .ask-thinking-avatar img { display: block; width: 32px; height: 32px; flex: 0 0 32px; object-fit: contain; }
 
@@ -2328,12 +2325,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-dial-controls .daily-rhythm-dial-toggle button { height: 32px; font-size: 12px; color: #4a4539; }
 .daily-rhythm-dial-controls .daily-rhythm-dial-toggle button[aria-pressed="true"] { color: #1a2921; font-weight: 700; }
 .daily-rhythm-dial-toggle.is-full-day .daily-rhythm-dial-toggle-thumb { background: #e3ece7; }
-.rhythm-help { position: relative; z-index: 6; }
-.rhythm-help > summary { display: grid; place-items: center; width: 28px; height: 32px; margin-left: -4px; padding: 6px; border: 0; border-radius: 0; background: transparent; color: #425349; font: 600 14px/20px Roboto, sans-serif; cursor: pointer; list-style: none; }
-.rhythm-help > summary::-webkit-details-marker { display: none; }
-.rhythm-help-panel { position: absolute; left: 0; top: 42px; width: min(292px, 76vw); max-height: 320px; overflow-y: auto; padding: 16px; border: 1px solid #c9d5cc; border-radius: 16px; background: #fff; box-shadow: 0 8px 28px #1a292126; }
-.rhythm-help-panel h3 { margin: 0 0 10px; font-size: 15px; }
-.rhythm-help-panel p { margin: 8px 0; color: #425349; font: 400 13px/1.5 'Roboto',sans-serif; }
 .daily-rhythm-circle-chart .rhythm-hit-target { fill: transparent; stroke: none; pointer-events: all; }
 .activity-insight-card { padding: 14px; gap: 10px; }
 .activity-insight-copy h2 { font-size: 15px; line-height: 22px; }
@@ -2350,10 +2341,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .activity-insights-method p { font-size: 12px; line-height: 18px; }
 .today-care-remind { color: #254d3d; background: #edf4ef; }
 /* Expand help in flow so the chart container cannot clip its contents. */
-.daily-rhythm-circle-heading:has(.rhythm-help[open]) { align-items: flex-start; }
-.rhythm-help[open] { width: 100%; }
-.rhythm-help[open] + .daily-rhythm-dial-controls { position: absolute; top: 0; right: 0; }
-.rhythm-help-panel { position: static; width: 100%; margin-top: 8px; max-height: 300px; box-shadow: none; }
 /* Attention uses red; actions use green; yellow remains the brand accent. */
 .today-moments-strip .home-moment-insight-card { background: #fff1ef; border-color: #ddbbb6; }
 .today-moments-strip .home-moment-insight-card .home-moment-insight-heading { color: #883d37; }
@@ -2467,3 +2454,31 @@ button.profile-link, button.activity-insight-link {
   box-shadow: none;
   color: #5f4700;
 }
+
+/* Contextual dial information and a once-per-browser three-step guide. */
+.rhythm-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.daily-rhythm-header > div:first-child { min-width: 0; }
+.rhythm-title h2 { min-width: 0; }
+.rhythm-info { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 6px; border: 0; background: transparent; color: #65766b; }
+.rhythm-info svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.rhythm-help-dialog { position: fixed; inset: 0; width: min(100%, 390px); max-width: none; height: 100dvh; max-height: none; margin: 0 auto; padding: 0; border: 0; background: transparent; color: #1a2921; overflow: hidden; }
+.rhythm-help-dialog::backdrop { background: #16271e55; }
+.rhythm-help-sheet { position: absolute; bottom: 0; left: 0; right: 0; display: flex; flex-direction: column; max-height: 78dvh; padding: 20px 20px max(20px, env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; background: #fffdf8; box-shadow: 0 -8px 32px #17291e22; }
+.rhythm-help-sheet header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.rhythm-help-sheet h2 { margin: 0; font: 600 18px/26px 'Poppins', sans-serif; outline: none; }
+.rhythm-sheet-close { display: grid; place-items: center; flex: 0 0 32px; height: 32px; padding: 0; border: 0; background: none; color: #425349; font-size: 24px; }
+.rhythm-sheet-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.rhythm-sheet-body h3 { margin: 16px 0 6px; font: 600 14px/20px 'Poppins',sans-serif; }
+.rhythm-sheet-body h3:first-child { margin-top: 0; }
+.rhythm-sheet-body p { margin: 0 0 12px; font: 400 14px/22px 'Roboto', sans-serif; color: #425349; }
+.rhythm-sheet-body .rhythm-guide-count { color: #728075; font-size: 12px; line-height: 18px; }
+.rhythm-help-sheet footer { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 16px; padding-top: 16px; }
+.rhythm-help-sheet footer .primary-button { min-height: 40px; padding: 8px 20px; font-size: 13px; }
+.rhythm-guide-navigation { display: flex; align-items: center; gap: 16px; }
+.rhythm-guide-navigation button:disabled { opacity: .35; }
+.rhythm-guide-target { position: absolute; pointer-events: none; border: 2px solid #a38831; border-radius: 16px; box-shadow: 0 0 0 4px #fffdf888; }
+@media(max-height: 600px) { .rhythm-help-sheet { max-height: 70dvh; padding: 16px; } .rhythm-help-sheet header { margin-bottom: 8px; } }
+
+.rhythm-guide-target.is-ring { border: 0; border-radius: 0; box-shadow: none; overflow: hidden; }
+.rhythm-guide-target.is-ring ellipse { fill: none; stroke: #a38831; stroke-width: 2.5; }
+.rhythm-guide-target.is-ring .rhythm-guide-ring-halo { stroke: #fffdf8; stroke-width: 7; }

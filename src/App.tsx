@@ -1,3 +1,4 @@
+import RhythmHelp, { RHYTHM_GUIDE_EVENT } from './RhythmHelp';
 import { activityGlyphFor } from './activityGlyph';
 import { SetupWizard, GuidedTour, HelpPage } from './Onboarding';
 import { QUICK_QUESTIONS, TOUR_STEPS, type SetupValues } from './gettingStarted';
@@ -957,7 +958,7 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
   const goToNewerDay = () => { if (dayOffset < 0) navigateToDay(dayOffset + 1); };
   return <section className="daily-rhythm-card daily-rhythm-split" aria-labelledby="daily-rhythm-title">
     <header className="daily-rhythm-header">
-      <div><p className="eyebrow">DAILY RHYTHM</p><h2 id="daily-rhythm-title">{displayName}’s day</h2></div>
+      <div><p className="eyebrow">DAILY RHYTHM</p><div className="rhythm-title"><h2 id="daily-rhythm-title">{displayName}’s day</h2><RhythmHelp /></div></div>
       <div className="daily-rhythm-date-nav" aria-label="Selected day">
         {!isToday && <button type="button" className="daily-rhythm-today-button" onClick={() => navigateToDay(0)}>Today</button>}
         <button type="button" aria-label="Show previous day" onClick={goToPreviousDay}>‹</button>
@@ -966,7 +967,7 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
       </div>
     </header>
     <>
-    <div className="daily-rhythm-circle-heading"><details className="rhythm-help"><summary aria-label="How to read Daily Rhythm">?</summary><div className="rhythm-help-panel"><h3>Read the two rings</h3><p><strong>Outer ring · Typical windows</strong><br/>When this activity usually happens, based on confirmed patterns.</p><p><strong>Inner ring · This day</strong><br/>Recorded moments and planned care. A planned task is not evidence that care happened.</p><p><strong>✓ Green:</strong> recorded or completed.<br/><strong>○ Grey:</strong> upcoming.<br/><strong>! Red:</strong> needs attention; check the records first.</p><p>Tap an activity for its time and details. Use Now for the current half day, Full day for 24 hours, and drag the dial to explore time. Missing records do not prove missed care.</p></div></details><span className="daily-rhythm-dial-controls">{isToday ? <span className={`daily-rhythm-dial-toggle ${fullDayDial && !isRevealingHalfDay ? 'is-full-day' : ''} ${isRevealingHalfDay ? 'is-instant' : ''}`} role="group" aria-label="Dial view"><span className="daily-rhythm-dial-toggle-thumb" aria-hidden="true"/><button type="button" aria-pressed={!fullDayDial || isRevealingHalfDay} onClick={() => transitionDialMode(false)}>Now</button><button type="button" aria-pressed={fullDayDial && !isRevealingHalfDay} onClick={() => transitionDialMode(true)}>Full day</button></span> : <span className="daily-rhythm-dial-toggle-spacer" aria-hidden="true"/>}</span></div>
+    <div className="daily-rhythm-circle-heading"><span className="daily-rhythm-dial-controls">{isToday ? <span className={`daily-rhythm-dial-toggle ${fullDayDial && !isRevealingHalfDay ? 'is-full-day' : ''} ${isRevealingHalfDay ? 'is-instant' : ''}`} role="group" aria-label="Dial view"><span className="daily-rhythm-dial-toggle-thumb" aria-hidden="true"/><button type="button" aria-pressed={!fullDayDial || isRevealingHalfDay} onClick={() => transitionDialMode(false)}>Now</button><button type="button" aria-pressed={fullDayDial && !isRevealingHalfDay} onClick={() => transitionDialMode(true)}>Full day</button></span> : <span className="daily-rhythm-dial-toggle-spacer" aria-hidden="true"/>}</span></div>
     <div ref={dialChartRef} className={`daily-rhythm-circle-chart ${fullDayDial ? 'is-full-day' : 'is-half-day'} ${isRevealingFullDay ? 'is-revealing-full-day' : ''} ${isRevealingHalfDay ? 'is-revealing-half-day' : ''}`} onPointerDown={startDialDrag} onPointerMove={moveDialDrag} onPointerUp={endDialDrag} onPointerCancel={endDialDrag}>
       <svg viewBox={fullDayDial ? '0 0 600 600' : '0 0 600 300'} role="img" aria-label={`${displayName}’s ${fullDayDial ? 'full-day' : '12-hour'} activity timeline`}>
       <defs>
@@ -3566,6 +3567,13 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   });
   const [view, setView] = useState<View>('today');
   const [setupOpen, setSetupOpen] = useState(false);
+  const [rhythmGuideRequested, setRhythmGuideRequested] = useState(false);
+  useEffect(() => {
+    if (view === 'today' && rhythmGuideRequested) {
+      window.dispatchEvent(new Event(RHYTHM_GUIDE_EVENT));
+      setRhythmGuideRequested(false);
+    }
+  }, [view, rhythmGuideRequested]);
   const [tourIndex, setTourIndex] = useState<number | null>(null);
   const [profileActivityCategory, setProfileActivityCategory] = useState<ProfileActivityCategory>('favorites');
   const [dailyRhythmDayOffset, setDailyRhythmDayOffset] = useState(0);
@@ -5148,7 +5156,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
             {view === 'undone' && <UndonePage onBack={() => goBack('saved')} onReturnToday={() => navigateTo('today')} onReview={() => navigateTo('overview')} petName={petName} />}
             {view === 'ask' && <AskPage onPetsNavigate={() => navigateTo('pets')} petName={petName} petAvatar={petAvatar} ownerName={ownerName} ownerAvatar={ownerAvatar} messages={askMessages} messageEndRef={askEndRef} noPetYet={activePetRecord.isEmptyProfile ?? false} busy={askBusy} pending={askPending} live={Boolean(cloud)} />}
             {(view === 'pets' || view === 'you') && <SimplePage kind={view} petName={petName} petAvatar={petAvatar} petBreed={petBreed} petAge={petAge} ownerName={ownerName} ownerRole={ownerRole} ownerAvatar={ownerAvatar} ownerPreference={ownerPreference} pets={activeAccount.pets} activePetId={activePetRecord.id} accounts={prototypeSession.accounts} onOpenActivity={(category) => { setProfileActivityCategory(category); navigateTo('favorites'); }} onPetsNavigate={() => navigateTo('pets')} onSettingsNavigate={() => navigateTo('settings')} onPetEdit={() => navigateTo('petDetails')} onProfileEdit={() => navigateTo('profile')} onPetSwitcher={activePetRecord.isEmptyProfile ? openAddPetForm : () => setShowPetSwitcher(true)} careMembers={orderedCareMembers} primaryMemberId={primaryMemberId} onMemberClick={openCareMember} onCareMembers={() => navigateTo('careMembers')} patterns={typicalPatterns} lifeEvents={lifeCareEvents} mediaSources={mediaSources} onPatternHistory={() => openPatternKnowledge()} onPattern={(id) => openPatternKnowledge(id)} onLifeCare={openLifeCare} onConnectedMedia={openConnectedMedia} invitations={view === 'you' ? receivedCareInvitations : []} onAcceptInvitation={acceptCareInvitation} onDeclineInvitation={(id) => updateInvitationStatus(id, 'declined')} careOwnerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} careOwnerAvatar={primaryCaregiverAvatar} careOwnerRole="Primary caregiver" groupName={activeGroupName} canManageCareGroup={isPrimaryCaregiver} canEditPetDetails={isPrimaryCaregiver} canAddLifeCare={canManageLongTermCare} canManageConnectedMedia={canManageLongTermCare} noPetYet={activePetRecord.isEmptyProfile ?? false} />}
-            {view === 'help' && <HelpPage onBack={() => goBack('settings')} onReview={reviewGuide} onSetup={() => setSetupOpen(true)} />}
+            {view === 'help' && <HelpPage onRhythmGuide={() => { setDailyRhythmDayOffset(0); setView('today'); setRhythmGuideRequested(true); }} onBack={() => goBack('settings')} onReview={reviewGuide} onSetup={() => setSetupOpen(true)} />}
             {view === 'favorites' && <ProfileActivityPage pets={activeAccount.pets.map((pet) => pet.id === activePetRecord.id ? { ...pet, workspace: { ...pet.workspace, observations: storyObservations, momentEngagement, contexts: savedContexts, careTasks } } : pet)} initialPetId={activePetRecord.id} initialCategory={profileActivityCategory} currentAccountId={activeAccount.id} currentAccountName={activeAccount.name} onBack={() => goBack('you')} onOpenMoment={openFavoriteMoment} onRemoveFavorites={removeFavoriteMoments} />}
             {view === 'connectedMedia' && <ConnectedMediaPage petName={petName} sources={mediaSources} initialSourceId={selectedMediaSourceId} onBack={() => goBack('you')} onUpdate={saveMediaSource} onDelete={deleteMediaSource} />}
             {view === 'patternHistory' && <PatternKnowledgePage onMoment={openMomentDetail} petId={activePetRecord.id} records={visibleStoryObservations(storyObservations, includedStoryMoments)} live={Boolean(cloud)} petName={petName} ownerName={ownerName} patterns={typicalPatterns} initialPatternId={selectedPatternId} canManage={isPrimaryCaregiver} onBack={() => goBack('pets')} onSave={saveTypicalPattern} onSaveMany={saveTypicalPatterns} onDelete={deleteTypicalPattern} />}

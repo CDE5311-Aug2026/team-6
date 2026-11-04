@@ -1,4 +1,4 @@
-import { Children, Fragment, cloneElement, isValidElement, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { Children, Fragment, cloneElement, isValidElement, useEffect, useRef, type ReactElement, type ReactNode } from 'react';
 
 function cardsIn(children: ReactNode): ReactElement[] {
   return Children.toArray(children).flatMap(child => isValidElement(child)
@@ -14,9 +14,7 @@ export default function MomentCarousel({ children }: { children: ReactNode }) {
   const hovering = useRef(false);
   const dragging = useRef<{ x: number; scroll: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
-  const [paused, setPaused] = useState(false);
-  const pausedRef = useRef(paused);
-  pausedRef.current = paused;
+  const touching = useRef(false);
   const pause = () => { pausedUntil.current = performance.now() + 2000; };
   const signature = cards.map(card => card.key).join('|');
   useEffect(() => {
@@ -35,7 +33,7 @@ export default function MomentCarousel({ children }: { children: ReactNode }) {
     const intersection = new IntersectionObserver(entries => { visible = entries[0].isIntersecting; }); intersection.observe(el);
     const tick = (time: number) => {
       const delta = last ? Math.min(time - last, 50) : 0; last = time;
-      if (segment && visible && !pausedRef.current && !motion.matches && !document.hidden && !hovering.current && !dragging.current && time > pausedUntil.current && !el.contains(document.activeElement)) {
+      if (segment && visible && !touching.current && !motion.matches && !document.hidden && !hovering.current && !dragging.current && time > pausedUntil.current && !el.contains(document.activeElement)) {
         carry += delta * .014;
         const pixels = Math.floor(carry); carry -= pixels;
         el.scrollLeft += pixels;
@@ -46,10 +44,10 @@ export default function MomentCarousel({ children }: { children: ReactNode }) {
     return () => { cancelAnimationFrame(frame); resize.disconnect(); intersection.disconnect(); };
   }, [signature, cards.length]);
   return <div className="moment-carousel" role="region" aria-label="Moments you might love">
-    {cards.length > 1 && <button className="moment-carousel-pause" type="button" aria-pressed={paused} onClick={() => setPaused(!paused)}>{paused ? 'Resume scrolling' : 'Pause scrolling'}</button>}
+
     <div className={`moment-carousel-viewport ${cards.length < 2 ? 'is-single' : ''}`} ref={viewport}
       onMouseEnter={() => { hovering.current = true; }} onMouseLeave={() => { hovering.current = false; pause(); }}
-      onFocusCapture={pause} onWheel={pause} onTouchStart={pause} onTouchEnd={pause}
+      onFocusCapture={pause} onWheel={pause} onTouchStart={() => { touching.current = true; pause(); }} onTouchEnd={() => { touching.current = false; pause(); }} onTouchCancel={() => { touching.current = false; pause(); }}
       onScroll={event => {
         if (cards.length < 2 || dragging.current) return;
         const el = event.currentTarget, set = el.querySelector<HTMLElement>('.moment-carousel-set');
