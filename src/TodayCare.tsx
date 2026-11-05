@@ -5,12 +5,12 @@ import type { DailyPattern, TimedRecord } from '../supabase/functions/_shared/da
 type Member = { id: string; name: string; role: string; avatar?: string; access?: 'editor' | 'viewer'; expiresAt?: string };
 type Props = {
   petName: string; patterns: DailyPattern[]; observations: TimedRecord[]; tasks: CareTask[]; dayOffset: number;
-  members: Member[]; currentUserId: string; canAct: boolean; isPrimary: boolean;
+  members: Member[]; currentUserId: string; primaryMemberId: string; canAct: boolean; isPrimary: boolean;
   onDone: (task: CareTask) => void; onOpenPlan: () => void; onPatterns: () => void;
   onRequestHelp: (task: CareTask, recipientId: string) => boolean;
 };
 
-export default function TodayCare({ petName, patterns, observations, tasks, members, currentUserId, canAct, isPrimary, onDone, onOpenPlan, onRequestHelp, dayOffset }: Props) {
+export default function TodayCare({ petName, patterns, observations, tasks, members, currentUserId, primaryMemberId, canAct, isPrimary, onDone, onOpenPlan, onRequestHelp, dayOffset }: Props) {
   const [now, setNow] = useState(() => new Date());
   const [reminding, setReminding] = useState<string | null>(null);
   const [recipient, setRecipient] = useState('');
@@ -29,8 +29,9 @@ export default function TodayCare({ petName, patterns, observations, tasks, memb
   const visiblePending = pending.slice(0, 2);
   const hiddenPendingCount = Math.max(0, pending.length - visiblePending.length);
   const completed = today.filter(task => task.status === 'done');
-  const helpers = members.filter(member => member.id !== currentUserId && member.access !== 'viewer' && member.role !== 'Viewer' && (!member.expiresAt || Date.parse(member.expiresAt) > +now));
-  const requestCandidates = (task: CareTask) => helpers.filter(member => task.status !== 'declined' || member.id !== task.declinedBy);
+  const assignedId = (task: CareTask) => task.assignedTo || primaryMemberId;
+  const helpers = members.filter(member => member.access !== 'viewer' && member.role !== 'Viewer' && (!member.expiresAt || Date.parse(member.expiresAt) > +now));
+  const requestCandidates = (task: CareTask) => helpers.filter(member => member.id !== assignedId(task) && (member.id === currentUserId || task.status !== 'declined' || member.id !== task.declinedBy));
   const name = (id?: string) => members.find(member => member.id === id)?.name ?? 'a caregiver';
   const renderCareNote = (note: string) => {
     const amount = /\b\d+(?:\.\d+)?\s?(?:g|kg|ml|oz|lb|minutes?|mins?|hours?|hrs?)\b/i.exec(note);
@@ -41,9 +42,8 @@ export default function TodayCare({ petName, patterns, observations, tasks, memb
   const incoming = tasks.filter(task => task.status === 'requested' && task.assignedTo === currentUserId).length;
   const reminderCount = tasks.filter(task => task.status !== 'done' && task.status !== 'skipped' && task.events?.some(event => event.type === 'reminded' && event.targetId === currentUserId && !(event.readBy ?? []).includes(currentUserId))).length;
   function openReminder(task: CareTask) {
-    const candidates = requestCandidates(task);
     setReminding(task.id);
-    setRecipient(candidates.find(member => task.status !== 'declined' && member.id === task.assignedTo)?.id ?? (candidates.length === 1 ? candidates[0].id : ''));
+    setRecipient('');
     setMessage('');
   }
   function startHelperDrag(event: React.PointerEvent<HTMLDivElement>) {
@@ -73,26 +73,26 @@ export default function TodayCare({ petName, patterns, observations, tasks, memb
       const canComplete = canAct && canToggleCareTaskCompletion(task,currentUserId,isPrimary);
       const canRequestHelp = canAct && requestCandidates(task).length > 0
         && ['open', 'declined'].includes(task.status)
-        && (isPrimary || task.status === 'open' && (!task.assignedTo || task.assignedTo === currentUserId));
+        && ['open', 'declined'].includes(task.status);
       const clock = new Date(task.dueAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
       const status = task.status === 'declined' ? 'Needs help' : task.status === 'requested' ? 'Awaiting reply' : timing === 'overdue' ? 'Check first' : timing === 'due' ? 'Due now' : timing === 'soon' ? 'Due soon' : 'Upcoming';
       const isExpanded = expanded === task.id;
       return <li key={task.id} className={'today-care-item ' + timing}>
         <div className="today-care-row">
           <button type="button" className="today-care-check" aria-pressed={false} aria-label={'Mark ' + task.title + ' done'} disabled={!canComplete} onClick={() => onDone(task)}><span aria-hidden="true" /></button>
-          <button type="button" className="today-care-task" aria-expanded={isExpanded} aria-controls={'care-detail-' + task.id} onClick={() => setExpanded(isExpanded ? null : task.id)}><span className="today-care-task-title">{task.title}</span><span className="today-care-task-meta"><time>{clock}</time><span aria-hidden="true">·</span><span className="today-care-status">{status}</span>{task.assignedTo && <><span aria-hidden="true">·</span><span>{name(task.assignedTo)}</span></>}</span></button>
+          <button type="button" className="today-care-task" aria-expanded={isExpanded} aria-controls={'care-detail-' + task.id} onClick={() => setExpanded(isExpanded ? null : task.id)}><span className="today-care-task-title">{task.title}</span><span className="today-care-task-meta"><time>{clock}</time><span aria-hidden="true">·</span><span className="today-care-status">{status}</span></span></button>
           {reminding === task.id && !recipient && <div className="care-helper-choices is-inline" role="group" aria-label="Choose a caregiver" onPointerDown={startHelperDrag} onPointerMove={moveHelperDrag} onPointerUp={endHelperDrag} onPointerCancel={endHelperDrag}>{requestCandidates(task).map(member => <button type="button" className="care-helper-choice" key={member.id} aria-label={`Choose ${member.name}`} onClick={event => { if (helperClickSuppressed.current) { event.preventDefault(); helperClickSuppressed.current = false; return; } setRecipient(member.id); }}><span className="care-helper-avatar">{member.avatar ? <img src={member.avatar} alt="" /> : member.name.trim().slice(0,1).toUpperCase()}</span></button>)}</div>}
-          {canRequestHelp && <button type="button" className="today-care-remind" aria-label={'Ask a caregiver to take ' + task.title} title="Ask a caregiver to help" aria-expanded={reminding === task.id} onClick={() => { if (reminding === task.id) setReminding(null); else openReminder(task); }}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3"/><path d="M3 20v-3a6 6 0 0 1 12 0v3M16 4a3 3 0 0 1 0 6M18 14h5M20.5 11.5v5" /></svg></button>}
+          {canRequestHelp && <button type="button" className="today-care-remind" aria-label={'Ask a caregiver to take ' + task.title} title="Ask a caregiver to help" aria-expanded={reminding === task.id} onClick={() => { if (reminding === task.id) setReminding(null); else openReminder(task); }}><span className="care-helper-avatar">{members.find(member => member.id === assignedId(task))?.avatar ? <img src={members.find(member => member.id === task.assignedTo)?.avatar} alt="" /> : assignedId(task) ? name(assignedId(task)).trim().slice(0, 1).toUpperCase() : '?'}</span><span className="care-assignee-switch" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8h15m-4-4 4 4-4 4M20 16H5m4-4-4 4 4 4" /></svg></span></button>}
         </div>
         <div id={'care-detail-' + task.id} className="today-care-task-detail" hidden={!isExpanded}>
           {task.note && <p>{renderCareNote(task.note)}</p>}
-          <p>{task.status === 'requested' ? 'Waiting for ' + name(task.assignedTo) + ' to accept.' : task.assignedTo ? name(task.assignedTo) + ' is assigned to this task.' : 'No caregiver assigned yet. Check with your care circle before acting.'}</p>
+          <p>{task.status === 'requested' ? 'Waiting for ' + name(task.assignedTo) + ' to accept.' : assignedId(task) ? name(assignedId(task)) + ' is assigned to this task.' : 'No caregiver assigned yet. Check with your care circle before acting.'}</p>
           {(timing === 'due' || timing === 'overdue') && <p>No completion confirmed. Check before repeating care.</p>}
           {task.status === 'requested' && task.assignedTo === currentUserId && <button className="today-care-plan" onClick={onOpenPlan}>Accept or decline →</button>}
           {task.status === 'declined' && isPrimary && <button className="today-care-plan" onClick={onOpenPlan}>Find another caregiver →</button>}
         </div>
-        {reminding === task.id && recipient && <form className="care-help-form is-confirming" onSubmit={event => { event.preventDefault(); if (onRequestHelp(task, recipient)) { setMessage('Request sent to ' + name(recipient) + '.'); setReminding(null); setRecipient(''); } }}>
-          <div className="care-help-confirm"><span className="care-helper-avatar">{helpers.find(member => member.id === recipient)?.avatar ? <img src={helpers.find(member => member.id === recipient)?.avatar} alt="" /> : name(recipient).trim().slice(0,1).toUpperCase()}</span><p>Ask <strong>{name(recipient)}</strong> to take <strong>{task.title.toLowerCase()}</strong>?</p></div><p>They’ll be able to accept or decline this care request.</p><div className="today-care-actions"><button type="button" className="cancel-button" onClick={() => setRecipient('')}>Back</button><button type="submit" className="primary-button">Send request</button></div>
+        {reminding === task.id && recipient && <form className="care-help-form is-confirming" onSubmit={event => { event.preventDefault(); if (onRequestHelp(task, recipient)) { setMessage(recipient === currentUserId ? 'You’re taking this task.' : 'Request sent to ' + name(recipient) + '.'); setReminding(null); setRecipient(''); } }}>
+          <div className="care-help-confirm"><span className="care-helper-avatar">{helpers.find(member => member.id === recipient)?.avatar ? <img src={helpers.find(member => member.id === recipient)?.avatar} alt="" /> : name(recipient).trim().slice(0,1).toUpperCase()}</span><p>{recipient === currentUserId ? <>Take <strong>{task.title.toLowerCase()}</strong> yourself?</> : <>Ask <strong>{name(recipient)}</strong> to take <strong>{task.title.toLowerCase()}</strong>?</>}</p></div><p>{recipient === currentUserId ? 'You’ll become the responsible caregiver immediately.' : 'They’ll be able to accept or decline this care request.'}</p><div className="today-care-actions"><button type="button" className="cancel-button" onClick={() => setRecipient('')}>Back</button><button type="submit" className="primary-button">{recipient === currentUserId ? 'I’ll take it' : 'Send request'}</button></div>
         </form>}
       </li>;
     })}</ol>}

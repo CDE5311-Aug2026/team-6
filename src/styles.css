@@ -233,7 +233,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .rhythm-circle-today { cursor:pointer; }
 .rhythm-circle-today-main { fill:#f4f4f0; stroke:#bfc4bf; stroke-width:2.5; }
 .rhythm-circle-today-halo { fill:none; stroke:transparent; stroke-width:2; }
-.rhythm-circle-today text { font:15px 'Segoe UI Emoji','Apple Color Emoji',sans-serif; }
+.rhythm-circle-today text { font:19px 'Segoe UI Emoji','Apple Color Emoji',sans-serif; }
 .rhythm-circle-today.is-done .rhythm-circle-today-main { fill:#f2f8ef; stroke:#80b45e; }
 .rhythm-circle-today.is-upcoming .rhythm-circle-today-main { fill:#f0f0ed; stroke:#c5c7c2; }
 .rhythm-circle-today.is-soon .rhythm-circle-today-main { fill:#fff7dc; stroke:#d9b43e; }
@@ -2183,7 +2183,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .care-helper-choice:nth-child(2) { animation-delay:55ms; }
 .care-helper-choice:nth-child(3) { animation-delay:110ms; }
 .care-helper-choice:nth-child(4) { animation-delay:165ms; }
-@keyframes care-helper-slide-in { from { opacity:0; transform:translateX(-32px) scale(.96); } to { opacity:1; transform:translateX(0) scale(1); } }
+@keyframes care-helper-slide-in { from { opacity:0; transform:translateX(32px) scale(.96); } to { opacity:1; transform:translateX(0) scale(1); } }
 .care-helper-choice:hover, .care-helper-choice:focus-visible { border-color:#dcb734; background:#fff8dc; }
 .care-helper-avatar { width:42px; height:42px; display:grid; place-items:center; overflow:hidden; border:2px solid #f1d576; border-radius:50%; background:#f6edcf; color:#69551d; font:600 15px 'Poppins',sans-serif; }
 .care-helper-avatar img { width:100%; height:100%; object-fit:cover; }
@@ -2199,7 +2199,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .today-care-actions { display: flex; gap: 8px; margin-top: 10px; }
 .today-care-actions button, .today-care-empty .primary-button { min-height: 36px; padding: 7px 11px; font-size: 11px; width: auto; }
 .today-care-action button:focus-visible, .today-care-action select:focus-visible, .today-care-completed summary:focus-visible { outline: 2px solid #546c57; outline-offset: 2px; }
-.today-care-incoming { width: 100%; margin: 6px 0; padding: 9px 10px; border: 0; border-radius: 9px; background: #f7ecc4; color: #675221; text-align: left; font: 400 11px/17px 'Roboto', sans-serif; }
+.today-care-incoming { width: 100%; margin: 6px 0; padding: 9px 10px; border: 0; border-radius: 9px; background: #fff0b3; color: #675221; text-align: left; font: 400 11px/17px 'Roboto', sans-serif; }
 .today-care-empty p { margin: 10px 0; color: #6b7067; font: 400 12px/18px 'Roboto', sans-serif; }
 .today-care-empty > button { margin-right: 10px; }
 .today-care-message { margin: 7px 0; color: #596d53; font: 400 11px/17px 'Roboto', sans-serif; }
@@ -2465,7 +2465,7 @@ button.profile-link, button.activity-insight-link {
 .rhythm-guide-target.is-ring .rhythm-guide-ring-halo { stroke: #fffdf8; stroke-width: 7; }
 
 /* Text-only moments and unavailable uploads are separate, explicit states. */
-.story-media-unavailable { display: flex; flex: none; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 60px; height: 60px; padding: 6px; border-radius: 14px; background: #edf2ee; color: #52675a; text-align: center; }
+.story-media-unavailable { display: flex; flex: none; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 60px; height: 60px; padding: 6px; border-radius: 14px; background: #fff0b3; color: #80691d; text-align: center; }
 .story-media-unavailable > span { font-size: 22px; line-height: 24px; }
 .story-media-unavailable small { font: 400 10px/12px 'Roboto',sans-serif; }
 .moment-carousel-set .moment-card-media > .story-media-unavailable { width: 100%; height: 56px; border-radius: 0; }
@@ -2499,3 +2499,26 @@ button.profile-link, button.activity-insight-link {
 
 .momo-demo-notice { margin: 10px 0; padding: 10px 14px; border-radius: 14px; background: #f4efe9; color: #51483f; font-size: 11px; line-height: 1.5; }
 .momo-demo-notice p { margin: 4px 0 0; }
+
+.today-care-remind { position: relative; }
+.today-care-remind > .care-helper-avatar { width: 36px; height: 36px; }
+.care-assignee-switch { position: absolute; right: 0; bottom: 1px; display: grid; place-items: center; width: 18px; height: 18px; border: 2px solid #fffdf5; border-radius: 50%; background: #f2c94c; color: #fff; }
+.today-care-remind .care-assignee-switch svg { width: 12px; height: 12px; stroke-width: 1.8; }
+
+.today-care-remind { background: transparent !important; border-radius: 50%; }
+.today-care-remind:hover, .today-care-remind[aria-expanded="true"] { background: transparent !important; }
+
+.rhythm-circle-today.is-future .rhythm-circle-today-main { fill: #eeeeeb; stroke: #c5c7c2; }
+.rhythm-circle-today.is-future text { opacity: .45; filter: grayscale(1); }
+
+/* Keep the caregiver picker in a compact, scrollable lane beside task text. */
+.today-care-row { min-width: 0; }
+.today-care-task { flex: 1 1 auto; }
+.today-care-task-title, .today-care-task-meta { white-space: nowrap; flex-wrap: nowrap; }
+.care-helper-choices.is-inline { flex: 0 0 min(112px, 31vw); width: min(112px, 31vw); max-width: min(112px, 31vw); gap: 2px; padding: 0; }
+.care-helper-choices.is-inline .care-helper-choice { flex: 0 0 34px; min-width: 34px; width: 34px; }
+.care-helper-choices.is-inline .care-helper-avatar { width: 30px; height: 30px; }
+
+.care-helper-choices.is-inline { flex-direction: row-reverse; justify-content: flex-start; }
+
+.rhythm-circle-today text { font-size: 23px; }
