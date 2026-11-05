@@ -271,8 +271,11 @@ test('completion can be undone and checked again with actual timestamps and pres
   const second = toggleCareTaskCompletion(undo,'mum','Mum',false,new Date(2026,9,23,10,5));
   assert.equal(second.completedAt,new Date(2026,9,23,10,5).toISOString());
   assert.deepEqual(second.events.map(e=>e.type),['completed','reopened','completed']);
-  assert.equal(canToggleCareTaskCompletion(second,'other',false),false);
-  assert.equal(toggleCareTaskCompletion(second,'other','Other',false),null);
+  assert.equal(canToggleCareTaskCompletion(second,'other',false),true);
+  const otherUndo = toggleCareTaskCompletion(second,'other','Other',false,new Date(2026,9,23,10,6));
+  assert.equal(otherUndo.status,'accepted');
+  assert.equal(otherUndo.completedAt,undefined);
+  assert.equal(otherUndo.events.at(-1).actorId,'other');
   assert.equal(canToggleCareTaskCompletion(second,'owner',true),true);
 });
 test('undoing a simulated task stays undone after its scheduled time, even after a reminder', () => {
