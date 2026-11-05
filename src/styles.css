@@ -2645,3 +2645,14 @@ button.profile-link, button.activity-insight-link {
 .care-help-form .care-request-message textarea::placeholder { color:#9b9588; }
 .care-help-form .care-request-message textarea:focus-visible { outline:2px solid #d6b947; outline-offset:2px; }
 .inbox-example-label { color:#9b8044; font-size:9px; font-weight:600; }
+
+.pattern-management-item { border-bottom:1px solid var(--color-border); }
+.pattern-management-item:last-child { border-bottom:0; }
+.pattern-management-item>.pattern-management-row { border-bottom:0; }
+.pattern-management-item:has(.pattern-accordion-details)>.pattern-management-row { border-bottom:1px solid #eee7cb; }
+.pattern-accordion-details { margin:0; padding:16px 18px 18px; border:0; border-radius:0; background:#fffdf5; }
+.pattern-accordion-details>h2 { display:none; }
+.pattern-accordion-details .pattern-evidence { margin-bottom:0; }
+.pattern-accordion-details .source-detail-actions { margin-top:16px; }
+.pattern-accordion-chevron { flex:none; color:#8a7852; font-size:20px; line-height:1; }
+.pattern-management-row-main:focus-visible { outline:2px solid #bba343; outline-offset:-3px; border-radius:8px; }
