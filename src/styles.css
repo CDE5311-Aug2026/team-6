@@ -2654,5 +2654,5 @@ button.profile-link, button.activity-insight-link {
 .pattern-accordion-details>h2 { display:none; }
 .pattern-accordion-details .pattern-evidence { margin-bottom:0; }
 .pattern-accordion-details .source-detail-actions { margin-top:16px; }
-.pattern-accordion-chevron { flex:none; color:#8a7852; font-size:20px; line-height:1; }
+.pattern-management-row-main>.pattern-accordion-chevron { flex:0 0 20px; display:block; text-align:center; color:#8a7852; font-size:20px; line-height:1; }
 .pattern-management-row-main:focus-visible { outline:2px solid #bba343; outline-offset:-3px; border-radius:8px; }
