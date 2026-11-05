@@ -22,7 +22,7 @@ export default function TodayCare({ petName, patterns, observations, tasks, memb
   const selectedDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset);
   const isSelectedToday = dayOffset === 0;
   const sameDay = (value: string) => new Date(value).toDateString() === selectedDate.toDateString();
-  const routine = careTasksForDate(patterns, observations, tasks, selectedDate, now, petName);
+  const routine = careTasksForDate(patterns, observations, tasks, selectedDate, now, petName, primaryMemberId);
   const manual = tasks.filter(task => !task.sourcePatternId && (!task.sourceObservationId || !!task.demoSlot) && sameDay(task.dueAt));
   const today = [...routine, ...manual].filter(task => task.status !== 'skipped');
   const pending = today.filter(task => task.status !== 'done').sort((a, b) => a.dueAt.localeCompare(b.dueAt));

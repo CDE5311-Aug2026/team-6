@@ -747,7 +747,7 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
     if (revealedActivityId !== moment.id) { setRevealedActivityId(moment.id); return; }
     if (patternById.has(moment.id)) onPatterns(moment.id); else if (moment.careTaskId) onOpenCareTasks(); else onOpenActivitySummary(moment);
   };
-  const routineTasks = careTasksForDate(patterns, scheduledMoments, careTasks, selectedDate, now, displayName);
+  const routineTasks = careTasksForDate(patterns, scheduledMoments, careTasks, selectedDate, now, displayName, careMembers.find(member => member.role === 'Primary caregiver')?.id ?? 'emily');
   const datedTasks = careTasks.filter(task => !task.sourcePatternId && (!task.sourceObservationId || !!task.demoSlot) && isSameLocalDay(task.dueAt, selectedDate) && task.status !== 'declined');
   const dayCareTasks = [...routineTasks, ...datedTasks].sort((left, right) => left.dueAt.localeCompare(right.dueAt));
   const isToday = dayOffset === 0;

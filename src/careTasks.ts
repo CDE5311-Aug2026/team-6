@@ -142,7 +142,18 @@ function completeWhenRecorded(task: CareTask, now: Date): CareTask {
   return appendCareTaskEvent(completed, { type: 'auto_completed', actorId: responsibleId, createdAt: task.dueAt });
 }
 
-function simulatedCareTasksForDate(observations: SimulatedActivity[], savedTasks: CareTask[], date: Date, now: Date): CareTask[] {
+function careTaskCategory(title: string) { const value = title.toLowerCase(); return /walk|toilet|potty/.test(value) ? 'walk' : /play/.test(value) ? 'play' : /feed|breakfast|lunch|dinner|meal|food/.test(value) ? 'meal' : /rest|sleep/.test(value) ? 'rest' : value; }
+function defaultCaregiver(title: string, savedTasks: CareTask[], observations: SimulatedActivity[], now: Date, primaryId: string) {
+  const earliest = observations.map(o => Date.parse(o.savedAt)).filter(Number.isFinite).reduce((min, value) => Math.min(min, value), Infinity);
+  if (!Number.isFinite(earliest) || now.getTime() - earliest < 7 * 86400000) return primaryId;
+  const cutoff = now.getTime() - 7 * 86400000;
+  const category = careTaskCategory(title);
+  const counts = new Map<string, number>();
+  savedTasks.forEach(task => { const completed = Date.parse(task.completedAt ?? ''); if (task.status === 'done' && task.completedBy && task.completedBy !== 'simulation' && Number.isFinite(completed) && completed >= cutoff && completed <= now.getTime() && careTaskCategory(task.title) === category) counts.set(task.completedBy, (counts.get(task.completedBy) ?? 0) + 1); });
+  return [...counts].sort((a,b) => b[1]-a[1])[0]?.[0] ?? primaryId;
+}
+
+function simulatedCareTasksForDate(observations: SimulatedActivity[], savedTasks: CareTask[], date: Date, now: Date, primaryId: string): CareTask[] {
   return observations
     .filter((observation) => observation.synthetic === true && !!observation.simulationKey && isSameLocalDay(observation.savedAt, date))
     .map((observation) => {
@@ -153,8 +164,8 @@ function simulatedCareTasksForDate(observations: SimulatedActivity[], savedTasks
         title: observation.title,
         note: observation.note ?? '',
         dueAt: observation.savedAt,
-        assignedTo: '',
-        assignedBy: 'simulation',
+        assignedTo: defaultCaregiver(observation.title, savedTasks, observations, now, primaryId),
+        assignedBy: primaryId,
         status: 'open',
         createdAt: observation.savedAt,
         sourceObservationId: observation.id,
@@ -165,7 +176,7 @@ function simulatedCareTasksForDate(observations: SimulatedActivity[], savedTasks
     .sort((left, right) => left.dueAt.localeCompare(right.dueAt));
 }
 
-function patternCareTasksForDate(patterns: CarePattern[], savedTasks: CareTask[], date: Date, petName: string): CareTask[] {
+function patternCareTasksForDate(patterns: CarePattern[], savedTasks: CareTask[], date: Date, petName: string, observations: SimulatedActivity[], now: Date, primaryId: string): CareTask[] {
   const key = localDayKey(date);
   const actionableActivities = new Set(['Breakfast', 'Lunch', 'Dinner', 'Walk', 'Play']);
   return patterns
@@ -180,8 +191,8 @@ function patternCareTasksForDate(patterns: CarePattern[], savedTasks: CareTask[]
         title: pattern.activity === 'Walk' ? `Walk ${petName}` : pattern.activity === 'Play' ? `Play with ${petName}` : `Feed ${petName} ${pattern.activity!.toLowerCase()}`,
         note: `Usual window ${clockMinute(pattern.startMinute!)}–${clockMinute(pattern.endMinute!)}`,
         dueAt: due.toISOString(),
-        assignedTo: '',
-        assignedBy: '',
+        assignedTo: defaultCaregiver(pattern.activity!, savedTasks, observations, now, primaryId),
+        assignedBy: primaryId,
         status: 'open',
         createdAt: date.toISOString(),
         sourcePatternId: pattern.id,
@@ -195,9 +206,9 @@ function patternCareTasksForDate(patterns: CarePattern[], savedTasks: CareTask[]
 }
 
 /** Build the selected day's checklist from its simulation, with Pattern as a fallback. */
-export function careTasksForDate(patterns: CarePattern[], observations: SimulatedActivity[], savedTasks: CareTask[], date: Date, now: Date, petName: string): CareTask[] {
-  const simulated = simulatedCareTasksForDate(observations, savedTasks, date, now);
-  return simulated.length ? simulated : patternCareTasksForDate(patterns, savedTasks, date, petName);
+export function careTasksForDate(patterns: CarePattern[], observations: SimulatedActivity[], savedTasks: CareTask[], date: Date, now: Date, petName: string, primaryId = 'emily'): CareTask[] {
+  const simulated = simulatedCareTasksForDate(observations, savedTasks, date, now, primaryId);
+  return simulated.length ? simulated : patternCareTasksForDate(patterns, savedTasks, date, petName, observations, now, primaryId);
 }
 
 /** Return a declined task to the requesting caregiver without discarding the request history. */
