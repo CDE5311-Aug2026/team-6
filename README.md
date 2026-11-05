@@ -129,3 +129,14 @@ The recent-completion row and Completed history both expose an accessible checke
 Daily Rhythm merges independent visible Story observations with view-only task completion markers. Human-completed tasks use completedAt, an activity-specific icon, and Done by attribution. Opening a task marker leads to the care plan, not fabricated Story evidence. Reopening removes only the task-derived marker; independent real observations remain. Linked simulated activity is replaced rather than duplicated, and an explicit undo persists across refreshes and future simulated recordings. Pattern view remains the confirmed routine, separate from actual completion.
 
 Validation: TypeScript and 72 automated tests, including completion/undo/recheck, authorization, simulation override persistence after reminders, actual timestamps, overnight completion, deduplication and independent/private evidence handling.
+
+
+## Momo shared-care starter scenario (2026-11-05)
+
+New cloud accounts seeded with Momo receive an independent Alex (Demo) caregiver in their personal workspace. The private starter template enables `workspace.momoCareDemo.version = 1`; existing user workspaces are not backfilled. Seven newly generated activity photos are shipped in `public/assets/momo-care-day-v1`, with the English day script in `fixtures/momo-care-day.json`.
+
+The frontend advances the Singapore calendar day every 15 seconds and on return to the page. Scripted tasks complete only at their end time, adding an Alex-authored synthetic Story record with a new scene photo. Each active day is initialized once. Reloading preserves skips, manual completions, undo, deletions and member removal/permissions. Offline intermediate days are not fabricated. This is a foreground simulation, not a background worker or real caregiver account.
+
+A handover request remains for the primary caregiver to accept or decline. New requests addressed to Alex receive a simulated acceptance after 30 seconds (up to one refresh interval later); unscripted or reassigned tasks are never automatically completed. Real account invitations and canonical cloud-group membership retain the existing workflow; this personal demonstration stops once a real shared group is attached. No Auth account, invitation, RLS change or real data access is created for Alex.
+
+Activation DML is in `scripts/enable-momo-care-demo.sql`; it only changes the private template used by future workspace initialization. Rollback removes that flag from the template without modifying existing user data. Tests: `node --test tests/momoCareDemo.test.mjs`.

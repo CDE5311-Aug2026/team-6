@@ -2496,3 +2496,6 @@ button.profile-link, button.activity-insight-link {
 
 /* Story deletion is modal: its dimming layer must also cover the Add action. */
 .profile-dialog-backdrop:has(> [aria-labelledby="delete-story-moment-title"]) { z-index: 40; }
+
+.momo-demo-notice { margin: 10px 0; padding: 10px 14px; border-radius: 14px; background: #f4efe9; color: #51483f; font-size: 11px; line-height: 1.5; }
+.momo-demo-notice p { margin: 4px 0 0; }

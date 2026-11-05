@@ -1901,6 +1901,9 @@
       "datasetId": "momo-seven-days-20261105-v1",
       "synthetic": true,
       "mediaRevision": "v2-all-50-observations-illustrated"
+    },
+    "momoCareDemo": {
+      "version": 1
     }
   }
 }

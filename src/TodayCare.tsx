@@ -23,7 +23,7 @@ export default function TodayCare({ petName, patterns, observations, tasks, memb
   const isSelectedToday = dayOffset === 0;
   const sameDay = (value: string) => new Date(value).toDateString() === selectedDate.toDateString();
   const routine = careTasksForDate(patterns, observations, tasks, selectedDate, now, petName);
-  const manual = tasks.filter(task => !task.sourcePatternId && !task.sourceObservationId && sameDay(task.dueAt));
+  const manual = tasks.filter(task => !task.sourcePatternId && (!task.sourceObservationId || !!task.demoSlot) && sameDay(task.dueAt));
   const today = [...routine, ...manual].filter(task => task.status !== 'skipped');
   const pending = today.filter(task => task.status !== 'done').sort((a, b) => a.dueAt.localeCompare(b.dueAt));
   const visiblePending = pending.slice(0, 2);

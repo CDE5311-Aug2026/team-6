@@ -12,6 +12,7 @@ export type CareTaskEvent = {
 };
 
 export type CareTask = {
+  demoSlot?: string;
   id: string;
   title: string;
   note: string;

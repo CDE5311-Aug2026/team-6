@@ -1,3 +1,4 @@
+import { advanceMomoCareDemo, type MomoCareDemo } from './momoCareDemo';
 import { isUnavailableMedia } from './cloudMediaReferences';
 import RhythmHelp, { RHYTHM_GUIDE_EVENT } from './RhythmHelp';
 import { activityGlyphFor } from './activityGlyph';
@@ -256,6 +257,7 @@ type StoryDraft = { id: string; selectedMoments: string[]; note: string; title?:
 type AskAttachment = { url: string; name: string; kind: 'image' | 'audio'; type: string };
 type AskMessage = { role: 'user' | 'assistant'; text: string; attachment?: AskAttachment };
 type PetWorkspace = {
+  momoCareDemo?: MomoCareDemo;
   sunnyVaccinationSeeded?: boolean;
   groupName: string;
   contexts: OwnerContext[];
@@ -746,7 +748,7 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
     if (patternById.has(moment.id)) onPatterns(moment.id); else if (moment.careTaskId) onOpenCareTasks(); else onOpenActivitySummary(moment);
   };
   const routineTasks = careTasksForDate(patterns, scheduledMoments, careTasks, selectedDate, now, displayName);
-  const datedTasks = careTasks.filter(task => !task.sourcePatternId && !task.sourceObservationId && isSameLocalDay(task.dueAt, selectedDate) && task.status !== 'declined');
+  const datedTasks = careTasks.filter(task => !task.sourcePatternId && (!task.sourceObservationId || !!task.demoSlot) && isSameLocalDay(task.dueAt, selectedDate) && task.status !== 'declined');
   const dayCareTasks = [...routineTasks, ...datedTasks].sort((left, right) => left.dueAt.localeCompare(right.dueAt));
   const isToday = dayOffset === 0;
   const dayTitle = isToday ? 'TODAY' : dayOffset === -1 ? 'YESTERDAY' : new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(selectedDate).toUpperCase();
@@ -1479,7 +1481,7 @@ function CareTasksPage({ tasks, patterns, observations, members, currentUserId, 
   const [helpNote, setHelpNote] = useState('');
   const [releaseTaskId, setReleaseTaskId] = useState<string | null>(null);
   const selectedRoutine = careTasksForDate(patterns, observations, tasks, selectedDate, now, petName);
-  const visibleTasks = tasks.filter(task => !task.sourcePatternId && !task.sourceObservationId && isSameLocalDay(task.dueAt, selectedDate) && (isPrimary || task.assignedTo === currentUserId)).sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+  const visibleTasks = tasks.filter(task => !task.sourcePatternId && (!task.sourceObservationId || !!task.demoSlot) && isSameLocalDay(task.dueAt, selectedDate) && (isPrimary || task.assignedTo === currentUserId)).sort((a, b) => a.dueAt.localeCompare(b.dueAt));
   const activeRoutineTasks = selectedRoutine.filter(task => task.status !== 'done' && task.status !== 'skipped');
   const completedRoutineTasks = selectedRoutine.filter(task => task.status === 'done');
   const skippedRoutineTasks = selectedRoutine.filter(task => task.status === 'skipped');
@@ -2476,6 +2478,7 @@ function normalizeWorkspace(value: unknown, ownerName: string, hasDemoData: bool
   if (typeof value !== 'object' || value === null) return fallback;
   const workspace = value as Partial<PetWorkspace>;
   return {
+    momoCareDemo: workspace.momoCareDemo?.version === 1 ? workspace.momoCareDemo : undefined,
     groupName: typeof workspace.groupName === 'string' && workspace.groupName.trim() ? workspace.groupName : 'Care circle',
     contexts: Array.isArray(workspace.contexts) ? workspace.contexts : [],
     observations: Array.isArray(workspace.observations) ? workspace.observations : [],
@@ -3756,6 +3759,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   function workspaceFromState(): PetWorkspace {
     return {
       contexts: savedContexts,
+      momoCareDemo: activePetRecord?.workspace.momoCareDemo,
       groupName: activePetRecord?.workspace.groupName ?? 'Care circle',
       observations: storyObservations,
       momentEngagement,
@@ -3953,6 +3957,24 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     if (!persistSharedWorkspacePatch({ lifeEvents: exists ? lifeCareEvents : [seed, ...lifeCareEvents], sunnyVaccinationSeeded: true })) return;
     if (!exists) setLifeCareEvents([seed, ...lifeCareEvents]);
   }, [activeAccount?.id, activePetRecord?.id, activePetRecord?.workspace.sunnyVaccinationSeeded, groupOwnerAccountId, lifeCareEvents]);
+
+  const demoClock = useCurrentTime();
+  useEffect(() => {
+    if (!cloud || !activeAccount || !activePetRecord || activePetRecord.sharedGroupId || activePetRecord.workspace.momoCareDemo?.version !== 1) return;
+    const currentWorkspace = workspaceFromState();
+    const nextWorkspace = advanceMomoCareDemo(currentWorkspace, activeAccount.id, demoClock, import.meta.env.BASE_URL);
+    if (nextWorkspace === currentWorkspace) return;
+    const captured = captureCurrentSpace(prototypeSession);
+    const nextSession = { ...captured, accounts: captured.accounts.map(account => account.id !== activeAccount.id ? account : {
+      ...account, pets: account.pets.map(pet => pet.id === activePetRecord.id ? { ...pet, workspace: nextWorkspace } : pet),
+    }) };
+    persistPrototypeSession(nextSession);
+    setPrototypeSession(nextSession);
+    setCareMembers(nextWorkspace.careMembers);
+    setCareTasks(nextWorkspace.careTasks);
+    setStoryObservations(nextWorkspace.observations);
+    setIncludedStoryMoments(nextWorkspace.visibility);
+  }, [demoClock, activeAccount?.id, activePetRecord?.id, activePetRecord?.workspace.momoCareDemo, careTasks, careMembers, storyObservations]);
 
   function applyAccountSpace(session: PrototypeSession, accountId: string, petId: string, allowSessionOnly = false): string {
     const account = session.accounts.find((entry) => entry.id === accountId);
@@ -4239,6 +4261,14 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   function updateCareGroupMember(memberId: string, change: { access?: 'editor' | 'viewer'; role?: 'Caregiver' | 'Temporary caregiver'; expiresAt?: string; remove?: boolean }) {
     if (!activeAccount || !activePetRecord) return;
     const captured = captureCurrentSpace(prototypeSession);
+    if (!activePetRecord.sharedGroupId && activePetRecord.workspace.momoCareDemo?.version === 1 && memberId === `momo-demo-alex-${activeAccount.id}`) {
+      const nextMembers = careMembers.flatMap(member => member.id !== memberId ? [member] : change.remove ? [] : [{ ...member, ...change }]);
+      const nextSession = { ...captured, accounts: captured.accounts.map(account => account.id !== activeAccount.id ? account : {
+        ...account, pets: account.pets.map(pet => pet.id !== activePetRecord.id ? pet : { ...pet, workspace: { ...pet.workspace, careMembers: nextMembers } }),
+      }) };
+      persistPrototypeSession(nextSession); setPrototypeSession(nextSession); setCareMembers(nextMembers);
+      return;
+    }
     const groupId = activePetRecord.sharedGroupId ?? `${activeAccount.id}:${activePetRecord.id}`;
     const updateMembers = (members: CareMember[]) => {
       const linked = members.map((member) => member.id === 'emily' ? { ...member, id: activeAccount.id, name: activeAccount.name, email: activeAccount.email, role: 'Primary caregiver' } : member);
@@ -5124,6 +5154,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         {sharedId && sharedSync.current.failed && sharedWritePending() && <p className="shared-sync-pending" role="status">Shared sync paused. Your local edits are kept; resolve the sync error before leaving.</p>}
         <main ref={scrollRef} className={`screen-scroll ${view === 'today' ? 'home-screen' : ''} ${view.startsWith('add') ? 'add-flow-scroll' : ''}`}>
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
+            {activePetRecord.workspace.momoCareDemo?.version === 1 && ['today', 'careTasks', 'careMembers'].includes(view) && <aside className="momo-demo-notice"><strong>Shared-care demo · Singapore time</strong><p>Alex (Demo) is a simulated caregiver. Scheduled care updates while this app is open; returning catches up today’s completed activities. New requests to Alex receive a simulated acceptance after about 30 seconds. Other new tasks stay open for you to test.</p></aside>}
             {view === 'today' && <TodayPage onRequestCareTask={requestCareTask} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenMomentDetail={openMomentDetail} onOpenInsights={() => navigateTo('activityInsights')} onCareTasks={() => navigateTo('careTasks')} onToggleCareTask={toggleCareTask} careTasks={careTasks} careMembers={displayedCareMembers} insightReviews={insightReviews} currentUserId={activeAccount.id} canAct={canContributeToSharedPet} isPrimary={isPrimaryCaregiver} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
             {view === 'careTasks' && <CareTasksPage tasks={careTasks} patterns={typicalPatterns} observations={storyObservations} members={displayedCareMembers} currentUserId={activeAccount.id} currentUserName={activeAccount.name} petName={petName} dayOffset={dailyRhythmDayOffset} isPrimary={isPrimaryCaregiver} canAct={canContributeToSharedPet} onBack={() => goBack('today')} onPatterns={() => openPatternKnowledge()} onToggleTask={toggleCareTask} onSkipTask={skipCareTask} onSave={saveCareTasks} />}
             {view === 'activityInsights' && <ActivityInsightsPage records={visibleStoryObservations(storyObservations.filter(observation => !isObservationSkippedForToday(observation, careTasks)), includedStoryMoments)} petName={petName} reviews={insightReviews} canReview={canContributeToSharedPet} onReview={reviewActivityInsight} onBack={() => goBack('today')} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} />}
