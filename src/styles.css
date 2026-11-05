@@ -2509,7 +2509,7 @@ button.profile-link, button.activity-insight-link {
 .today-care-remind:hover, .today-care-remind[aria-expanded="true"] { background: transparent !important; }
 
 .rhythm-circle-today.is-future .rhythm-circle-today-main { fill: #eeeeeb; stroke: #c5c7c2; }
-.rhythm-circle-today.is-future text { opacity: .45; filter: grayscale(1); }
+.rhythm-circle-today.is-future text { opacity: 1; filter: none; }
 
 /* Keep the caregiver picker in a compact, scrollable lane beside task text. */
 .today-care-row { min-width: 0; }
@@ -2526,10 +2526,10 @@ button.profile-link, button.activity-insight-link {
 /* Local UI refinements */
 .rhythm-circle-today text { font-size: 23px; }
 .rhythm-circle-today.is-future .rhythm-circle-today-main { fill:#eeeeeb; stroke:#c5c7c2; }
-.rhythm-circle-today.is-future text { opacity:.45; filter:grayscale(1); }
+.rhythm-circle-today.is-future text { opacity:1; filter:none; }
 .rhythm-circle-ai-star { pointer-events:none; }
-.rhythm-circle-ai-star circle { fill:#fffdf7; stroke:#d9b43e; stroke-width:1; }
-.rhythm-circle-ai-star path { fill:#d9a900; stroke:none; }
+.rhythm-circle-ai-star circle { display:none; }
+.rhythm-circle-ai-star path { fill:#ffcf29; stroke:none; transform-box:fill-box; transform-origin:center; transform:scale(1.7); }
 .today-care-remind { position:relative; background:transparent!important; border-radius:50%; }
 .today-care-remind > .care-helper-avatar { width:36px; height:36px; }
 .today-care-remind:hover,.today-care-remind[aria-expanded="true"] { background:transparent!important; }
