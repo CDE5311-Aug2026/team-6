@@ -2522,3 +2522,37 @@ button.profile-link, button.activity-insight-link {
 .care-helper-choices.is-inline { flex-direction: row-reverse; justify-content: flex-start; }
 
 .rhythm-circle-today text { font-size: 23px; }
+
+/* Local UI refinements */
+.rhythm-circle-today text { font-size: 23px; }
+.rhythm-circle-today.is-future .rhythm-circle-today-main { fill:#eeeeeb; stroke:#c5c7c2; }
+.rhythm-circle-today.is-future text { opacity:.45; filter:grayscale(1); }
+.rhythm-circle-ai-star { pointer-events:none; }
+.rhythm-circle-ai-star circle { fill:#fffdf7; stroke:#d9b43e; stroke-width:1; }
+.rhythm-circle-ai-star path { fill:#d9a900; stroke:none; }
+.today-care-remind { position:relative; background:transparent!important; border-radius:50%; }
+.today-care-remind > .care-helper-avatar { width:36px; height:36px; }
+.today-care-remind:hover,.today-care-remind[aria-expanded="true"] { background:transparent!important; }
+.care-assignee-switch { position:absolute; right:0; bottom:1px; display:grid; place-items:center; width:18px; height:18px; border:2px solid #fffdf5; border-radius:50%; background:#f2c94c; color:#fff; }
+.today-care-remind .care-assignee-switch svg { width:12px; height:12px; stroke-width:1.8; }
+.today-care-row { min-width:0; }
+.today-care-task { flex:1 1 auto; }
+.today-care-task-title,.today-care-task-meta { white-space:nowrap; flex-wrap:nowrap; }
+.care-helper-choices.is-inline { flex:0 0 min(112px,31vw); width:min(112px,31vw); max-width:min(112px,31vw); gap:2px; padding:0; flex-direction:row-reverse; justify-content:flex-start; }
+.care-helper-choices.is-inline .care-helper-choice { flex:0 0 34px; min-width:34px; width:34px; }
+.care-helper-choices.is-inline .care-helper-avatar { width:30px; height:30px; }
+.care-helper-choices.is-inline .care-helper-choice { animation-name:care-helper-slide-in-reverse; }
+@keyframes care-helper-slide-in-reverse { from { opacity:0; transform:translateX(32px) scale(.96); } to { opacity:1; transform:translateX(0) scale(1); } }
+.today-care-incoming { background:#fff0b3; }
+.story-media-unavailable { background:#fff0b3; color:#80691d; }
+.profile-name-status { display:flex; align-items:center; gap:9px; }
+.availability-picker select { max-width:130px; padding:5px 9px; border:1px solid #ead98c; border-radius:999px; background:#fff8d9; color:#574a25; font:500 11px 'Roboto',sans-serif; }
+.member-row.is-unavailable .avatar,.avatar.is-unavailable,.care-helper-avatar.is-unavailable { filter:grayscale(1); opacity:.58; }
+
+/* Availability control styled to match Pawsona's soft, rounded profile UI. */
+.profile-name-status { gap:8px; }
+.availability-picker { appearance:none; -webkit-appearance:none; min-height:28px; max-width:132px; padding:5px 25px 5px 10px; border:1px solid #f0d879; border-radius:999px; background-color:#fff8d9; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m3 4.5 3 3 3-3' fill='none' stroke='%2378644a' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 9px center; color:#574a25; font:500 11px/16px 'Roboto',sans-serif; cursor:pointer; }
+.availability-picker:focus-visible { outline:2px solid #d9b43e; outline-offset:2px; }
+.availability-picker option { background:#fffdf7; color:#3d463e; }
+
+.availability-picker { width:max-content; max-width:none; padding:5px 10px; background-image:none; color:#78644a; font:600 12px/16px 'Poppins',sans-serif; }
