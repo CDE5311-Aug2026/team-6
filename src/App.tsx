@@ -312,6 +312,7 @@ type PrototypeAccount = {
   preference: string;
   careProfile?: OwnerCareProfile;
   inboxReadIds?: string[];
+  inboxExamplesEligible?: boolean;
   inboxDemoByPet?: Record<string, InboxDemoState>;
   setupStatus?: 'pending' | 'completed' | 'skipped';
   guideStatus?: 'pending' | 'completed' | 'skipped';
@@ -577,7 +578,7 @@ function OwnerAvatar({ src, name, className = '' }: { src: string; name: string;
   return <span className={`member-avatar emily-avatar owner-avatar ${className}`}>{showImage ? <img src={src} alt="" onError={() => setFailedSrc(src)} /> : name.slice(0, 1).toUpperCase()}</span>;
 }
 
-function MainHeader({ eyebrow, title, subtitle, petName, petAvatar = '', hasPet = true, onPetsNavigate, onSettingsNavigate, onInbox, inboxUnread = 0, className = '' }: { onInbox?: () => void; inboxUnread?: number; eyebrow: string; title: string; subtitle?: string; petName: string; petAvatar?: string; hasPet?: boolean; onPetsNavigate?: () => void; onSettingsNavigate?: () => void; className?: string }) {
+function MainHeader({ eyebrow, title, subtitle, petName, petAvatar = '', hasPet = true, onPetsNavigate, onSettingsNavigate, onInbox, inboxUnread = 0, hidePetAvatar = false, className = '' }: { hidePetAvatar?: boolean; onInbox?: () => void; inboxUnread?: number; eyebrow: string; title: string; subtitle?: string; petName: string; petAvatar?: string; hasPet?: boolean; onPetsNavigate?: () => void; onSettingsNavigate?: () => void; className?: string }) {
   return (
     <header className={`main-header ${className}`}>
       <div>
@@ -586,7 +587,7 @@ function MainHeader({ eyebrow, title, subtitle, petName, petAvatar = '', hasPet 
         {subtitle && <p className="main-subtitle">{subtitle}</p>}
       </div>
       <div className="header-action-group">{onInbox && <InboxButton count={inboxUnread} onClick={onInbox} />}
-      {onSettingsNavigate ? <button className="header-settings-button" type="button" aria-label="Open settings" onClick={onSettingsNavigate}><span aria-hidden="true">⚙</span></button> : <button className={`header-avatar-button ${hasPet ? '' : 'is-empty'}`} type="button" aria-label="Open Pets" onClick={onPetsNavigate}>{hasPet ? <Avatar name={petName} src={petAvatar} /> : <span className="header-avatar-placeholder" aria-hidden="true" />}</button>}</div>
+      {onSettingsNavigate ? <button className="header-settings-button" type="button" aria-label="Open settings" onClick={onSettingsNavigate}><span aria-hidden="true">⚙</span></button> : !hidePetAvatar && <button className={`header-avatar-button ${hasPet ? '' : 'is-empty'}`} type="button" aria-label="Open Pets" onClick={onPetsNavigate}>{hasPet ? <Avatar name={petName} src={petAvatar} /> : <span className="header-avatar-placeholder" aria-hidden="true" />}</button>}</div>
     </header>
   );
 }
@@ -1441,7 +1442,7 @@ function ActivityInsightsPage({ records, petName, reviews, canReview, onReview, 
   </section>;
 }
 
-function TodayPage({ onInbox, inboxUnread, onRequestCareTask, onStory, onPetsNavigate, onAddPet, onActivitySummary, onOpenMomentDetail, onOpenInsights, onCareTasks, onToggleCareTask, careTasks, careMembers, insightReviews, currentUserId, primaryMemberId, canAct, isPrimary, petName, petAvatar, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, dayOffset, onDayOffsetChange }: { onInbox: () => void; inboxUnread: number; onRequestCareTask: (task: CareTask, recipientId: string) => boolean; onStory: () => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; onOpenMomentDetail: (momentId: string) => void; onOpenInsights: () => void; onCareTasks: () => void; onToggleCareTask: (task: CareTask) => void; careTasks: CareTask[]; careMembers: CareMember[]; insightReviews: ActivityInsightReview[]; currentUserId: string; primaryMemberId: string; canAct: boolean; isPrimary: boolean; petName: string; petAvatar: string; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
+function TodayPage({ onInbox, inboxUnread, onRequestCareTask, onStory, onPetsNavigate, onAddPet, onActivitySummary, onOpenMomentDetail, onOpenInsights, onCareTasks, onToggleCareTask, careTasks, careMembers, insightReviews, currentUserId, primaryMemberId, canAct, isPrimary, petName, petAvatar, hasDemoMoments, noPetYet, observations, includedMoments, patterns, onPatterns, dayOffset, onDayOffsetChange }: { onInbox: () => void; inboxUnread: number; onRequestCareTask: (task: CareTask, recipientId: string, note?: string) => boolean; onStory: () => void; onPetsNavigate: () => void; onAddPet: () => void; onActivitySummary: (moment: StoryObservation) => void; onOpenMomentDetail: (momentId: string) => void; onOpenInsights: () => void; onCareTasks: () => void; onToggleCareTask: (task: CareTask) => void; careTasks: CareTask[]; careMembers: CareMember[]; insightReviews: ActivityInsightReview[]; currentUserId: string; primaryMemberId: string; canAct: boolean; isPrimary: boolean; petName: string; petAvatar: string; hasDemoMoments: boolean; noPetYet: boolean; observations: StoryObservation[]; includedMoments: string[] | null; patterns: TypicalPattern[]; onPatterns: (patternId?: string) => void; dayOffset: number; onDayOffsetChange: (offset: number) => void; scenarioDate?: string }) {
   const now = useCurrentTime();
   const displayName = petName.replace(/\s*[（(]test[^）)]*[）)]$/i, '');
   const visibleRecords = visibleStoryObservations(observations.filter(record => !isObservationSkippedForToday(record, careTasks)), includedMoments)
@@ -1454,7 +1455,7 @@ function TodayPage({ onInbox, inboxUnread, onRequestCareTask, onStory, onPetsNav
 
   return (
     <>
-      <MainHeader onInbox={onInbox} inboxUnread={inboxUnread} eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
+      <MainHeader hidePetAvatar onInbox={onInbox} inboxUnread={inboxUnread} eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       {!noPetYet && <>
       {(featuredRecords.length > 0 || rankedActivities.length > 0) && <section className={`today-section today-moments-strip ${featuredRecords.length ? 'has-moments' : 'insight-only'}`} aria-label="Recent moments and activity insight">
         {featuredRecords.length > 0 && <MomentCarousel>
@@ -2592,6 +2593,7 @@ function readPrototypeSession(): PrototypeSession {
         avatar: typeof account.avatar === 'string' ? account.avatar : '',
         preference: typeof account.preference === 'string' ? account.preference : '',
         careProfile: normalizeOwnerCareProfile(account.careProfile),
+        inboxExamplesEligible: account.inboxExamplesEligible === true,
         inboxDemoByPet: account.inboxDemoByPet && typeof account.inboxDemoByPet === 'object' ? Object.fromEntries(Object.entries(account.inboxDemoByPet).filter(([, state]) => state?.version === 1 && Number.isFinite(Date.parse(state.startedAt)))) : {},
         inboxReadIds: Array.isArray(account.inboxReadIds) ? account.inboxReadIds.filter((id): id is string => typeof id === 'string') : [],
         setupStatus: account.setupStatus,
@@ -5089,7 +5091,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setInsightReviews(next);
     setAccountActionError('');
   }
-  function requestCareTask(task: CareTask, recipientId: string): boolean {
+  function requestCareTask(task: CareTask, recipientId: string, note?: string): boolean {
     const actorId = activeAccount?.id;
     const now = new Date();
     const recipient = displayedCareMembers.find(member => member.id === recipientId);
@@ -5110,7 +5112,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       acceptedAt: takingSelf ? createdAt : undefined,
       declinedAt: undefined,
       declinedBy: undefined,
-      requestNote: undefined,
+      requestNote: note?.trim().slice(0, 240) || undefined,
     }, { type: eventType, actorId, targetId: recipientId, createdAt });
     return saveCareTasks(careTasks.some(entry => entry.id === current.id)
       ? careTasks.map(entry => entry.id === current.id ? requested : entry) : [requested, ...careTasks]);
@@ -5151,9 +5153,18 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     if (activePetRecord) saveInboxDemo(activePetRecord.id, { version: 1, startedAt: new Date().toISOString() }, true);
   }
   useEffect(() => {
-    if (!activeAccount || !activePetRecord || activePetRecord.isEmptyProfile || activeAccount.inboxDemoByPet?.[activePetRecord.id]) return;
+    if (!activeAccount) return;
+    if (!activeAccount.inboxExamplesEligible) {
+      if (!Object.keys(activeAccount.inboxDemoByPet ?? {}).length) return;
+      const captured = captureCurrentSpace(prototypeSession);
+      const next = { ...captured, accounts: captured.accounts.map(account => account.id === activeAccount.id
+        ? { ...account, inboxDemoByPet: {}, inboxReadIds: (account.inboxReadIds ?? []).filter(id => !id.includes(`inbox-demo-${account.id}-`)) } : account) };
+      try { persistPrototypeSession(next); setPrototypeSession(next); } catch { setAccountActionError('Message changes could not be saved. Please try again.'); }
+      return;
+    }
+    if (!activePetRecord || activePetRecord.isEmptyProfile || activeAccount.inboxDemoByPet?.[activePetRecord.id]) return;
     startInboxDemo();
-  }, [activeAccount?.id, activePetRecord?.id, activeAccount?.inboxDemoByPet, activePetRecord?.hasDemoMoments, activePetRecord?.workspace.momoCareDemo?.version]);
+  }, [activeAccount?.id, activeAccount?.inboxExamplesEligible, activePetRecord?.id, activeAccount?.inboxDemoByPet, activePetRecord?.hasDemoMoments, activePetRecord?.workspace.momoCareDemo?.version]);
   const inboxPets = activeAccount?.pets.filter(pet => !pet.isEmptyProfile).map(pet => {
     const workspace = pet.id === activePetRecord?.id ? workspaceFromState() : pet.workspace;
     return { ...pet, workspace: { ...workspace,
@@ -5163,7 +5174,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   }) ?? [];
   const inboxMessages: InboxMessage[] = [
     ...buildInbox(inboxPets, activeAccount?.id ?? '', activeAccount?.inboxReadIds ?? []),
-    ...inboxPets.flatMap(pet => { const state = activeAccount?.inboxDemoByPet?.[pet.id]; return state && activeAccount ? buildInboxDemo(pet, activeAccount.id, state, activeAccount.inboxReadIds ?? []) : []; }),
+    ...inboxPets.flatMap(pet => { const state = activeAccount?.inboxExamplesEligible ? activeAccount.inboxDemoByPet?.[pet.id] : undefined; return state && activeAccount ? buildInboxDemo(pet, activeAccount.id, state, activeAccount.inboxReadIds ?? []) : []; }),
     ...receivedCareInvitations.map(invite => ({
       id: `invitation:${invite.id}`, invitationId: invite.id, petId: invite.petId, petName: invite.petName, petAvatar: invite.petAvatar,
       category: 'care' as const, title: `${invite.ownerName} invited you to ${invite.petName}’s care circle.`,

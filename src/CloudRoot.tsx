@@ -5,6 +5,7 @@ import { SESSION_REPLACED, SessionReplacedError, activeSessionStatus, createClou
 import { CloudMedia } from './cloudMedia';
 import { CloudSync, type SyncState } from './cloudSync';
 import { isSyntheticSunnyProfile } from './storySimulation';
+import { inboxExamplesForCreatedAt } from './inboxDemo';
 
 type Workspace = {
   id: string;
@@ -301,6 +302,7 @@ export default function CloudRoot() {
       media = new CloudMedia(user.id);
       const decodedSession = await media.decode(row.payload);
       const ownProfile = decodedSession.accounts[0];
+      ownProfile.inboxExamplesEligible = inboxExamplesForCreatedAt(user.created_at);
       const deviceAvatar = ownProfile.avatar ? await snapshotDeviceAvatar(ownProfile.avatar) : undefined;
       rememberedAccountProfile.current = `${user.id}|${ownProfile.name}|${ownProfile.avatar}`;
       const rememberedAccounts = rememberDeviceAccount(readDeviceAccounts(), username, ownProfile.name || String(user.user_metadata.display_name ?? username), deviceAvatar);

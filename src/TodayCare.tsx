@@ -7,7 +7,7 @@ type Props = {
   petName: string; patterns: DailyPattern[]; observations: TimedRecord[]; tasks: CareTask[]; dayOffset: number;
   members: Member[]; currentUserId: string; primaryMemberId: string; canAct: boolean; isPrimary: boolean;
   onDone: (task: CareTask) => void; onOpenPlan: () => void; onPatterns: () => void;
-  onRequestHelp: (task: CareTask, recipientId: string) => boolean;
+  onRequestHelp: (task: CareTask, recipientId: string, note?: string) => boolean;
 };
 
 export default function TodayCare({ petName, patterns, observations, tasks, members, currentUserId, primaryMemberId, canAct, isPrimary, onDone, onOpenPlan, onRequestHelp, dayOffset }: Props) {
@@ -15,6 +15,7 @@ export default function TodayCare({ petName, patterns, observations, tasks, memb
   const [reminding, setReminding] = useState<string | null>(null);
   const [recipient, setRecipient] = useState('');
   const [message, setMessage] = useState('');
+  const [requestNote, setRequestNote] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const helperDrag = useRef<{ pointerId: number; startX: number; scrollLeft: number; moved: boolean } | null>(null);
   const helperClickSuppressed = useRef(false);
@@ -45,6 +46,7 @@ export default function TodayCare({ petName, patterns, observations, tasks, memb
     setReminding(task.id);
     setRecipient('');
     setMessage('');
+    setRequestNote('');
   }
   function startHelperDrag(event: React.PointerEvent<HTMLDivElement>) {
     if (event.pointerType !== 'mouse' || event.button !== 0) return;
@@ -89,8 +91,8 @@ export default function TodayCare({ petName, patterns, observations, tasks, memb
           {task.status === 'requested' && task.assignedTo === currentUserId && <button className="today-care-plan" onClick={onOpenPlan}>Accept or decline →</button>}
           {task.status === 'declined' && isPrimary && <button className="today-care-plan" onClick={onOpenPlan}>Find another caregiver →</button>}
         </div>
-        {reminding === task.id && recipient && <form className="care-help-form is-confirming" onSubmit={event => { event.preventDefault(); if (onRequestHelp(task, recipient)) { setMessage(recipient === currentUserId ? 'You’re taking this task.' : 'Request sent to ' + name(recipient) + '.'); setReminding(null); setRecipient(''); } }}>
-          <div className="care-help-confirm"><span className="care-helper-avatar">{helpers.find(member => member.id === recipient)?.avatar ? <img src={helpers.find(member => member.id === recipient)?.avatar} alt="" /> : name(recipient).trim().slice(0,1).toUpperCase()}</span><p>{recipient === currentUserId ? <>Take <strong>{task.title.toLowerCase()}</strong> yourself?</> : <>Ask <strong>{name(recipient)}</strong> to take <strong>{task.title.toLowerCase()}</strong>?</>}</p></div><p>{recipient === currentUserId ? 'You’ll become the responsible caregiver immediately.' : 'They’ll be able to accept or decline this care request.'}</p><div className="today-care-actions"><button type="button" className="cancel-button" onClick={() => setRecipient('')}>Back</button><button type="submit" className="primary-button">{recipient === currentUserId ? 'I’ll take it' : 'Send request'}</button></div>
+        {reminding === task.id && recipient && <form className="care-help-form is-confirming" onSubmit={event => { event.preventDefault(); if (onRequestHelp(task, recipient, requestNote.trim())) { setMessage(recipient === currentUserId ? 'You’re taking this task.' : 'Request sent to ' + name(recipient) + '.'); setReminding(null); setRecipient(''); setRequestNote(''); } }}>
+          <div className="care-help-confirm"><span className="care-helper-avatar">{helpers.find(member => member.id === recipient)?.avatar ? <img src={helpers.find(member => member.id === recipient)?.avatar} alt="" /> : name(recipient).trim().slice(0,1).toUpperCase()}</span><p>{recipient === currentUserId ? <>Take <strong>{task.title.toLowerCase()}</strong> yourself?</> : <>Ask <strong>{name(recipient)}</strong> to take <strong>{task.title.toLowerCase()}</strong>?</>}</p></div><label className="care-request-message"><span>Message (optional)</span><textarea aria-label="Care request message (optional)" placeholder="Leave a massage" maxLength={240} rows={3} value={requestNote} onChange={event => setRequestNote(event.target.value)} /></label><div className="today-care-actions"><button type="button" className="cancel-button" onClick={() => setRecipient('')}>Back</button><button type="submit" className="primary-button">{recipient === currentUserId ? 'I’ll take it' : 'Send request'}</button></div>
         </form>}
       </li>;
     })}</ol>}

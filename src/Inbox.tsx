@@ -38,6 +38,7 @@ export default function Inbox({ messages, onBack, onRead, onReadAll, onOpenMomen
     const advice = task ? taskAdvice(task) : null;
     return <section ref={pageRef} className="inbox-page inbox-detail">
       <header className="inbox-heading"><button className="back-button" aria-label="Back to Inbox" onClick={() => setSelectedId(null)}>←</button><h1>Message</h1><span className="inbox-category-label">{labels[selected.category]}</span></header>
+      {selected.demo && <p className="inbox-example-label">Message example · For trying Inbox</p>}
       <div className="inbox-detail-person"><span className="inbox-avatar">{selected.actorAvatar ? <img src={selected.actorAvatar} alt="" /> : selected.actorName.slice(0, 1)}</span><div><strong>{selected.actorName}</strong><small>{new Date(selected.createdAt).toLocaleString('en', { dateStyle: 'medium', timeStyle: 'short' })}</small></div></div>
       <h2>{selected.title}</h2><p className="inbox-detail-body">{selected.body}</p>
       {task && <>
@@ -61,7 +62,7 @@ export default function Inbox({ messages, onBack, onRead, onReadAll, onOpenMomen
       {(index === 0 || dateLabel(filtered[index - 1].createdAt) !== dateLabel(message.createdAt)) && <h3 className="inbox-day-label">{dateLabel(message.createdAt)}</h3>}
       <button className={`inbox-message ${message.read ? '' : 'is-unread'}`} onClick={() => { onRead(message.id); setSelectedId(message.id); setError(''); }}>
         <span className={`inbox-avatar ${message.category}`}>{message.actorAvatar ? <img src={message.actorAvatar} alt="" /> : message.category === 'pet' && message.petAvatar ? <img src={message.petAvatar} alt="" /> : message.actorName.slice(0, 1)}<i>{message.category === 'care' ? '↔' : message.category === 'social' ? '♡' : '✧'}</i></span>
-        <span className="inbox-message-copy"><span className="inbox-message-meta">{message.petName} · {labels[message.category]}<time>{new Date(message.createdAt).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })}</time></span><strong>{message.title}</strong><span className="inbox-message-preview">{message.body}</span>{message.needsResponse && <em>Needs your response</em>}</span><span className="inbox-message-end">{!message.read && <i />}<span>›</span></span>
+        <span className="inbox-message-copy"><span className="inbox-message-meta"><span>{message.demo && <span className="inbox-example-label">Message example · </span>}{message.petName} · {labels[message.category]}</span><time>{new Date(message.createdAt).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })}</time></span><strong>{message.title}</strong><span className="inbox-message-preview">{message.body}</span>{message.needsResponse && <em>Needs your response</em>}</span><span className="inbox-message-end">{!message.read && <i />}<span>›</span></span>
       </button>
     </div>)}</div>}
   </section>;

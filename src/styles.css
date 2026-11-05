@@ -2638,3 +2638,10 @@ button.profile-link, button.activity-insight-link {
 .inbox-response { display:flex; gap:10px; margin:20px 0; }.inbox-response button { flex:1; min-height:46px; font-size:12px; }
 .inbox-source-link { display:flex; justify-content:space-between; align-items:center; border:0; border-top:1px solid #eae5d9; width:100%; background:transparent; padding:20px 0; color:#746547; font-weight:500; font-size:12px; cursor:pointer; }
 .inbox-page button:focus-visible,.inbox-icon-button:focus-visible,.profile-inbox-entry:focus-visible { outline:2px solid #7f6833; outline-offset:3px; }
+
+.home-screen .main-header h1 { white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
+.care-help-form .care-request-message { display:grid; gap:8px; margin:14px 0; color:#786f5d; font-size:12px; }
+.care-help-form .care-request-message textarea { width:100%; min-height:84px; padding:12px 14px; resize:vertical; border:1px solid #ded9c9; border-radius:12px; background:#fffefa; color:#34483a; font:400 14px/1.6 'Roboto',sans-serif; }
+.care-help-form .care-request-message textarea::placeholder { color:#9b9588; }
+.care-help-form .care-request-message textarea:focus-visible { outline:2px solid #d6b947; outline-offset:2px; }
+.inbox-example-label { color:#9b8044; font-size:9px; font-weight:600; }

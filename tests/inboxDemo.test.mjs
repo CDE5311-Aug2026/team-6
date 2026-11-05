@@ -6,7 +6,7 @@ const compile = path => ts.transpileModule(readFileSync(new URL(path, import.met
 const url = source => 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
 const modelUrl = url(compile('../src/inboxModel.ts'));
 const compiled = compile('../src/inboxDemo.ts').replace("'./inboxModel'", JSON.stringify(modelUrl));
-const { buildInboxDemo, isInboxDemoTask } = await import(url(compiled));
+const { buildInboxDemo, isInboxDemoTask, inboxExamplesForCreatedAt, INBOX_EXAMPLES_ROLLOUT_AT } = await import(url(compiled));
 const pet = { id: 'sunny', name: 'Sunny', avatar: '' };
 const now = new Date('2026-11-05T04:00:00Z');
 const state = { version: 1, startedAt: now.toISOString() };
@@ -48,4 +48,12 @@ test('only the exact account and pet task can receive a simulated response', () 
   assert.equal(isInboxDemoTask(task.id,pet.id,'daughter'),true);
   assert.equal(isInboxDemoTask(task.id,pet.id,'other'),false);
   assert.equal(isInboxDemoTask('real-task',pet.id,'daughter'),false);
+});
+test('only new registrations after rollout receive examples, never existing accounts or guests', () => {
+  assert.equal(inboxExamplesForCreatedAt('2026-11-05T15:20:00Z'), false);
+  assert.equal(inboxExamplesForCreatedAt('2026-10-01T00:00:00Z'), false);
+  assert.equal(inboxExamplesForCreatedAt(undefined), false);
+  assert.equal(inboxExamplesForCreatedAt('invalid'), false);
+  assert.equal(inboxExamplesForCreatedAt(INBOX_EXAMPLES_ROLLOUT_AT), true);
+  assert.equal(inboxExamplesForCreatedAt('2026-11-06T00:00:00Z'), true);
 });

@@ -3,6 +3,12 @@ import { buildInbox, type InboxMessage, type InboxSpace } from './inboxModel';
 
 export type InboxDemoState = { version: 1; startedAt: string; response?: 'accepted' | 'declined'; respondedAt?: string };
 
+// Existing accounts and guests must not receive the registration examples.
+export const INBOX_EXAMPLES_ROLLOUT_AT = '2026-11-05T15:28:18Z';
+export function inboxExamplesForCreatedAt(createdAt?: string) {
+  return !!createdAt && Number.isFinite(Date.parse(createdAt)) && Date.parse(createdAt) >= Date.parse(INBOX_EXAMPLES_ROLLOUT_AT);
+}
+
 /** Private, fictional test messages. Never adds members or tasks to a real care group. */
 export function buildInboxDemo(pet: { id: string; name: string; avatar: string }, userId: string, state: InboxDemoState, readIds: string[], now = new Date()): InboxMessage[] {
   const start = new Date(state.startedAt);
