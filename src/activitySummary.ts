@@ -82,7 +82,9 @@ export function attentionActivityInsights(insights: RankedDailyActivityInsight[]
 
 /** Shared by the home status and its detail-page heading. */
 export function hasActivityAttention(insights: RankedDailyActivityInsight[], reviews: ActivityInsightReview[]) {
-  return attentionActivityInsights(insights, reviews).some(insight => insight.meetsThreshold || activityInsightReviewFor(reviews, insight)?.status === 'watch');
+  // Keep the home status in the attention state until every surfaced insight
+  // has an explicit review. “Looks normal” is the only choice that clears it.
+  return attentionActivityInsights(insights, reviews).length > 0;
 }
 
 export function dialAttentionActivityInsights(insights: RankedDailyActivityInsight[], reviews: ActivityInsightReview[]) {
