@@ -3481,7 +3481,7 @@ function PetSecondaryPage({ kind, petName, ownerName, ownerEmail, ownerAvatar = 
   );
 }
 
-function CareMemberDetailsPage({ member, ownerName, ownerRole, ownerAvatar, ownerPreference = 'Manage your profile details here.', memberAvatar = '', primaryMemberId, isPrimaryCaregiver, petName, activityCounts, onBack }: { member: CareMember; ownerName: string; ownerRole: string; ownerAvatar?: string; ownerPreference?: string; memberAvatar?: string; primaryMemberId: string; isPrimaryCaregiver: boolean; petName: string; activityCounts: ProfileActivityCounts; onBack: () => void }) {
+function CareMemberDetailsPage({ member, ownerName, ownerRole, ownerAvatar = '', ownerPreference = 'Manage your profile details here.', memberAvatar = '', primaryMemberId, isPrimaryCaregiver, petName, activityCounts, onBack }: { member: CareMember; ownerName: string; ownerRole: string; ownerAvatar?: string; ownerPreference?: string; memberAvatar?: string; primaryMemberId: string; isPrimaryCaregiver: boolean; petName: string; activityCounts: ProfileActivityCounts; onBack: () => void }) {
   const name = member.id === primaryMemberId ? ownerName : member.name;
   const primary = member.id === primaryMemberId;
   const avatar = primary ? ownerAvatar : memberAvatar;
