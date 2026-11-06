@@ -1,7 +1,8 @@
 import { supabase, verifiedUser } from './cloud';
 
 export type ChatConversation = { id: string; kind: 'group' | 'direct'; groupId: string; updatedAt: string; lastMessageAt: string | null; memberIds: string[]; lastMessage?: ChatMessage; unreadCount: number };
-export type ChatMessage = { id: string; conversationId: string; senderId: string; body: string; createdAt: string };
+export type ChatAttachment = { path: string; name: string; mimeType: string; size: number; url?: string };
+export type ChatMessage = { id: string; conversationId: string; senderId: string; body: string; createdAt: string; deletedAt?: string | null; attachment?: ChatAttachment | null; readByIds?: string[]; replyTo?: { id: string; senderId: string; body: string; deletedAt?: string | null } | null };
 
 const MOMENT_SHARE_PREFIX = 'PAWSONA_MOMENT_SHARE:';
 export type SharedMomentCard = { id: string; destination: 'story' | 'activity-summary'; title: string; petName: string; time: string; description: string; image?: string; mediaType?: string; details?: string[] };
@@ -29,11 +30,17 @@ export async function listChatConversations(groupId: string): Promise<ChatConver
   const ids = rows.map(row => row.id);
   const [{ data: memberRows, error: memberError }, { data: messageRows, error: messageError }] = await Promise.all([
     client.from('care_conversation_members').select('conversation_id,user_id,last_read_at').in('conversation_id', ids),
-    client.from('care_messages').select('id,conversation_id,sender_id,body,created_at').in('conversation_id', ids).order('created_at', { ascending: false }).limit(500),
+    client.from('care_messages').select('id,conversation_id,sender_id,body,created_at,deleted_at').in('conversation_id', ids).order('created_at', { ascending: false }).limit(500),
   ]);
   if (memberError) throw memberError;
   if (messageError) throw messageError;
-  const messages = (messageRows ?? []).map(row => ({ id: row.id, conversationId: row.conversation_id, senderId: row.sender_id, body: row.body, createdAt: row.created_at }));
+  const messageIds = (messageRows ?? []).map(row => row.id);
+  const { data: hiddenRows, error: hiddenError } = messageIds.length
+    ? await client.from('care_message_hidden').select('message_id').in('message_id', messageIds)
+    : { data: [], error: null };
+  if (hiddenError) throw hiddenError;
+  const hiddenIds = new Set((hiddenRows ?? []).map(item => item.message_id));
+  const messages = (messageRows ?? []).filter(row => !hiddenIds.has(row.id)).map(row => ({ id: row.id, conversationId: row.conversation_id, senderId: row.sender_id, body: row.body, createdAt: row.created_at, deletedAt: row.deleted_at }));
   return Promise.all(rows.map(async row => {
     const members = (memberRows ?? []).filter(member => member.conversation_id === row.id);
     const ownMembership = members.find(member => member.user_id === user.id);
@@ -62,18 +69,82 @@ export async function getOrCreateDirectChat(groupId: string, otherUserId: string
 export async function listChatMessages(conversationId: string): Promise<ChatMessage[]> {
   const client = supabase;
   if (!client) return [];
-  const { data, error } = await client.from('care_messages').select('id,conversation_id,sender_id,body,created_at').eq('conversation_id', conversationId).order('created_at', { ascending: true }).limit(100);
+  const [{ data, error }, { data: memberRows, error: memberError }] = await Promise.all([
+    client.from('care_messages').select('id,conversation_id,sender_id,body,created_at,deleted_at,attachment,reply_to_id').eq('conversation_id', conversationId).order('created_at', { ascending: true }).limit(100),
+    client.from('care_conversation_members').select('user_id,last_read_at').eq('conversation_id', conversationId),
+  ]);
   if (error) throw error;
-  return (data ?? []).map(row => ({ id: row.id, conversationId: row.conversation_id, senderId: row.sender_id, body: row.body, createdAt: row.created_at }));
+  if (memberError) throw memberError;
+  const rows = data ?? [];
+  const messageIds = rows.map(row => row.id);
+  const { data: hiddenRows, error: hiddenError } = messageIds.length
+    ? await client.from('care_message_hidden').select('message_id').in('message_id', messageIds)
+    : { data: [], error: null };
+  if (hiddenError) throw hiddenError;
+  const hiddenIds = new Set((hiddenRows ?? []).map(row => row.message_id));
+  const visibleRows = rows.filter(row => !hiddenIds.has(row.id));
+  const rowById = new Map(rows.map(row => [row.id, row]));
+  return Promise.all(visibleRows.map(async row => {
+    const attachment = row.attachment as ChatAttachment | null;
+    let resolved = attachment;
+    if (attachment?.path) {
+      const { data: signed, error: signedError } = await client.storage.from('care-chat-media').createSignedUrl(attachment.path, 3600);
+      if (signedError) throw signedError;
+      resolved = { ...attachment, url: signed.signedUrl };
+    }
+    const readByIds = (memberRows ?? []).filter(item => item.user_id !== row.sender_id && item.last_read_at >= row.created_at).map(item => item.user_id);
+    const replyRow = row.reply_to_id ? rowById.get(row.reply_to_id) : undefined;
+    return { id: row.id, conversationId: row.conversation_id, senderId: row.sender_id, body: row.body, createdAt: row.created_at,
+      deletedAt: row.deleted_at, attachment: resolved, readByIds,
+      replyTo: replyRow && !hiddenIds.has(replyRow.id) ? { id: replyRow.id, senderId: replyRow.sender_id, body: replyRow.body, deletedAt: replyRow.deleted_at } : null };
+  }));
 }
 
-export async function sendChatMessage(conversationId: string, body: string): Promise<ChatMessage> {
+export async function uploadChatAttachment(conversationId: string, file: File): Promise<ChatAttachment> {
   const client = supabase;
   if (!client) throw new Error('Log in to send a message.');
   const user = await verifiedUser();
-  const { data, error } = await client.from('care_messages').insert({ conversation_id: conversationId, sender_id: user.id, body: body.trim() }).select('id,conversation_id,sender_id,body,created_at').single();
+  const allowed = file.type.startsWith('image/') || file.type.startsWith('video/') || file.type.startsWith('audio/');
+  if (!allowed) throw new Error('Choose an image, video, or audio recording.');
+  const maxBytes = file.type.startsWith('video/') ? 30 * 1024 * 1024 : 12 * 1024 * 1024;
+  if (file.size > maxBytes) throw new Error(file.type.startsWith('video/') ? 'Choose a video smaller than 30 MB.' : 'Choose a file smaller than 12 MB.');
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-100) || 'attachment';
+  const path = `${conversationId}/${user.id}/${crypto.randomUUID()}-${safeName}`;
+  const { error } = await client.storage.from('care-chat-media').upload(path, file, { contentType: file.type, upsert: false });
   if (error) throw error;
-  return { id: data.id, conversationId: data.conversation_id, senderId: data.sender_id, body: data.body, createdAt: data.created_at };
+  const { data: signed, error: signedError } = await client.storage.from('care-chat-media').createSignedUrl(path, 3600);
+  if (signedError) throw signedError;
+  return { path, name: file.name, mimeType: file.type, size: file.size, url: signed.signedUrl };
+}
+
+export async function sendChatMessage(conversationId: string, body: string, attachment?: ChatAttachment | null, replyToId?: string): Promise<ChatMessage> {
+  const client = supabase;
+  if (!client) throw new Error('Log in to send a message.');
+  const user = await verifiedUser();
+  if (!body.trim() && !attachment) throw new Error('Write a message or attach a file.');
+  const { data, error } = await client.from('care_messages').insert({ conversation_id: conversationId, sender_id: user.id, body: body.trim() || (attachment?.mimeType.startsWith('audio/') ? 'Voice message' : ''), attachment: attachment ? { path: attachment.path, name: attachment.name, mimeType: attachment.mimeType, size: attachment.size } : null, reply_to_id: replyToId ?? null }).select('id,conversation_id,sender_id,body,created_at,attachment,reply_to_id').single();
+  if (error) throw error;
+  return { id: data.id, conversationId: data.conversation_id, senderId: data.sender_id, body: data.body, createdAt: data.created_at, attachment, replyTo: null };
+}
+
+export async function hideChatMessage(messageId: string): Promise<void> {
+  const client = supabase;
+  if (!client) throw new Error('Log in to delete a message.');
+  const user = await verifiedUser();
+  const { error } = await client.from('care_message_hidden').insert({ message_id: messageId, user_id: user.id });
+  if (error) throw error;
+}
+
+export async function recallChatMessage(messageId: string): Promise<void> {
+  const client = supabase;
+  if (!client) throw new Error('Log in to recall a message.');
+  const { data: message, error: readError } = await client.from('care_messages').select('attachment').eq('id', messageId).single();
+  if (readError) throw readError;
+  const { data: recalled, error } = await client.from('care_messages').update({ body: '', attachment: null, deleted_at: new Date().toISOString() }).eq('id', messageId).select('id').maybeSingle();
+  if (error) throw error;
+  if (!recalled) throw new Error('Messages can only be recalled within 10 minutes of sending.');
+  const attachment = message.attachment as ChatAttachment | null;
+  if (attachment?.path) await client.storage.from('care-chat-media').remove([attachment.path]).catch(() => undefined);
 }
 
 export async function markChatRead(conversationId: string) {
@@ -82,3 +153,4 @@ export async function markChatRead(conversationId: string) {
   const { error } = await client.rpc('mark_care_conversation_read', { p_conversation_id: conversationId });
   if (error) throw error;
 }
+
