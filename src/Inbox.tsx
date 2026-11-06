@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CareTask } from './careTasks';
 import { taskAdvice, type InboxCategory, type InboxMessage } from './inboxModel';
+import InboxChats from './InboxChats';
+
+type InboxChatMember = { id: string; name: string; avatar?: string; role?: string };
 
 export function InboxIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="m4 6 8 7 8-7"/></svg>;
@@ -16,18 +19,22 @@ function dateLabel(stamp: string) {
   today.setDate(today.getDate() - 1);
   return day.toDateString() === today.toDateString() ? 'Yesterday' : day.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
 }
-export default function Inbox({ messages, onBack, onRead, onReadAll, onOpenMoment, onOpenPlan, onRespond, canRespond, onAskAI, onOpenInvitations }: {
+export default function Inbox({ messages, onBack, onRead, onReadAll, onOpenMoment, onOpenSharedMoment, onOpenPlan, onRespond, canRespond, onAskAI, onOpenInvitations, chatGroupId, chatGroupName = 'Care circle', chatPetId, chatPetName = 'your pet', chatCurrentUserId = '', chatMembers = [], canChat = false }: {
   messages: InboxMessage[]; onBack: () => void; onRead: (id: string) => void; onReadAll: () => void;
   onOpenMoment: (petId: string, momentId: string) => void; onOpenPlan: (petId: string) => void;
+  onOpenSharedMoment?: (petId: string, momentId: string, destination: 'story' | 'activity-summary') => void;
   onRespond: (petId: string, task: CareTask, accept: boolean) => boolean;
   canRespond: (petId: string) => boolean;
   onAskAI: (petId: string, task: CareTask) => void;
   onOpenInvitations: () => void;
+  chatGroupId?: string; chatGroupName?: string; chatPetId?: string; chatPetName?: string; chatCurrentUserId?: string; chatMembers?: InboxChatMember[]; canChat?: boolean;
 }) {
   const [category, setCategory] = useState<'all' | InboxCategory>('all');
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [section, setSection] = useState<'updates' | 'chats'>('updates');
+  const [chatUnread, setChatUnread] = useState(0);
   const pageRef = useRef<HTMLElement>(null);
   useEffect(() => { pageRef.current?.scrollIntoView({ block: 'start' }); }, [selectedId]);
   const selected = messages.find(m => m.id === selectedId);
@@ -54,7 +61,9 @@ export default function Inbox({ messages, onBack, onRead, onReadAll, onOpenMomen
     </section>;
   }
   return <section ref={pageRef} className="inbox-page">
-    <header className="inbox-heading"><button className="back-button" aria-label="Back from Inbox" onClick={onBack}>←</button><h1>Inbox</h1><button className="inbox-mark-all" disabled={!unread} onClick={onReadAll}>Mark all read</button></header>
+    <header className="inbox-heading"><button className="back-button" aria-label="Back from Inbox" onClick={onBack}>←</button><h1>Inbox</h1>{section === 'updates' && <button className="inbox-mark-all" disabled={!unread} onClick={onReadAll}>Mark all read</button>}</header>
+    <div className="inbox-section-tabs" role="tablist" aria-label="Inbox sections"><button role="tab" aria-selected={section === 'updates'} onClick={() => setSection('updates')}>Updates{unread > 0 && <i>{unread > 99 ? '99+' : unread}</i>}</button><button role="tab" aria-selected={section === 'chats'} onClick={() => setSection('chats')}>Chats{chatUnread > 0 && <i>{chatUnread > 99 ? '99+' : chatUnread}</i>}</button></div>
+    {section === 'updates' && <>
     <div className="inbox-intro"><span className="eyebrow">YOUR CARE CIRCLE, IN THE LOOP</span><p>Little updates. Better care, together.</p><span>{unread ? `${unread} unread ${unread === 1 ? 'message' : 'messages'}` : 'You’re all caught up'}</span></div>
     <div className="inbox-filters" role="tablist" aria-label="Message categories">{(['all', 'care', 'social', 'pet'] as const).map(id => <button key={id} role="tab" aria-selected={category === id} onClick={() => setCategory(id)}>{id === 'all' ? 'All' : labels[id]}{messages.some(m => !m.read && (id === 'all' || m.category === id)) && <i />}</button>)}</div>
     <div className="inbox-list-heading"><h2>{category === 'all' ? 'All messages' : labels[category]}</h2><button className={unreadOnly ? 'selected' : ''} aria-pressed={unreadOnly} onClick={() => setUnreadOnly(v => !v)}>Unread only <span>{unreadOnly ? '●' : '○'}</span></button></div>
@@ -65,5 +74,7 @@ export default function Inbox({ messages, onBack, onRead, onReadAll, onOpenMomen
         <span className="inbox-message-copy"><span className="inbox-message-meta"><span>{message.demo && <span className="inbox-example-label">Message example · </span>}{message.petName} · {labels[message.category]}</span><time>{new Date(message.createdAt).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })}</time></span><strong>{message.title}</strong><span className="inbox-message-preview">{message.body}</span>{message.needsResponse && <em>Needs your response</em>}</span><span className="inbox-message-end">{!message.read && <i />}<span>›</span></span>
       </button>
     </div>)}</div>}
+    </>}
+    <InboxChats hidden={section !== 'chats'} groupId={chatGroupId} groupName={chatGroupName} petId={chatPetId} petName={chatPetName} currentUserId={chatCurrentUserId} members={chatMembers} enabled={canChat} onUnreadChange={setChatUnread} onOpenSharedMoment={(momentId, destination) => { if (chatPetId && onOpenSharedMoment) onOpenSharedMoment(chatPetId, momentId, destination); else if (chatPetId) onOpenMoment(chatPetId, momentId); }} />
   </section>;
 }

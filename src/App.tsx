@@ -1,5 +1,6 @@
 import { buildInboxDemo, isInboxDemoTask, type InboxDemoState } from './inboxDemo';
 import Inbox, { InboxButton, InboxIcon } from './Inbox';
+import MomentShareDialog from './MomentShareDialog';
 import { buildInbox, type LikeEvent, type InboxMessage } from './inboxModel';
 import { advanceMomoCareDemo, type MomoCareDemo } from './momoCareDemo';
 import { isUnavailableMedia } from './cloudMediaReferences';
@@ -336,6 +337,7 @@ type MomentRecord = {
   source: string;
   observationContext?: string;
   details?: string[];
+  shareable?: boolean;
 };
 type MomentEngagement = { likes: string[]; favorites: string[]; likeEvents?: LikeEvent[] };
 type MomentEngagementById = Record<string, MomentEngagement>;
@@ -592,12 +594,13 @@ function MainHeader({ eyebrow, title, subtitle, petName, petAvatar = '', hasPet 
   );
 }
 
-function DetailHeader({ title, eyebrow, onBack }: { title: string; eyebrow: string; onBack: () => void }) {
+function DetailHeader({ title, eyebrow, onBack, action }: { title: string; eyebrow: string; onBack: () => void; action?: ReactNode }) {
   return (
     <header className="detail-header">
       <div className="detail-title-row">
         <button className="back-button" aria-label="Go back" onClick={onBack}>←</button>
         <h1>{title}</h1>
+        {action}
       </div>
       <p className="eyebrow">{eyebrow}</p>
     </header>
@@ -675,6 +678,7 @@ function resolveMoment(momentId: string, observations: StoryObservation[]): Mome
     source: `${observation.sourceKind === 'camera' ? 'Simulated camera clip' : 'Owner observation'} · ${formatRelativeDate(observation.savedAt)}`,
     observationContext: observation.context,
     details,
+    shareable: !observation.privateRecord,
   };
   }
   const base = baseMomentDefinitions.find((entry) => entry.id === momentId) ?? baseMomentDefinitions[1];
@@ -1129,7 +1133,7 @@ function formatActivityDuration(minutes: number) {
   return `${remainder} min`;
 }
 
-function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, onBack }: { moment: StoryObservation; moments: StoryObservation[]; petId: string; petName: string; petAvatar: string; onBack: () => void }) {
+function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, groupId, groupName, currentUserId, careMembers, canShare, onBack }: { moment: StoryObservation; moments: StoryObservation[]; petId: string; petName: string; petAvatar: string; groupId?: string; groupName: string; currentUserId: string; careMembers: CareMember[]; canShare: boolean; onBack: () => void }) {
   const summaryIdentity = activitySummaryIdentity(moment);
   const [selectedTrendPoint, setSelectedTrendPoint] = useState<{ index: number; series: 'total' | 'morning' | 'afternoon' | 'evening' } | null>(null);
   const [focusedTrendSeries, setFocusedTrendSeries] = useState<'total' | ActivityPeriod | null>(summaryIdentity.defaultPeriod);
@@ -1140,6 +1144,7 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
   const [showWeeklyWhy, setShowWeeklyWhy] = useState(false);
   const [weeklyInsightBusy, setWeeklyInsightBusy] = useState(false);
   const [weeklyInsightError, setWeeklyInsightError] = useState('');
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const weeklyInsightController = useRef<AbortController | null>(null);
   useEffect(() => () => {
     const controller = weeklyInsightController.current;
@@ -1329,6 +1334,7 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
     <header className="activity-summary-header">
       <button className="back-button" type="button" aria-label="Back to daily rhythm" onClick={onBack}>←</button>
       <div><p className="eyebrow">PET ACTIVITY</p><h1>{category} summary</h1></div>
+      {canShare && !moment.privateRecord && <button type="button" className="moment-share-header-button" aria-label="Share this moment" onClick={() => setShowShareDialog(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20c.6-6.2 3.6-9.8 10-10.2V5l8 7-8 7v-4c-4.2 0-7.5 1.5-10 5Z"/></svg></button>}
     </header>
     <div className="activity-summary-pet"><Avatar name={petName} src={petAvatar} /><span><strong>{petName}</strong><small>{dateLabel} · {formatObservationTime(moment.savedAt).replace('\n', ' · ')}</small></span></div>
     <section className="activity-summary-stats" aria-label={isFoodSummary ? 'Food amount' : isWaterSummary ? 'Water amount' : 'Activity duration'}>
@@ -1409,6 +1415,7 @@ function PetActivitySummaryPage({ moment, moments, petId, petName, petAvatar, on
       </>}
       </>}
     </section>
+    {showShareDialog && <MomentShareDialog moment={resolveMoment(moment.id, moments)} petName={petName} groupId={groupId} groupName={groupName} currentUserId={currentUserId} members={careMembers} destination="activity-summary" onClose={() => setShowShareDialog(false)} />}
   </section>;
 }
 
@@ -2215,9 +2222,10 @@ function MomentContextCard({ context, accounts, careMembers, ownerName, ownerAva
   </article>;
 }
 
-function MomentDetailPage({ moment, contexts, accounts, careMembers, ownerName, ownerAvatar, currentAccountId, groupOwnerAccountId, petName, canContribute, canInteract, engagement, onToggleMomentLike, onToggleMomentFavorite, onBack, onAddContext, onEditContext, onDeleteContext, onToggleLike, onAddComment, onEditOwnComment, onDeleteOwnComment }: { moment: MomentRecord; contexts: OwnerContext[]; accounts: PrototypeAccount[]; careMembers: CareMember[]; ownerName: string; ownerAvatar: string; currentAccountId: string; groupOwnerAccountId?: string; petName: string; canContribute: boolean; canInteract: boolean; engagement: MomentEngagement; onToggleMomentLike: () => void; onToggleMomentFavorite: () => void; onBack: () => void; onAddContext: () => void; onEditContext: (context: OwnerContext) => void; onDeleteContext: (id: string) => boolean; onToggleLike: (contextId: string) => void; onAddComment: (contextId: string, body: string) => boolean; onEditOwnComment: (contextId: string, commentId: string, body: string) => boolean; onDeleteOwnComment: (contextId: string, commentId: string) => boolean }) {
+function MomentDetailPage({ moment, contexts, accounts, careMembers, ownerName, ownerAvatar, currentAccountId, groupOwnerAccountId, petName, groupId, groupName, canShare, canContribute, canInteract, engagement, onToggleMomentLike, onToggleMomentFavorite, onBack, onAddContext, onEditContext, onDeleteContext, onToggleLike, onAddComment, onEditOwnComment, onDeleteOwnComment }: { moment: MomentRecord; contexts: OwnerContext[]; accounts: PrototypeAccount[]; careMembers: CareMember[]; ownerName: string; ownerAvatar: string; currentAccountId: string; groupOwnerAccountId?: string; petName: string; groupId?: string; groupName: string; canShare: boolean; canContribute: boolean; canInteract: boolean; engagement: MomentEngagement; onToggleMomentLike: () => void; onToggleMomentFavorite: () => void; onBack: () => void; onAddContext: () => void; onEditContext: (context: OwnerContext) => void; onDeleteContext: (id: string) => boolean; onToggleLike: (contextId: string) => void; onAddComment: (contextId: string, body: string) => boolean; onEditOwnComment: (contextId: string, commentId: string, body: string) => boolean; onDeleteOwnComment: (contextId: string, commentId: string) => boolean }) {
   const [pendingDelete, setPendingDelete] = useState<OwnerContext | null>(null);
   const [deleteError, setDeleteError] = useState('');
+  const [showShareDialog, setShowShareDialog] = useState(false);
 
   function closeDeleteDialog() {
     setPendingDelete(null);
@@ -2235,7 +2243,7 @@ function MomentDetailPage({ moment, contexts, accounts, careMembers, ownerName, 
 
   return (
     <>
-      <DetailHeader title={moment.title} eyebrow="MOMENT DETAILS" onBack={onBack} />
+      <DetailHeader title={moment.title} eyebrow="MOMENT DETAILS" onBack={onBack} action={canShare && moment.shareable !== false ? <button type="button" className="moment-share-header-button" aria-label="Share this moment" onClick={() => setShowShareDialog(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20c.6-6.2 3.6-9.8 10-10.2V5l8 7-8 7v-4c-4.2 0-7.5 1.5-10 5Z"/></svg></button> : undefined} />
       <article className={`moment-detail-card ${moment.image ? '' : 'note-only-moment-card'}`}>
         {moment.image && <section className="moment-detail-media"><StoryMediaView src={moment.image} type={moment.mediaType} alt={`${petName} · ${moment.title}`} controls={moment.mediaType?.startsWith('video/')} /></section>}
         <section className="moment-summary-card"><div className="moment-summary-mini moment-source-mini"><strong>{moment.source}</strong><p>{moment.time}</p>{moment.details?.map(detail => <p key={detail}>{detail}</p>)}</div><div className="moment-summary-mini moment-description-mini"><strong>What this moment shows</strong><p>{moment.description}</p></div></section>
@@ -2249,6 +2257,7 @@ function MomentDetailPage({ moment, contexts, accounts, careMembers, ownerName, 
       </section>
       {canContribute && <StickyAction className="moment-detail-action" label="Add context to this moment" onClick={onAddContext} />}
       {pendingDelete && <div className="profile-dialog-backdrop" role="presentation" onClick={closeDeleteDialog}><section className="profile-dialog context-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-context-title" onClick={(event) => event.stopPropagation()}><h2 id="delete-context-title">Delete this context?</h2><p>This removes the owner context from “{moment.title}”. This action cannot be undone.</p>{deleteError && <p className="inline-save-error" role="alert">{deleteError}</p>}<div className="member-removal-actions"><button className="cancel-button" onClick={closeDeleteDialog}>Cancel</button><button className="danger-button" onClick={confirmDelete}>Delete context</button></div></section></div>}
+      {showShareDialog && <MomentShareDialog moment={moment} petName={petName} groupId={groupId} groupName={groupName} currentUserId={currentAccountId} members={careMembers} onClose={() => setShowShareDialog(false)} />}
     </>
   );
 }
@@ -5256,16 +5265,16 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
             {activePetRecord.workspace.momoCareDemo?.version === 1 && ['today', 'careTasks', 'careMembers'].includes(view) && <aside className="momo-demo-notice"><strong>Shared-care demo · Singapore time</strong><p>Alex (Demo) is a simulated caregiver. Scheduled care updates while this app is open; returning catches up today’s completed activities. New requests to Alex receive a simulated acceptance after about 30 seconds. Other new tasks stay open for you to test.</p></aside>}
             {view === 'today' && <TodayPage onInbox={() => navigateTo('inbox')} inboxUnread={inboxUnread} primaryMemberId={primaryMemberId} onRequestCareTask={requestCareTask} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenMomentDetail={openMomentDetail} onOpenInsights={() => navigateTo('activityInsights')} onCareTasks={() => navigateTo('careTasks')} onToggleCareTask={toggleCareTask} careTasks={careTasks} careMembers={displayedCareMembers} insightReviews={insightReviews} currentUserId={activeAccount.id} canAct={canContributeToSharedPet} isPrimary={isPrimaryCaregiver} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
-            {view === 'inbox' && <Inbox onOpenInvitations={() => navigateTo('you')} onAskAI={(petId, task) => {
+            {view === 'inbox' && <Inbox chatGroupId={activePetRecord.sharedGroupId} chatGroupName={activeGroupName} chatPetId={activePetRecord.id} chatPetName={petName} chatCurrentUserId={activeAccount.id} chatMembers={displayedCareMembers} canChat={Boolean(cloud && activePetRecord.sharedGroupId)} onOpenInvitations={() => navigateTo('you')} onAskAI={(petId, task) => {
               if (!activeAccount || sharedWritePending()) { setAccountActionError('Wait for shared changes to sync before opening AI.'); return; }
               if (petId !== activePetRecord.id) { const error = applyAccountSpace(captureCurrentSpace(prototypeSession), activeAccount.id, petId, true); if (error) { setAccountActionError(error); return; } }
               setAskInput(`Help me prepare for this care task: ${task.title}. Planned time: ${new Date(task.dueAt).toLocaleString('en')}. Instructions: ${task.note || 'Not specified'}. Caregiver message: ${task.requestNote || 'None'}. Check the available records and explain what I should confirm before starting.`);
               navigateTo('ask');
-            }} messages={inboxMessages} onBack={() => goBack('today')} onRead={id => markInboxRead([id])} onReadAll={() => markInboxRead(inboxMessages.map(message => message.id))} onOpenMoment={openFavoriteMoment} onOpenPlan={openInboxCarePlan} onRespond={respondInboxTask} canRespond={petId => petId === activePetRecord.id && canContributeToSharedPet} />}
+            }} messages={inboxMessages} onBack={() => goBack('today')} onRead={id => markInboxRead([id])} onReadAll={() => markInboxRead(inboxMessages.map(message => message.id))} onOpenMoment={openFavoriteMoment} onOpenSharedMoment={(petId, momentId, destination) => { if (destination === 'activity-summary' && petId === activePetRecord.id) { const record = storyObservations.find(entry => entry.id === momentId && !entry.privateRecord); if (record) { setSelectedActivityMoment(record); navigateTo('activitySummary'); return; } } openFavoriteMoment(petId, momentId); }} onOpenPlan={openInboxCarePlan} onRespond={respondInboxTask} canRespond={petId => petId === activePetRecord.id && canContributeToSharedPet} />}
             {view === 'careTasks' && <CareTasksPage tasks={careTasks} patterns={typicalPatterns} observations={storyObservations} members={displayedCareMembers} currentUserId={activeAccount.id} currentUserName={activeAccount.name} petName={petName} dayOffset={dailyRhythmDayOffset} isPrimary={isPrimaryCaregiver} canAct={canContributeToSharedPet} onBack={() => goBack('today')} onPatterns={() => openPatternKnowledge()} onToggleTask={toggleCareTask} onSkipTask={skipCareTask} onSave={saveCareTasks} />}
             {view === 'activityInsights' && <ActivityInsightsPage records={visibleStoryObservations(storyObservations.filter(observation => !isObservationSkippedForToday(observation, careTasks)), includedStoryMoments)} petName={petName} reviews={insightReviews} canReview={canContributeToSharedPet} onReview={reviewActivityInsight} onBack={() => goBack('today')} onActivitySummary={moment => { setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} />}
 
-            {view === 'activitySummary' && selectedActivityMoment && <PetActivitySummaryPage moment={selectedActivityMoment} moments={visibleStoryObservations(storyObservations, includedStoryMoments)} petId={activePetRecord.id} petName={petName} petAvatar={petAvatar} onBack={() => goBack('today')} />}
+            {view === 'activitySummary' && selectedActivityMoment && <PetActivitySummaryPage moment={selectedActivityMoment} moments={visibleStoryObservations(storyObservations, includedStoryMoments)} petId={activePetRecord.id} petName={petName} petAvatar={petAvatar} groupId={activePetRecord.sharedGroupId} groupName={activeGroupName} currentUserId={activeAccount.id} careMembers={displayedCareMembers} canShare={Boolean(cloud && activePetRecord.sharedGroupId)} onBack={() => goBack('today')} />}
             {view === 'story' && <StoryPage onMoment={openMomentDetail} onEditStory={(dateKey) => { setStoryEditDateKey(dateKey ?? null); navigateTo('storyEdit'); }} onEditMoment={(item) => editStoryRow({ id: item.id, image: item.image, mediaType: item.mediaType, title: item.title, meta: `${item.time} · story moment`, note: item.note })} onDeleteMoment={deleteStoryMoment} onPetsNavigate={() => navigateTo('pets')} onAddPet={openAddPetForm} petName={petName} petAvatar={petAvatar} ownerName={ownerName} accounts={prototypeSession.accounts} contexts={savedContexts} observations={storyObservations} careTasks={careTasks} includedMoments={includedStoryMoments} hasDemoMoments={activePetRecord.hasDemoMoments} noPetYet={activePetRecord.isEmptyProfile ?? false} canEdit={canContributeToSharedPet} />}
             {view === 'storyEdit' && <StoryEditPage observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} hasDemoMoments={activePetRecord.hasDemoMoments} dateKey={storyEditDateKey} onBack={() => goBack('story')} onEdit={editStoryRow} onDelete={deleteStoryRow} onSave={(ids) => { if (!persistWorkspacePatch({ visibility: ids })) return; setIncludedStoryMoments(ids); if (!cloud) try {
               localStorage.setItem(
@@ -5280,7 +5289,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
             {view === 'addCompose' && <StoryAddPage step="compose" saveError={storySaveError} onBack={() => goBack('addMoments')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} foodType={draftFoodType} setFoodType={setDraftFoodType} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addPreview')} />}
             {view === 'addPreview' && <StoryAddPage step="preview" saveError={storySaveError} onBack={() => goBack('addCompose')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} foodType={draftFoodType} setFoodType={setDraftFoodType} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
             {view === 'addSaved' && <StoryAddPage savedObservation={savedStoryObservation} step="saved" saveError={storySaveError} onBack={() => goBack('addPreview')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} foodType={draftFoodType} setFoodType={setDraftFoodType} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
-            {view === 'momentDetail' && <MomentDetailPage moment={selectedMoment} contexts={selectedMomentContexts} accounts={prototypeSession.accounts} careMembers={displayedCareMembers} ownerName={ownerName} ownerAvatar={ownerAvatar} currentAccountId={activeAccount.id} groupOwnerAccountId={activePetRecord.sharedGroupId ? groupOwnerAccountId : undefined} petName={petName} canContribute={canContributeToSharedPet} canInteract={canInteractWithGroupContext} engagement={momentEngagement[selectedMoment.id] ?? { likes: [], favorites: [] }} onToggleMomentLike={() => toggleMomentEngagement(selectedMoment.id, 'likes')} onToggleMomentFavorite={() => toggleMomentEngagement(selectedMoment.id, 'favorites')} onBack={() => goBack('story')} onAddContext={() => startContextForMoment(selectedMoment.id)} onEditContext={(context) => startContextForMoment(selectedMoment.id, context)} onDeleteContext={deleteOwnerContext} onToggleLike={toggleContextLike} onAddComment={addContextComment} onEditOwnComment={editOwnContextComment} onDeleteOwnComment={deleteOwnContextComment} />}
+            {view === 'momentDetail' && <MomentDetailPage moment={selectedMoment} contexts={selectedMomentContexts} accounts={prototypeSession.accounts} careMembers={displayedCareMembers} ownerName={ownerName} ownerAvatar={ownerAvatar} currentAccountId={activeAccount.id} groupOwnerAccountId={activePetRecord.sharedGroupId ? groupOwnerAccountId : undefined} petName={petName} groupId={activePetRecord.sharedGroupId} groupName={activeGroupName} canShare={Boolean(cloud && activePetRecord.sharedGroupId)} canContribute={canContributeToSharedPet} canInteract={canInteractWithGroupContext} engagement={momentEngagement[selectedMoment.id] ?? { likes: [], favorites: [] }} onToggleMomentLike={() => toggleMomentEngagement(selectedMoment.id, 'likes')} onToggleMomentFavorite={() => toggleMomentEngagement(selectedMoment.id, 'favorites')} onBack={() => goBack('story')} onAddContext={() => startContextForMoment(selectedMoment.id)} onEditContext={(context) => startContextForMoment(selectedMoment.id, context)} onDeleteContext={deleteOwnerContext} onToggleLike={toggleContextLike} onAddComment={addContextComment} onEditOwnComment={editOwnContextComment} onDeleteOwnComment={deleteOwnContextComment} />}
             {view === 'overview' && <OverviewPage onBack={() => goBack('today')} onClip={() => { setSelectedMomentId('window'); navigateTo('clip'); }} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} onSaved={() => openMomentDetail('window')} petName={petName}/>}
             {view === 'clip' && <ClipPage onBack={() => goBack('overview')} onContext={() => startContextForMoment('window')} petName={petName} ownerName={ownerName} canContribute={canContributeToSharedPet} />}
             {view === 'context' && <ContextPage moment={selectedMoment} petName={petName} note={note} setNote={setNote} interpretation={interpretation} setInterpretation={setInterpretation} attachments={contextAttachments} setAttachments={setContextAttachments} onBack={() => goBack('momentDetail')} onReview={() => navigateTo('confirm')} />}
