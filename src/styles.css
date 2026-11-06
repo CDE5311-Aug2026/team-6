@@ -1404,6 +1404,16 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .profile-summary-copy { min-width: 0; flex: 1; }
 .profile-summary-copy > span { display: block; margin-top: 2px; color: var(--color-text-secondary); font: 500 12px/17px 'Roboto', sans-serif; }
 .profile-summary-copy p { margin-top: 5px; }
+.member-details-summary { flex-direction:column; align-items:stretch; gap:12px; padding:16px; }
+.member-details-heading { display:flex; min-width:0; align-items:center; gap:15px; }
+.member-details-name-row { display:flex; min-width:0; align-items:center; justify-content:flex-start; gap:10px; }
+.member-details-name-row > strong { min-width:0; overflow-wrap:anywhere; }
+.member-status-badge { flex:none; padding:5px 10px; border:1px solid #f0d879; border-radius:999px; background:#fff8d9; color:#78644a; font:600 11px/1.2 'Poppins',sans-serif; white-space:nowrap; }
+.member-activity-stats { display:grid; width:100%; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0; margin:0; padding:10px 4px; border-radius:16px; background:#fffefa; }
+.member-activity-stats span { display:grid; min-width:0; justify-items:center; gap:3px; padding:0 4px; text-align:center; }
+.member-activity-stats span + span { border-left:1px solid #eee9dd; }
+.member-activity-stats strong { color:#28372e; font:600 15px/18px 'Poppins',sans-serif; }
+.member-activity-stats small { color:#6f786f; font:400 10px/13px 'Roboto',sans-serif; }
 .profile-avatar-upload { position: relative; width: 66px; height: 66px; flex: none; cursor: pointer; }
 .profile-edit-avatar { width: 66px; height: 66px; background-size: cover; background-position: center; font-size: 23px; }
 .pet-edit-avatar { display: block; border-radius: 18px; object-fit: cover; }
@@ -2307,8 +2317,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-circle-heading { position: relative; align-items: center; min-height: 40px; }
 .daily-rhythm-dial-controls .daily-rhythm-dial-toggle { width: 136px; height: 38px; }
 .daily-rhythm-dial-controls .daily-rhythm-dial-toggle button { height: 32px; font-size: 12px; color: #4a4539; }
-.daily-rhythm-dial-controls .daily-rhythm-dial-toggle button[aria-pressed="true"] { color: #1a2921; font-weight: 700; }
-.daily-rhythm-dial-toggle.is-full-day .daily-rhythm-dial-toggle-thumb { background: #e3ece7; }
+.daily-rhythm-dial-controls .daily-rhythm-dial-toggle button[aria-pressed="true"] { color: #765200; font-weight: 700; }
+.daily-rhythm-dial-toggle.is-full-day .daily-rhythm-dial-toggle-thumb { background: #ffe08a; }
 .daily-rhythm-circle-chart .rhythm-hit-target { fill: transparent; stroke: none; pointer-events: all; }
 .activity-insight-card { padding: 14px; gap: 10px; }
 .activity-insight-copy h2 { font-size: 15px; line-height: 22px; }
@@ -2447,7 +2457,9 @@ button.profile-link, button.activity-insight-link {
 .rhythm-info svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 .rhythm-help-dialog { position: fixed; inset: 0; width: min(100%, 390px); max-width: none; height: 100dvh; max-height: none; margin: 0 auto; padding: 0; border: 0; background: transparent; color: #1a2921; overflow: hidden; }
 .rhythm-help-dialog::backdrop { background: #16271e55; }
+.rhythm-help-dialog.is-guide::backdrop { background: transparent; }
 .rhythm-help-sheet { position: absolute; bottom: 0; left: 0; right: 0; display: flex; flex-direction: column; max-height: 78dvh; padding: 20px 20px max(20px, env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; background: #fffdf8; box-shadow: 0 -8px 32px #17291e22; }
+.rhythm-help-dialog.is-guide .rhythm-help-sheet { max-height: 32dvh; padding: 14px 18px max(12px, env(safe-area-inset-bottom)); }
 .rhythm-help-sheet header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .rhythm-help-sheet h2 { margin: 0; font: 600 18px/26px 'Poppins', sans-serif; outline: none; }
 .rhythm-sheet-close { display: grid; place-items: center; flex: 0 0 32px; height: 32px; padding: 0; border: 0; background: none; color: #425349; font-size: 24px; }
@@ -2461,6 +2473,7 @@ button.profile-link, button.activity-insight-link {
 .rhythm-guide-navigation { display: flex; align-items: center; gap: 16px; }
 .rhythm-guide-navigation button:disabled { opacity: .35; }
 .rhythm-guide-target { position: absolute; pointer-events: none; border: 2px solid #a38831; border-radius: 16px; box-shadow: 0 0 0 4px #fffdf888; }
+.rhythm-guide-scrim { position: absolute; inset: 0; pointer-events: none; }
 @media(max-height: 600px) { .rhythm-help-sheet { max-height: 70dvh; padding: 16px; } .rhythm-help-sheet header { margin-bottom: 8px; } }
 
 .rhythm-guide-target.is-ring { border: 0; border-radius: 0; box-shadow: none; overflow: hidden; }
@@ -2658,7 +2671,10 @@ button.profile-link, button.activity-insight-link {
 .chat-list-avatar.group { background:#e6eddf; color:#39775d; }
 .chat-list-avatar img,.chat-thread-avatar img { width:100%; height:100%; object-fit:cover; }
 .chat-conversation-copy,.chat-new-choices>button>span:nth-child(2) { display:grid; min-width:0; flex:1; gap:5px; }
+.chat-conversation-title,.chat-thread-title-row { display:flex; min-width:0; align-items:center; justify-content:flex-start; gap:7px; }
 .chat-conversation-copy strong,.chat-new-choices strong { overflow:hidden; color:#26372e; font:600 12px 'Poppins',sans-serif; text-overflow:ellipsis; white-space:nowrap; }
+.chat-availability-icon { flex:none; font:14px/1 'Roboto',sans-serif; }
+.chat-thread-title-row .chat-availability-badge { flex:none; padding:3px 7px; border:1px solid #f0d879; border-radius:999px; background:#fff8d9; color:#78644a; font:600 9px/1.25 'Poppins',sans-serif; white-space:nowrap; }
 .chat-conversation-copy small,.chat-new-choices small { overflow:hidden; color:#827c70; font:400 10px/1.4 'Roboto',sans-serif; text-overflow:ellipsis; white-space:nowrap; }
 .chat-conversation-meta { display:grid; justify-items:end; gap:5px; color:#989183; }
 .chat-conversation-meta time { font:400 9px 'Roboto',sans-serif; white-space:nowrap; }
@@ -2678,8 +2694,11 @@ button.profile-link, button.activity-insight-link {
 .chat-thread-heading { display:flex; align-items:center; gap:10px; min-height:62px; border-bottom:1px solid #ebe7dc; }
 .chat-thread-heading .back-button { flex:none; width:28px; height:38px; margin:0; font:700 24px/34px 'Poppins',sans-serif; }
 .chat-thread-avatar { width:42px; height:42px; font-size:14px; }
+.chat-thread-avatar.is-clickable { padding:0; border:0; cursor:pointer; }
+.chat-thread-avatar.is-clickable:focus-visible { outline:2px solid #b99b35; outline-offset:3px; }
 .chat-thread-heading>span:last-child { display:grid; min-width:0; gap:3px; }
 .chat-thread-heading strong { overflow:hidden; color:#28372e; font:600 17px/1.2 'Poppins',sans-serif; text-overflow:ellipsis; white-space:nowrap; }
+.chat-thread-title-row strong { min-width:0; }
 .chat-thread-heading small { color:#8b8374; font:400 10px/1.35 'Roboto',sans-serif; }
 .chat-thread-notice { margin:11px 0; padding:9px 11px; border-radius:12px; background:#f7f2e3; color:#817654; font:400 9px/1.5 'Roboto',sans-serif; text-align:center; }
 .chat-thread-messages { display:flex; flex:1; flex-direction:column; gap:9px; overflow-y:auto; padding:8px 1px 88px; }
@@ -2739,6 +2758,14 @@ button.profile-link, button.activity-insight-link {
 .chat-message-menu { position:absolute; z-index:4; top:calc(100% + 5px); right:0; display:grid; min-width:112px; overflow:hidden; border:1px solid #e7e2d6; border-radius:12px; background:#fffefa; box-shadow:0 5px 18px #28372e1c; }
 .chat-message-menu button { border:0; border-bottom:1px solid #f0ede6; padding:9px 11px; background:transparent; color:#4f574f; text-align:left; font:500 10px 'Roboto',sans-serif; cursor:pointer; }
 .chat-message-menu button:last-child { border-bottom:0; color:#a54338; }
+.chat-recall-backdrop { position:fixed; z-index:120; inset:0; display:grid; place-items:center; padding:20px; background:#18221db0; }
+.chat-recall-dialog { width:min(100%, 350px); padding:24px 22px 20px; border:1px solid #e8e2d5; border-radius:22px; background:#fffdf8; color:#26372e; box-shadow:0 18px 60px #0003; }
+.chat-recall-dialog .eyebrow { color:#8a6a18; font-size:10px; letter-spacing:1px; }
+.chat-recall-dialog h2 { margin:8px 0; font:600 19px/1.35 'Poppins',sans-serif; }
+.chat-recall-dialog p { margin:0; color:#59635b; font:400 13px/1.55 'Roboto',sans-serif; }
+.chat-recall-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
+.chat-recall-actions button { min-height:40px; padding:8px 15px; font-size:12px; }
+.chat-recall-actions .cancel-button { background:#fffdf8; }
 .chat-read-by { color:#63816c!important; text-align:right; font:500 9px 'Roboto',sans-serif!important; }
 .chat-reply-preview,.chat-replying-to { display:grid; gap:3px; padding:7px 9px; border-left:2px solid #c7a52d; border-radius:5px; background:#f8f4e8; color:#746d5d; }
 .chat-reply-preview strong,.chat-replying-to strong { color:#4d594f; font:600 9px 'Poppins',sans-serif; }
@@ -2767,7 +2794,7 @@ button.profile-link, button.activity-insight-link {
 .pattern-management-row-main:focus-visible { outline:2px solid #bba343; outline-offset:-3px; border-radius:8px; }
 .detail-title-row .moment-share-header-button { margin: 6px 0 0 auto; flex: 0 0 42px; width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid var(--color-border); border-radius: 50%; background: #fffdf8; color: var(--color-text-primary); }
 .activity-summary-header .moment-share-header-button { margin-left: auto; flex: 0 0 42px; width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid var(--color-border); border-radius: 50%; background: #fffdf8; color: var(--color-text-primary); }
-.moment-share-header-button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.moment-share-header-button svg { width: 21px; height: 21px; transform: translate(-1.5px, -0.5px); fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .detail-title-row h1 { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 .moment-share-backdrop { position: fixed; z-index: 120; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 18px; background: #17231f66; }
 .moment-share-dialog { width: min(100%, 480px); max-height: min(78vh, 720px); overflow-y: auto; padding: 20px; border: 1px solid var(--color-border); border-radius: 24px 24px 20px 20px; background: var(--color-page-bg); box-shadow: 0 18px 55px #17231f30; }

@@ -19,7 +19,7 @@ function dateLabel(stamp: string) {
   today.setDate(today.getDate() - 1);
   return day.toDateString() === today.toDateString() ? 'Yesterday' : day.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
 }
-export default function Inbox({ messages, onBack, onRead, onReadAll, onOpenMoment, onOpenSharedMoment, onOpenPlan, onRespond, canRespond, onAskAI, onOpenInvitations, chatGroupId, chatGroupName = 'Care circle', chatPetId, chatPetName = 'your pet', chatCurrentUserId = '', chatMembers = [], canChat = false }: {
+export default function Inbox({ messages, onBack, onRead, onReadAll, onOpenMoment, onOpenSharedMoment, onOpenPlan, onRespond, canRespond, onAskAI, onOpenInvitations, onOpenCareCircle, onOpenCareMember, chatGroupId, chatGroupName = 'Care circle', chatPetId, chatPetName = 'your pet', chatCurrentUserId = '', chatMembers = [], canChat = false, activeSection = 'updates', onSectionChange, activeChatId, onActiveChatChange, hidden = false }: {
   messages: InboxMessage[]; onBack: () => void; onRead: (id: string) => void; onReadAll: () => void;
   onOpenMoment: (petId: string, momentId: string) => void; onOpenPlan: (petId: string) => void;
   onOpenSharedMoment?: (petId: string, momentId: string, destination: 'story' | 'activity-summary') => void;
@@ -27,13 +27,17 @@ export default function Inbox({ messages, onBack, onRead, onReadAll, onOpenMomen
   canRespond: (petId: string) => boolean;
   onAskAI: (petId: string, task: CareTask) => void;
   onOpenInvitations: () => void;
+  activeSection?: 'updates' | 'chats'; onSectionChange?: (section: 'updates' | 'chats') => void;
+  activeChatId?: string; onActiveChatChange?: (id: string) => void;
+  onOpenCareCircle?: () => void;
+  onOpenCareMember?: (memberId: string) => void;
+  hidden?: boolean;
   chatGroupId?: string; chatGroupName?: string; chatPetId?: string; chatPetName?: string; chatCurrentUserId?: string; chatMembers?: InboxChatMember[]; canChat?: boolean;
 }) {
   const [category, setCategory] = useState<'all' | InboxCategory>('all');
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState('');
-  const [section, setSection] = useState<'updates' | 'chats'>('updates');
   const [chatUnread, setChatUnread] = useState(0);
   const pageRef = useRef<HTMLElement>(null);
   useEffect(() => { pageRef.current?.scrollIntoView({ block: 'start' }); }, [selectedId]);
@@ -43,7 +47,7 @@ export default function Inbox({ messages, onBack, onRead, onReadAll, onOpenMomen
   if (selected) {
     const task = selected.task;
     const advice = task ? taskAdvice(task) : null;
-    return <section ref={pageRef} className="inbox-page inbox-detail">
+    return <section ref={pageRef} className="inbox-page inbox-detail" hidden={hidden} style={hidden ? { display: 'none' } : undefined}>
       <header className="inbox-heading"><button className="back-button" aria-label="Back to Inbox" onClick={() => setSelectedId(null)}>←</button><h1>Message</h1><span className="inbox-category-label">{labels[selected.category]}</span></header>
       {selected.demo && <p className="inbox-example-label">Message example · For trying Inbox</p>}
       <div className="inbox-detail-person"><span className="inbox-avatar">{selected.actorAvatar ? <img src={selected.actorAvatar} alt="" /> : selected.actorName.slice(0, 1)}</span><div><strong>{selected.actorName}</strong><small>{new Date(selected.createdAt).toLocaleString('en', { dateStyle: 'medium', timeStyle: 'short' })}</small></div></div>
@@ -60,10 +64,10 @@ export default function Inbox({ messages, onBack, onRead, onReadAll, onOpenMomen
       {error && <p role="alert">{error}</p>}
     </section>;
   }
-  return <section ref={pageRef} className="inbox-page">
-    <header className="inbox-heading"><button className="back-button" aria-label="Back from Inbox" onClick={onBack}>←</button><h1>Inbox</h1>{section === 'updates' && <button className="inbox-mark-all" disabled={!unread} onClick={onReadAll}>Mark all read</button>}</header>
-    <div className="inbox-section-tabs" role="tablist" aria-label="Inbox sections"><button role="tab" aria-selected={section === 'updates'} onClick={() => setSection('updates')}>Updates{unread > 0 && <i>{unread > 99 ? '99+' : unread}</i>}</button><button role="tab" aria-selected={section === 'chats'} onClick={() => setSection('chats')}>Chats{chatUnread > 0 && <i>{chatUnread > 99 ? '99+' : chatUnread}</i>}</button></div>
-    {section === 'updates' && <>
+  return <section ref={pageRef} className="inbox-page" hidden={hidden} style={hidden ? { display: 'none' } : undefined}>
+      <header className="inbox-heading"><button className="back-button" aria-label="Back from Inbox" onClick={onBack}>←</button><h1>Inbox</h1>{activeSection === 'updates' && <button className="inbox-mark-all" disabled={!unread} onClick={onReadAll}>Mark all read</button>}</header>
+    <div className="inbox-section-tabs" role="tablist" aria-label="Inbox sections"><button role="tab" aria-selected={activeSection === 'updates'} onClick={() => onSectionChange?.('updates')}>Updates{unread > 0 && <i>{unread > 99 ? '99+' : unread}</i>}</button><button role="tab" aria-selected={activeSection === 'chats'} onClick={() => onSectionChange?.('chats')}>Chats{chatUnread > 0 && <i>{chatUnread > 99 ? '99+' : chatUnread}</i>}</button></div>
+    {activeSection === 'updates' && <>
     <div className="inbox-intro"><span className="eyebrow">YOUR CARE CIRCLE, IN THE LOOP</span><p>Little updates. Better care, together.</p><span>{unread ? `${unread} unread ${unread === 1 ? 'message' : 'messages'}` : 'You’re all caught up'}</span></div>
     <div className="inbox-filters" role="tablist" aria-label="Message categories">{(['all', 'care', 'social', 'pet'] as const).map(id => <button key={id} role="tab" aria-selected={category === id} onClick={() => setCategory(id)}>{id === 'all' ? 'All' : labels[id]}{messages.some(m => !m.read && (id === 'all' || m.category === id)) && <i />}</button>)}</div>
     <div className="inbox-list-heading"><h2>{category === 'all' ? 'All messages' : labels[category]}</h2><button className={unreadOnly ? 'selected' : ''} aria-pressed={unreadOnly} onClick={() => setUnreadOnly(v => !v)}>Unread only <span>{unreadOnly ? '●' : '○'}</span></button></div>
@@ -75,6 +79,6 @@ export default function Inbox({ messages, onBack, onRead, onReadAll, onOpenMomen
       </button>
     </div>)}</div>}
     </>}
-    <InboxChats hidden={section !== 'chats'} groupId={chatGroupId} groupName={chatGroupName} petId={chatPetId} petName={chatPetName} currentUserId={chatCurrentUserId} members={chatMembers} enabled={canChat} onUnreadChange={setChatUnread} onOpenSharedMoment={(momentId, destination) => { if (chatPetId && onOpenSharedMoment) onOpenSharedMoment(chatPetId, momentId, destination); else if (chatPetId) onOpenMoment(chatPetId, momentId); }} />
+    <InboxChats hidden={hidden || activeSection !== 'chats'} groupId={chatGroupId} groupName={chatGroupName} petId={chatPetId} petName={chatPetName} currentUserId={chatCurrentUserId} members={chatMembers} enabled={canChat} activeConversationId={activeChatId} onActiveConversationChange={onActiveChatChange} onOpenCareCircle={onOpenCareCircle} onOpenCareMember={onOpenCareMember} onUnreadChange={setChatUnread} onOpenSharedMoment={(momentId, destination) => { if (chatPetId && onOpenSharedMoment) onOpenSharedMoment(chatPetId, momentId, destination); else if (chatPetId) onOpenMoment(chatPetId, momentId); }} />
   </section>;
 }

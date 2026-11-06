@@ -3,31 +3,52 @@ import { supabase } from './cloud';
 import { decodeSharedMoment, getOrCreateDirectChat, hideChatMessage, listChatConversations, listChatMessages, markChatRead, recallChatMessage, sendChatMessage, uploadChatAttachment, type ChatAttachment, type ChatConversation, type ChatMessage } from './chatApi';
 
 type ChatMember = { id: string; name: string; avatar?: string; role?: string };
-type Props = { groupId?: string; groupName: string; petId?: string; petName: string; currentUserId: string; members: ChatMember[]; enabled: boolean; hidden?: boolean; onUnreadChange?: (count: number) => void; onOpenSharedMoment?: (momentId: string, destination: 'story' | 'activity-summary') => void };
+type Props = { groupId?: string; groupName: string; petId?: string; petName: string; currentUserId: string; members: ChatMember[]; enabled: boolean; hidden?: boolean; activeConversationId?: string; onActiveConversationChange?: (id: string) => void; onOpenCareCircle?: () => void; onOpenCareMember?: (memberId: string) => void; onUnreadChange?: (count: number) => void; onOpenSharedMoment?: (momentId: string, destination: 'story' | 'activity-summary') => void };
 const stamp = (value: string) => new Date(value).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' });
-const canRecallMessage = (message: ChatMessage, now = Date.now()) => {
-  const age = now - Date.parse(message.createdAt);
-  return age >= 0 && age <= 10 * 60 * 1000;
+const availabilityState: Record<string, { icon: string; label: string }> = {
+  home: { icon: '🏠', label: 'At home' },
+  away: { icon: '🚶', label: 'Away' },
+  busy: { icon: '🔕', label: 'Busy' },
+  available: { icon: '😊', label: 'Available' },
 };
+function getMemberAvailability(name: string) {
+  try { return availabilityState[localStorage.getItem(`pawsona-availability:${name}`) || 'home'] ?? availabilityState.home; }
+  catch { return availabilityState.home; }
+}
 
-export default function InboxChats({ groupId, groupName, petId, petName, currentUserId, members, enabled, hidden = false, onUnreadChange, onOpenSharedMoment }: Props) {
+export default function InboxChats({ groupId, groupName, petId, petName, currentUserId, members, enabled, hidden = false, activeConversationId, onActiveConversationChange, onOpenCareCircle, onOpenCareMember, onUnreadChange, onOpenSharedMoment }: Props) {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
-  const [activeId, setActiveId] = useState('');
+  const [localActiveId, setLocalActiveId] = useState('');
+  const activeId = activeConversationId ?? localActiveId;
+  const setActiveId = (id: string) => { setLocalActiveId(id); onActiveConversationChange?.(id); };
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [attachment, setAttachment] = useState<ChatAttachment | null>(null);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [openMessageMenu, setOpenMessageMenu] = useState('');
+  const [pendingRecall, setPendingRecall] = useState<ChatMessage | null>(null);
   const [recording, setRecording] = useState(false);
-  const [clockNow, setClockNow] = useState(Date.now());
   const [choosingMember, setChoosingMember] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [, setAvailabilityVersion] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const recallCancelRef = useRef<HTMLButtonElement>(null);
+  const recallConfirmRef = useRef<HTMLButtonElement>(null);
+  const recallReturnFocusRef = useRef<HTMLButtonElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  useEffect(() => {
+    const refreshAvailability = () => setAvailabilityVersion(version => version + 1);
+    window.addEventListener('storage', refreshAvailability);
+    window.addEventListener('pawsona-availability-change', refreshAvailability);
+    return () => {
+      window.removeEventListener('storage', refreshAvailability);
+      window.removeEventListener('pawsona-availability-change', refreshAvailability);
+    };
+  }, []);
   const active = conversations.find(conversation => conversation.id === activeId);
   const member = (id: string) => members.find(candidate => candidate.id === id);
   const participant = (conversation: ChatConversation) => conversation.memberIds.find(id => id !== currentUserId);
@@ -49,7 +70,7 @@ export default function InboxChats({ groupId, groupName, petId, petName, current
       const result = await listChatConversations(groupId);
       setConversations(result);
       onUnreadChange?.(result.reduce((total, item) => total + item.unreadCount, 0));
-      if (!activeId && result.some(item => item.kind === 'group')) setActiveId('');
+      if (activeId && !result.some(item => item.id === activeId)) setActiveId('');
       setError('');
       return result;
     } catch (cause) {
@@ -102,13 +123,26 @@ export default function InboxChats({ groupId, groupName, petId, petName, current
     return () => { live = false; };
   }, [activeId]);
 
-  useEffect(() => {
-    if (!activeId) return;
-    const timer = window.setInterval(() => setClockNow(Date.now()), 15_000);
-    return () => window.clearInterval(timer);
-  }, [activeId]);
-
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }); }, [messages.length, activeId]);
+
+  useEffect(() => {
+    if (!pendingRecall) {
+      const returnFocus = recallReturnFocusRef.current;
+      if (returnFocus) requestAnimationFrame(() => returnFocus.focus());
+      recallReturnFocusRef.current = null;
+      return;
+    }
+    recallCancelRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); setPendingRecall(null); }
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        (event.shiftKey ? recallCancelRef.current : recallConfirmRef.current)?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [pendingRecall]);
 
   async function startDirect(memberId: string) {
     if (!groupId) return;
@@ -166,11 +200,14 @@ export default function InboxChats({ groupId, groupName, petId, petName, current
   }
 
   async function recall(message: ChatMessage) {
-    if (!canRecallMessage(message)) { setError('Messages can only be recalled within 10 minutes of sending.'); setOpenMessageMenu(''); return; }
-    if (busy || !window.confirm('Recall this message for everyone in the conversation?')) return;
+    if (busy) return;
+    setPendingRecall(null);
     setBusy(true); setError('');
     try { await recallChatMessage(message.id); setMessages(await listChatMessages(activeId)); await refreshConversations(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Message could not be recalled.'); }
+    catch (cause) {
+      const detail = cause instanceof Error ? cause.message : '';
+      setError(/row-level security|policy|10 minutes|recall window/i.test(detail) ? 'This message is older than 10 minutes and can no longer be recalled.' : detail || 'Message could not be recalled.');
+    }
     finally { setOpenMessageMenu(''); setBusy(false); }
   }
 
@@ -193,8 +230,12 @@ export default function InboxChats({ groupId, groupName, petId, petName, current
 
   if (!enabled || !groupId) return <div className="chat-unavailable" hidden={hidden} style={hidden ? { display: 'none' } : undefined}><span aria-hidden="true">✉</span><h2>Chats are for your care circle</h2><p>Sign in and open a pet shared with your care group to message its members.</p></div>;
 
+  const peerId = active && active.kind !== 'group' ? participant(active) : undefined;
+  const peer = peerId ? member(peerId) : undefined;
+  const peerAvailability = peer ? getMemberAvailability(peer.name) : undefined;
+
   if (active) return <section className="inbox-chat-thread" hidden={hidden} style={hidden ? { display: 'none' } : undefined}>
-    <header className="chat-thread-heading"><button type="button" className="back-button" onClick={() => { setActiveId(''); void refreshConversations(); }} aria-label="Back to chats">←</button><span className="chat-thread-avatar">{avatar(active) ? <img src={avatar(active)} alt="" /> : active.kind === 'group' ? '✦' : title(active).slice(0, 1).toUpperCase()}</span><span><strong>{title(active)}</strong><small>{active.kind === 'group' ? `${members.length} members · ${petName} care circle` : 'Private chat'}</small></span></header>
+    <header className="chat-thread-heading"><button type="button" className="back-button" onClick={() => { setActiveId(''); void refreshConversations(); }} aria-label="Back to chats">←</button>{active.kind === 'group' ? <button type="button" className="chat-thread-avatar is-clickable" onClick={onOpenCareCircle} aria-label={`View ${petName} care circle members`} title="View care circle members">{avatar(active) ? <img src={avatar(active)} alt="" /> : '✦'}</button> : peer ? <button type="button" className="chat-thread-avatar is-clickable" onClick={() => peerId && onOpenCareMember?.(peerId)} aria-label={`View ${peer.name} account details`} title={`View ${peer.name} account details`}>{avatar(active) ? <img src={avatar(active)} alt="" /> : peer.name.slice(0, 1).toUpperCase()}</button> : <span className="chat-thread-avatar">{avatar(active) ? <img src={avatar(active)} alt="" /> : title(active).slice(0, 1).toUpperCase()}</span>}<span><span className="chat-thread-title-row"><strong>{title(active)}</strong>{peerAvailability && <span className="chat-availability-badge" aria-label={peerAvailability.label}>{peerAvailability.icon} {peerAvailability.label}</span>}</span><small>{active.kind === 'group' ? `${members.length} members · ${petName} care circle` : 'Private chat'}</small></span></header>
     <div className="chat-thread-notice">Messages are shared only with members of this care circle.</div>
     <div className="chat-thread-messages" aria-live="polite">
       {!messages.length && <p className="chat-thread-empty">Start the conversation with {active.kind === 'group' ? 'your care circle' : title(active)}.</p>}
@@ -213,7 +254,7 @@ export default function InboxChats({ groupId, groupName, petId, petName, current
             <button type="button" className="chat-message-menu-trigger" aria-label="Message actions" aria-expanded={openMessageMenu === message.id} onClick={() => setOpenMessageMenu(value => value === message.id ? '' : message.id)}>•••</button>
             {openMessageMenu === message.id && <div className="chat-message-menu">
               {!message.deletedAt && <button type="button" disabled={busy} onClick={() => quote(message)}>Quote</button>}
-              {message.senderId === currentUserId && !message.deletedAt && <button type="button" disabled={busy || !canRecallMessage(message, clockNow)} onClick={() => void recall(message)}>{canRecallMessage(message, clockNow) ? 'Recall' : 'Recall expired'}</button>}
+              {message.senderId === currentUserId && !message.deletedAt && <button type="button" disabled={busy} onClick={event => { recallReturnFocusRef.current = event.currentTarget.closest('.chat-message-menu-wrap')?.querySelector<HTMLButtonElement>('.chat-message-menu-trigger') ?? null; setPendingRecall(message); setOpenMessageMenu(''); }}>Recall</button>}
               <button type="button" disabled={busy} onClick={() => void deleteForMe(message)}>Delete for me</button>
             </div>}
           </div>
@@ -240,6 +281,7 @@ export default function InboxChats({ groupId, groupName, petId, petName, current
       <button className="primary-button" disabled={busy || recording || (!draft.trim() && !attachment)} aria-label="Send message">Send</button>
     </form>
     </div>
+    {pendingRecall && <div className="chat-recall-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setPendingRecall(null); }}><section className="chat-recall-dialog" role="alertdialog" aria-modal="true" aria-labelledby="chat-recall-title" aria-describedby="chat-recall-description"><span className="eyebrow">MESSAGE ACTION</span><h2 id="chat-recall-title">Recall this message?</h2><p id="chat-recall-description">This will remove the message for everyone in the conversation.</p><div className="chat-recall-actions"><button ref={recallCancelRef} type="button" className="cancel-button" onClick={() => setPendingRecall(null)}>Cancel</button><button ref={recallConfirmRef} type="button" className="primary-button" disabled={busy} onClick={() => void recall(pendingRecall)}>Recall message</button></div></section></div>}
   </section>;
 
   return <section className="inbox-chats" hidden={hidden} style={hidden ? { display: 'none' } : undefined}>
@@ -248,7 +290,7 @@ export default function InboxChats({ groupId, groupName, petId, petName, current
     {error && <p className="chat-error" role="alert">{error}</p>}
     {!conversations.length && !error ? <div className="chat-empty"><span aria-hidden="true">✉</span><h3>Your care circle chat will appear here</h3><p>Group chat starts when the latest messaging setup is available.</p></div> : <div className="chat-conversation-list">{conversations.map(conversation => <button type="button" className="chat-conversation-row" key={conversation.id} onClick={() => setActiveId(conversation.id)}>
       <span className={`chat-list-avatar ${conversation.kind}`}>{avatar(conversation) ? <img src={avatar(conversation)} alt="" /> : conversation.kind === 'group' ? '✦' : title(conversation).slice(0, 1).toUpperCase()}</span>
-      <span className="chat-conversation-copy"><strong>{title(conversation)}</strong><small>{preview(conversation)}</small></span>
+      <span className="chat-conversation-copy"><span className="chat-conversation-title"><strong>{title(conversation)}</strong>{conversation.kind === 'direct' && (() => { const peer = member(participant(conversation) ?? ''); if (!peer) return null; const status = getMemberAvailability(peer.name); return <span className="chat-availability-icon" role="img" aria-label={status.label} title={status.label}>{status.icon}</span>; })()}</span><small>{preview(conversation)}</small></span>
       <span className="chat-conversation-meta">{conversation.lastMessageAt && <time>{stamp(conversation.lastMessageAt)}</time>}{conversation.unreadCount > 0 && <b>{conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}</b>}<i>›</i></span>
     </button>)}</div>}
     <p className="chat-group-note">Care requests and task updates stay in Updates, so they remain easy to find.</p>

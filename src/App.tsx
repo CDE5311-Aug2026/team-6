@@ -342,6 +342,7 @@ type MomentRecord = {
 type MomentEngagement = { likes: string[]; favorites: string[]; likeEvents?: LikeEvent[] };
 type MomentEngagementById = Record<string, MomentEngagement>;
 type ProfileActivityCategory = 'records' | 'likes' | 'favorites' | 'contexts';
+type ProfileActivityCounts = Record<ProfileActivityCategory, number>;
 
 function observationBelongsToAccount(pet: PrototypePet, observation: StoryObservation, accountId: string) {
   return observation.authorId === accountId || (!observation.authorId && (!pet.sharedGroupId || pet.sharedOwnerAccountId === accountId));
@@ -2850,7 +2851,7 @@ function SimplePage({ onInbox, inboxUnread, kind, petName, petAvatar, petBreed, 
       <div className="account-hero-activity">
         <section className="account-profile-hero">
           <OwnerAvatar src={ownerAvatar} name={ownerName} className="account-avatar" />
-          <span className="profile-hero-copy"><span className="profile-name-status"><strong>{ownerName}</strong><select aria-label="My availability" className="availability-picker" value={availability} onChange={event => { setAvailability(event.target.value); try { localStorage.setItem('pawsona-availability:' + ownerName, event.target.value); } catch {} }}><option value="home">🏠 At home</option><option value="away">🚶 Away</option><option value="busy">🔕 Busy</option><option value="available">😊 Available</option></select></span><small>{ownerPreference}</small><button type="button" className="mini-action" onClick={onProfileEdit}><b>✎</b> Edit my profile</button></span>
+          <span className="profile-hero-copy"><span className="profile-name-status"><strong>{ownerName}</strong><select aria-label="My availability" className="availability-picker" value={availability} onChange={event => { setAvailability(event.target.value); try { localStorage.setItem('pawsona-availability:' + ownerName, event.target.value); } catch {} window.dispatchEvent(new Event('pawsona-availability-change')); }}><option value="home">🏠 At home</option><option value="away">🚶 Away</option><option value="busy">🔕 Busy</option><option value="available">😊 Available</option></select></span><small>{ownerPreference}</small><button type="button" className="mini-action" onClick={onProfileEdit}><b>✎</b> Edit my profile</button></span>
         </section>
         <div className="profile-card profile-activity-shortcuts" aria-label="My activity">
           {([
@@ -3480,28 +3481,34 @@ function PetSecondaryPage({ kind, petName, ownerName, ownerEmail, ownerAvatar = 
   );
 }
 
-function CareMemberDetailsPage({ member, ownerName, ownerRole, ownerAvatar, ownerPreference, memberAvatar = '', memberPreference = '', primaryMemberId, isPrimaryCaregiver, petName, onBack }: { member: CareMember; ownerName: string; ownerRole: string; ownerAvatar: string; ownerPreference: string; memberAvatar?: string; memberPreference?: string; primaryMemberId: string; isPrimaryCaregiver: boolean; petName: string; onBack: () => void }) {
+function CareMemberDetailsPage({ member, ownerName, ownerRole, ownerAvatar, ownerPreference = 'Manage your profile details here.', memberAvatar = '', primaryMemberId, isPrimaryCaregiver, petName, activityCounts, onBack }: { member: CareMember; ownerName: string; ownerRole: string; ownerAvatar?: string; ownerPreference?: string; memberAvatar?: string; primaryMemberId: string; isPrimaryCaregiver: boolean; petName: string; activityCounts: ProfileActivityCounts; onBack: () => void }) {
   const name = member.id === primaryMemberId ? ownerName : member.name;
   const primary = member.id === primaryMemberId;
   const avatar = primary ? ownerAvatar : memberAvatar;
-  const preference = primary ? ownerPreference : memberPreference;
+  const memberAvailability = (() => {
+    try { return localStorage.getItem(`pawsona-availability:${name}`) || 'home'; }
+    catch { return 'home'; }
+  })();
+  const availabilityLabels: Record<string, string> = { home: '🏠 At home', away: '🚶 Away', busy: '🔕 Busy', available: '😊 Available' };
+  const availabilityLabel = availabilityLabels[memberAvailability] ?? availabilityLabels.home;
+  const activityStats = <div className="member-activity-stats" aria-label={`Activity counts for ${petName}`}>
+    {(['records', 'likes', 'favorites', 'contexts'] as const).map((category) => <span key={category}><strong>{activityCounts[category]}</strong><small>{({ records: 'My records', likes: 'Liked', favorites: 'Favorites', contexts: 'Contexts' })[category]}</small></span>)}
+  </div>;
   if (primary && isPrimaryCaregiver) return <section className="settings-page pet-subpage">
     <header className="settings-header"><button className="back-button" aria-label="Back to pet profile" onClick={onBack}>←</button><h1>Account details</h1></header>
     <p className="settings-eyebrow">CARE MEMBER</p>
-    <section className="settings-summary profile-summary"><OwnerAvatar src={avatar} name={name} className="profile-edit-avatar" /><div className="profile-summary-copy"><strong>{name}</strong><p>{preference}</p></div></section>
+    <section className="settings-summary profile-summary member-details-summary"><div className="member-details-heading"><OwnerAvatar src={avatar} name={name} className="profile-edit-avatar" /><div className="profile-summary-copy"><div className="member-details-name-row"><strong>{name}</strong><span className="member-status-badge">{availabilityLabel}</span></div></div></div>{activityStats}</section>
     <div className="care-event-details member-account-details">
-      <div className="settings-field"><strong>Name</strong><p>{ownerName}</p></div>
       <div className="settings-field"><strong>Role</strong><p>{ownerRole}</p></div>
-      <div className="settings-field"><strong>Preferences</strong><p>{ownerPreference}</p></div>
+      <div className="settings-field"><strong>Preferences</strong><p>{ownerPreference?.trim() || '/'}</p></div>
       <div className="settings-field"><strong>Care access</strong><p>{primary ? 'Manages the profile' : member.access === 'viewer' ? 'View shared records' : 'Can add observations'}</p></div>
     </div>
   </section>;
   return <section className="settings-page pet-subpage">
     <header className="settings-header"><button className="back-button" aria-label="Back to pet profile" onClick={onBack}>←</button><h1>Account details</h1></header>
     <p className="settings-eyebrow">CARE MEMBER</p>
-    <section className="settings-summary profile-summary"><OwnerAvatar src={avatar} name={name} className="profile-edit-avatar" /><div className="profile-summary-copy"><strong>{name}</strong><p>{preference || `Care profile for ${petName}’s care circle.`}</p></div></section>
+    <section className="settings-summary profile-summary member-details-summary"><div className="member-details-heading"><OwnerAvatar src={avatar} name={name} className="profile-edit-avatar" /><div className="profile-summary-copy"><div className="member-details-name-row"><strong>{name}</strong><span className="member-status-badge">{availabilityLabel}</span></div></div></div>{activityStats}</section>
     <div className="care-event-details member-account-details">
-      <div className="settings-field"><strong>Name</strong><p>{name}</p></div>
       <div className="settings-field"><strong>Role</strong><p>{primary ? member.role || 'Primary caregiver' : member.role}</p></div>
       <div className="settings-field"><strong>Care access</strong><p>{primary ? 'Manages the profile' : member.access === 'viewer' ? 'View shared records' : member.role === 'Temporary caregiver' ? 'Can add daily observations and moment context' : 'Can add observations and manage long-term care records'}</p></div>
       {member.role === 'Temporary caregiver' && <div className="settings-field"><strong>Access until</strong><p>{member.expiresAt || 'No end date set'}</p></div>}
@@ -3594,6 +3601,9 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     return session;
   });
   const [view, setView] = useState<View>('today');
+  const [inboxMounted, setInboxMounted] = useState(false);
+  const [inboxSection, setInboxSection] = useState<'updates' | 'chats'>('updates');
+  const [inboxChatId, setInboxChatId] = useState('');
   const [setupOpen, setSetupOpen] = useState(false);
   const [rhythmGuideRequested, setRhythmGuideRequested] = useState(false);
   useEffect(() => {
@@ -4424,6 +4434,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   }
 
   function navigateTo(nextView: View) {
+    if (nextView === 'inbox') setInboxMounted(true);
     if (nextView !== view) navigationHistory.current.push(view);
     setView(nextView);
   }
@@ -4879,6 +4890,13 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   });
   const selectedCareMember = orderedCareMembers.find((member) => member.id === selectedCareMemberId) ?? orderedCareMembers[0];
   const selectedMemberAccount = selectedCareMember ? prototypeSession.accounts.find((account) => account.id === selectedCareMember.id || (!!selectedCareMember.email && account.email.toLowerCase() === selectedCareMember.email.toLowerCase())) : undefined;
+  const selectedPetActivityData = activePetRecord ? { ...activePetRecord, workspace: { ...activePetRecord.workspace, observations: storyObservations, careTasks, momentEngagement, contexts: savedContexts } } : null;
+  const selectedMemberActivityCounts: ProfileActivityCounts = selectedCareMember ? {
+    records: selectedPetActivityData ? itemCountForPet(selectedPetActivityData, 'records', selectedCareMember.id, selectedCareMember.name) : 0,
+    likes: Object.values(momentEngagement).filter((entry) => entry.likes.includes(selectedCareMember.id)).length,
+    favorites: Object.values(momentEngagement).filter((entry) => entry.favorites.includes(selectedCareMember.id)).length,
+    contexts: savedContexts.filter((context) => context.authorId === selectedCareMember.id).length,
+  } : { records: 0, likes: 0, favorites: 0, contexts: 0 };
   const receivedCareInvitations = activeAccount ? careInvitations.filter((invite) => invite.status === 'pending' && (cloud ? invite.recipientAccountId === activeAccount.id : invite.email.toLowerCase() === activeAccount.email.toLowerCase())) : [];
   const activeCareGroupId = activeAccount && activePetRecord ? activePetRecord.sharedGroupId ?? `${activeAccount.id}:${activePetRecord.id}` : '';
   const activeGroupInvitations = careInvitations.filter((invite) => invite.groupId === activeCareGroupId && invite.status === 'pending');
@@ -5266,7 +5284,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
           <div className={`screen-content ${mainView ? 'main-content' : 'detail-content'} ${view === 'ask' ? 'ask-content' : ''} ${view.startsWith('add') ? 'add-flow-content' : ''}`}>
             {activePetRecord.workspace.momoCareDemo?.version === 1 && ['today', 'careTasks', 'careMembers'].includes(view) && <aside className="momo-demo-notice"><strong>Shared-care demo · Singapore time</strong><p>Alex (Demo) is a simulated caregiver. Scheduled care updates while this app is open; returning catches up today’s completed activities. New requests to Alex receive a simulated acceptance after about 30 seconds. Other new tasks stay open for you to test.</p></aside>}
             {view === 'today' && <TodayPage onInbox={() => navigateTo('inbox')} inboxUnread={inboxUnread} primaryMemberId={primaryMemberId} onRequestCareTask={requestCareTask} hasDemoMoments={activePetRecord.hasDemoMoments} onActivitySummary={moment => { returnScrollPosition.current = scrollRef.current?.scrollTop ?? 0; setSelectedActivityMoment(moment); navigateTo('activitySummary'); }} onOpenMomentDetail={openMomentDetail} onOpenInsights={() => navigateTo('activityInsights')} onCareTasks={() => navigateTo('careTasks')} onToggleCareTask={toggleCareTask} careTasks={careTasks} careMembers={displayedCareMembers} insightReviews={insightReviews} currentUserId={activeAccount.id} canAct={canContributeToSharedPet} isPrimary={isPrimaryCaregiver} observations={storyObservations} includedMoments={includedStoryMoments} petName={petName} petAvatar={petAvatar} patterns={typicalPatterns} dayOffset={dailyRhythmDayOffset} onDayOffsetChange={setDailyRhythmDayOffset} scenarioDate={activePetRecord.workspace.scenarioDate} noPetYet={activePetRecord.isEmptyProfile ?? false} onAddPet={openAddPetForm} onStory={() => navigateTo('story')} onPetsNavigate={() => navigateTo('pets')} onPatterns={openPatternKnowledge} />}
-            {view === 'inbox' && <Inbox chatGroupId={activePetRecord.sharedGroupId} chatGroupName={activeGroupName} chatPetId={activePetRecord.id} chatPetName={petName} chatCurrentUserId={activeAccount.id} chatMembers={displayedCareMembers} canChat={Boolean(cloud && activePetRecord.sharedGroupId)} onOpenInvitations={() => navigateTo('you')} onAskAI={(petId, task) => {
+            {inboxMounted && <Inbox hidden={view !== 'inbox'} activeSection={inboxSection} onSectionChange={setInboxSection} activeChatId={inboxChatId} onActiveChatChange={setInboxChatId} onOpenCareCircle={() => navigateTo('careMembers')} onOpenCareMember={openCareMember} chatGroupId={activePetRecord.sharedGroupId} chatGroupName={activeGroupName} chatPetId={activePetRecord.id} chatPetName={petName} chatCurrentUserId={activeAccount.id} chatMembers={displayedCareMembers} canChat={Boolean(cloud && activePetRecord.sharedGroupId)} onOpenInvitations={() => navigateTo('you')} onAskAI={(petId, task) => {
               if (!activeAccount || sharedWritePending()) { setAccountActionError('Wait for shared changes to sync before opening AI.'); return; }
               if (petId !== activePetRecord.id) { const error = applyAccountSpace(captureCurrentSpace(prototypeSession), activeAccount.id, petId, true); if (error) { setAccountActionError(error); return; } }
               setAskInput(`Help me prepare for this care task: ${task.title}. Planned time: ${new Date(task.dueAt).toLocaleString('en')}. Instructions: ${task.note || 'Not specified'}. Caregiver message: ${task.requestNote || 'None'}. Check the available records and explain what I should confirm before starting.`);
@@ -5347,7 +5365,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
             </section>}
             {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} initialAvatar={petAvatar} initialSpecies={petSpecies} initialSex={petSex} initialBreed={petBreed} initialAge={petAge} onSaved={setPetName} onPetSaved={({ name, breed, species, sex, age, avatar }) => { setPetName(name); setPetBreed(breed); setPetAge(age); setPetAvatar(avatar); updateActivePetRecord({ name, breed, species, sex, age, avatar }); setProfileSaveNotice('Pet details saved successfully'); }} onBack={() => goBack('pets')} />}
             {view === 'profile' && <SettingsPage kind="profile" initialName={ownerName} initialAvatar={ownerAvatar} initialPreference={ownerPreference} initialCareProfile={activeAccount?.careProfile} onSaved={setOwnerName} onProfileSaved={({ name, avatar, preference, careProfile }) => { setOwnerName(name); setOwnerAvatar(avatar); setOwnerPreference(preference); updateActiveAccountRecord({ name, avatar, preference, careProfile }); setProfileSaveNotice('Profile saved successfully'); }} onBack={() => goBack('you')} />}
-            {view === 'memberDetails' && selectedCareMember && <CareMemberDetailsPage member={selectedCareMember} ownerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} ownerRole={groupOwnerAccount?.role ?? 'Primary caregiver'} ownerAvatar={primaryCaregiverAvatar} ownerPreference={groupOwnerAccount?.preference ?? ownerPreference} memberAvatar={selectedMemberAccount?.avatar ?? selectedCareMember.avatar ?? ''} memberPreference={selectedMemberAccount?.preference ?? ''} primaryMemberId={primaryMemberId} isPrimaryCaregiver={isPrimaryCaregiver} petName={petName} onBack={() => goBack('careMembers')} />}
+            {view === 'memberDetails' && selectedCareMember && <CareMemberDetailsPage member={selectedCareMember} ownerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} ownerRole={groupOwnerAccount?.role ?? 'Primary caregiver'} ownerAvatar={primaryCaregiverAvatar} ownerPreference={ownerPreference} memberAvatar={selectedMemberAccount?.avatar ?? selectedCareMember.avatar ?? ''} activityCounts={selectedMemberActivityCounts} primaryMemberId={primaryMemberId} isPrimaryCaregiver={isPrimaryCaregiver} petName={petName} onBack={() => goBack('careMembers')} />}
             {view === 'careMembers' && (
               <PetSecondaryPage
                 kind={view}
