@@ -2408,8 +2408,11 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
   .activity-insight-link { align-self: flex-start; }
 }
 /* Keep Story actions in their own row, clear of record text. */
-.floating-add { position: absolute; right: 20px; bottom: 88px; align-self: auto; flex: none; width: 82px; height: 40px; margin: 0; }
+.floating-add { position: fixed; right: max(20px, calc((100vw - 390px) / 2 + 20px)); bottom: 88px; align-self: auto; flex: none; width: 82px; height: 40px; margin: 0; }
 .floating-add.is-open { width: 82px; min-width: 82px; height: 40px; border-radius: var(--radius-pill); }
+.story-back-top,
+.floating-add { bottom: 88px; }
+@media (min-width: 600px) { .story-back-top, .floating-add { bottom: 112px; } }
 @media (max-width: 359px) {
   .story-summary strong { font-size: 14px; line-height: 20px; }
   .pet-profile-hero { gap: 12px; padding: 16px; }
