@@ -4,7 +4,7 @@
 
 【链接已更新26.11.6 14：28】添加了简易聊天功能 
 
-【已更新 26.11.2 23：31】修了一下主页的时间图 是本地版的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
+【已更新 26.11.6 20:20】修了一下聊天功能 + 修改了在用户展示其他账号的个人简介 + 按照新改的首页修改了首页引导   是本地版的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
 
 
 
