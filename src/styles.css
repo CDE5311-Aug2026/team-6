@@ -276,7 +276,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-dial-controls .daily-rhythm-dial-toggle button { height:20px; font-size:9px; }
 .daily-rhythm-dial-toggle-spacer { display:block; width:108px; height:26px; flex:none; visibility:hidden; }
 .daily-rhythm-circle-chart { margin-top:-14px; }
-.daily-rhythm-today-button { width:auto!important; min-width:38px; padding:0 8px!important; border-radius:999px!important; font:600 9px/1 'Roboto',sans-serif!important; }
+.daily-rhythm-today-button { width:auto!important; min-width:44px; padding:0 12px!important; border-radius:999px!important; font:600 12px/1 'Roboto',sans-serif!important; }
 .daily-rhythm-date-nav { display: flex; flex: none; align-items: center; gap: 6px; }
 .daily-rhythm-date-nav span { min-width: 48px; color: #78644a; font: 600 10px/14px 'Roboto', sans-serif; text-align: center; }
 .daily-rhythm-date-nav button { width: 27px; height: 27px; display: grid; place-items: center; padding: 0 0 2px; border: 1px solid #eadca9; border-radius: 50%; background: #fffdf7; color: #916400; font: 500 20px/1 'Roboto', sans-serif; cursor: pointer; }
@@ -2487,7 +2487,7 @@ button.profile-link, button.activity-insight-link {
 .daily-rhythm-header > div:first-child { flex: 1 1 0; overflow: hidden; }
 .rhythm-title h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .daily-rhythm-return-slot { display: flex; align-items: center; min-height: 38px; min-width: 0; }
-.daily-rhythm-circle-heading .daily-rhythm-return-today { padding: 8px 0; color: #5f4700; font: 600 11px/18px 'Roboto', sans-serif; text-align: left; }
+.daily-rhythm-circle-heading .daily-rhythm-return-today { min-height: 32px; padding: 0 12px; border: 1px solid #e9e5d9; border-radius: 999px; background: #fffdf8; color: #5f4700; font: 600 12px/1 'Roboto', sans-serif; text-align: center; white-space: nowrap; }
 
 /* Stack Story's title, summary and day heading instead of scrolling the title away. */
 .main-content:has(> .story-main-header) { --story-header-height: 92px; }
