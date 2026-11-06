@@ -2,7 +2,7 @@
 
 **Click here to explore our interactive prototype: https://pawsona-team6.vercel.app/**
 
-【链接已更新26.11.2 10：55】修改了today页面，加了双轴可旋转表盘 + 亿点细节 + 站内信功能 [补药点这里](https://pawsona-team-6.vercel.app/)
+【链接已更新26.11.6 14：28】添加了简易聊天功能 
 
 【已更新 26.11.2 23：31】修了一下主页的时间图 是本地版的链接 <(￣︶￣)↗ **[test prototype](https://pawsona-current-preview.vercel.app/)**
 
