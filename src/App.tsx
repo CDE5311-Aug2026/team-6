@@ -1470,6 +1470,9 @@ export function TodayPage({ onInbox, inboxUnread, onRequestCareTask, onStory, on
       <MainHeader hidePetAvatar onInbox={onInbox} inboxUnread={inboxUnread} eyebrow={noPetYet ? 'YOUR SPACE' : `A little window into ${displayName}’s day.`} title={noPetYet ? 'My space' : `Hello, ${displayName}!`} subtitle={formatPageDate()} onPetsNavigate={onPetsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       {!noPetYet && <>
         <TodayCare key={currentUserId + petName} petName={petName} patterns={patterns} observations={observations} tasks={careTasks} members={careMembers} currentUserId={currentUserId} primaryMemberId={primaryMemberId} canAct={canAct && dayOffset === 0} isPrimary={isPrimary} dayOffset={dayOffset} onDone={onToggleCareTask} onRequestHelp={onRequestCareTask} onOpenPlan={onCareTasks} onOpenRequests={onCareRequests} onPatterns={() => onPatterns()} />
+      <section className="today-rhythm-care-group">
+        <DailyRhythmCard petName={petName} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} onOpenInsights={onOpenInsights} dialStandoutActivity={dialStandoutActivity} rankedActivities={rankedActivities} insightReviews={insightReviews} patterns={patterns} careTasks={careTasks} careMembers={careMembers} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
+      </section>
       {(featuredRecords.length > 0 || rankedActivities.length > 0) && <section className={`today-section today-moments-strip ${featuredRecords.length ? 'has-moments' : 'insight-only'}`} aria-label="Recent moments and activity insight">
         {featuredRecords.length > 0 && <MomentCarousel>
           {featuredRecords.map(record => <button className="moment-card" key={record.id} type="button" onClick={() => onOpenMomentDetail(record.id)}>
@@ -1478,9 +1481,6 @@ export function TodayPage({ onInbox, inboxUnread, onRequestCareTask, onStory, on
         </MomentCarousel>}
         <HomeActivityStatus needsAttention={homeNeedsAttention} onOpenInsights={onOpenInsights} />
       </section>}
-      <section className="today-rhythm-care-group">
-        <DailyRhythmCard petName={petName} moments={visibleRecords} scheduledMoments={observations} onOpenActivitySummary={onActivitySummary} onOpenInsights={onOpenInsights} dialStandoutActivity={dialStandoutActivity} rankedActivities={rankedActivities} insightReviews={insightReviews} patterns={patterns} careTasks={careTasks} careMembers={careMembers} onOpenCareTasks={onCareTasks} onPatterns={onPatterns} dayOffset={dayOffset} onDayOffsetChange={onDayOffsetChange} />
-      </section>
       </>}
       {!hasDemoMoments && !visibleRecords.length && (noPetYet ? <section className="today-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onAddPet}>Add a pet</button></section> : <section className="today-empty-state"><span>♡</span><h2>Start {petName}’s first story</h2><p>Add a photo, video or written observation. This pet’s records will stay separate from your other pet profiles.</p><button className="primary-button" onClick={onStory}>Open {petName}’s Story →</button></section>)}
     </>
