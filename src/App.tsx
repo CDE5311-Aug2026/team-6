@@ -3463,17 +3463,17 @@ function PetSecondaryPage({ kind, petName, ownerName, ownerEmail, ownerAvatar = 
             <div className="group-settings-identity"><strong>{member.id === primaryMemberId ? ownerName : member.name}</strong><small>{careIdentityLabel(member.email ?? (member.id === primaryMemberId ? ownerEmail : undefined))}</small></div>
             {member.id === primaryMemberId ? <>
               <span className="group-owner-tag">Primary caregiver</span>
-              <div className="group-settings-controls"><button className="group-role-select group-transfer-button" disabled={!primaryCandidates.length} onClick={() => { setShowGroupSettings(false); setNextPrimaryId(primaryCandidates[0]?.id ?? ''); setTransferError(''); setShowTransferPrimary(true); }}>Transfer primary</button></div>
+              <div className="group-settings-controls"><button className="group-role-select group-transfer-button" disabled={cloudSearchEnabled || !primaryCandidates.length} onClick={() => { setShowGroupSettings(false); setNextPrimaryId(primaryCandidates[0]?.id ?? ''); setTransferError(''); setShowTransferPrimary(true); }}>Transfer primary</button></div>
             </> : <>
               <div className="group-settings-controls">
-                <select className="group-role-select" aria-label={`Role for ${member.name}`} value={member.role === 'Temporary caregiver' ? 'Temporary caregiver' : 'Caregiver'} onChange={(event) => onChangeRole(member.id, event.target.value as 'Caregiver' | 'Temporary caregiver')}><option value="Caregiver">Caregiver</option><option value="Temporary caregiver">Temporary</option></select>
+                <select className="group-role-select" aria-label={`Role for ${member.name}`} value={member.role === 'Temporary caregiver' ? 'Temporary caregiver' : 'Caregiver'} onChange={(event) => onChangeRole(member.id, event.target.value as 'Caregiver' | 'Temporary caregiver')}><option value="Caregiver">Caregiver</option><option value="Temporary caregiver" disabled={cloudSearchEnabled}>Temporary{cloudSearchEnabled ? ' · not available for cloud groups' : ''}</option></select>
                 <select className="group-access-select" aria-label={`Permission for ${member.name}`} value={member.access ?? 'editor'} onChange={(event) => onChangeAccess(member.id, event.target.value as 'editor' | 'viewer')}><option value="editor">Can add</option><option value="viewer">View only</option></select>
                 <button className="group-remove-button" onClick={() => { setPendingRemoval(member); setShowGroupSettings(false); }}>Remove</button>
               </div>
-              {member.role === 'Temporary caregiver' && <label className="temporary-expiry-field"><span>Temporary access until</span><input type="date" min={new Date().toISOString().slice(0, 10)} value={member.expiresAt ?? ''} onChange={(event) => onChangeExpiry(member.id, event.target.value)} /></label>}
+              {!cloudSearchEnabled && member.role === 'Temporary caregiver' && <label className="temporary-expiry-field"><span>Temporary access until</span><input type="date" min={new Date().toISOString().slice(0, 10)} value={member.expiresAt ?? ''} onChange={(event) => onChangeExpiry(member.id, event.target.value)} /></label>}
             </>}
           </div>)}</div>
-          {!primaryCandidates.length && <p className="group-settings-intro">Promote a linked member to regular Caregiver with Can add access before transferring the Primary caregiver role.</p>}
+          {cloudSearchEnabled ? <p className="group-settings-intro">Cloud groups support Can add and View only access. Automatic access expiry and Primary caregiver transfer are not available yet. Remove a member here to end their access.</p> : !primaryCandidates.length && <p className="group-settings-intro">Promote a linked member to regular Caregiver with Can add access before transferring the Primary caregiver role.</p>}
           {invitations.filter((invite) => invite.status === 'pending').length > 0 && <div className="group-pending-invites"><strong>Pending invitations</strong>{invitations.filter((invite) => invite.status === 'pending').map((invite) => <div key={invite.id}><span>{invite.email}<small>{invite.role}</small></span><button onClick={() => onCancelInvitation(invite.id)}>Cancel invite</button></div>)}</div>}
           <div className="member-removal-actions"><button className="primary-button" onClick={() => setShowGroupSettings(false)}>Done</button></div>
         </section>
@@ -4304,6 +4304,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
 
   function updateCareGroupMember(memberId: string, change: { access?: 'editor' | 'viewer'; role?: 'Caregiver' | 'Temporary caregiver'; expiresAt?: string; remove?: boolean }) {
     if (!activeAccount || !activePetRecord) return;
+    if (cloud && activePetRecord.sharedGroupId && (change.role || change.expiresAt !== undefined)) return;
     const captured = captureCurrentSpace(prototypeSession);
     if (!activePetRecord.sharedGroupId && activePetRecord.workspace.momoCareDemo?.version === 1 && memberId === `momo-demo-alex-${activeAccount.id}`) {
       const nextMembers = careMembers.flatMap(member => member.id !== memberId ? [member] : change.remove ? [] : [{ ...member, ...change }]);
@@ -4919,6 +4920,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   }
   function transferPrimaryCaregiver(nextPrimaryId: string): string {
     if (!activeAccount || !activePetRecord || !isPrimaryCaregiver) return 'Only the current Primary caregiver can transfer this role.';
+    if (cloud && activePetRecord.sharedGroupId) return 'Primary caregiver transfer is not available for cloud groups yet.';
     const nextPrimaryMember = careMembers.find((member) => member.id === nextPrimaryId);
     const nextPrimaryAccount = prototypeSession.accounts.find((account) => account.id === nextPrimaryId);
     if (!nextPrimaryMember || !nextPrimaryAccount || nextPrimaryMember.access === 'viewer' || nextPrimaryMember.role === 'Temporary caregiver') return 'Choose a regular Caregiver with Can add access before transferring this role.';

@@ -255,11 +255,12 @@ test('keeps afternoon rest and night rest separate', () => {
   assert.notEqual(afternoon.key, night.key);
 });
 
-test('home status and overview title use the same actionable attention state', () => {
+test('home and overview keep every surfaced insight flagged until reviewed as normal', () => {
   const insight = { activityKey: 'rest', key: 'duration', currentDate: new Date(2026, 10, 5), meetsThreshold: false };
   const review = status => ({ id: activityInsightReviewId(insight), status });
   assert.equal(hasActivityAttention([], []), false);
-  assert.equal(hasActivityAttention([insight], []), false);
+  assert.equal(hasActivityAttention([insight], []), true);
+  assert.equal(hasActivityAttention([insight], [review('normal')]), false);
   assert.equal(hasActivityAttention([{ ...insight, meetsThreshold: true }], []), true);
   assert.equal(hasActivityAttention([{ ...insight, meetsThreshold: true }], [review('normal')]), false);
   assert.equal(hasActivityAttention([insight], [review('watch')]), true);
