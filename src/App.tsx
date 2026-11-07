@@ -1,3 +1,4 @@
+import { redactSharedWorkspace, mergePrivateWorkspace } from './sharedWorkspace';
 import { observationBelongsToAccount, observationCompletedByAccount } from './profileRecords';
 import { storyActivity, storyActivityKind } from './storyActivity';
 import SavedCareReview from './SavedCareReview';
@@ -2819,7 +2820,7 @@ function SimplePage({ onInbox, inboxUnread, kind, petName, petAvatar, petBreed, 
       {noPetYet ? <section className="today-empty-state pets-empty-state"><span>＋</span><h2>You haven’t added a pet yet</h2><p>Add one to get started.</p><button className="primary-button" onClick={onPetSwitcher}>Add a pet</button></section> : <>
       <section className="pet-profile-hero">
         <Avatar name={petName} src={petAvatar} />
-        <div className="profile-hero-copy"><strong>{petName}</strong><small>{petDetailsLabel}</small><div className="pet-hero-actions"><button className="mini-action" onClick={onPetEdit}><span>✎</span> Edit details</button><button className="mini-action" onClick={onPetSwitcher}>⇄ Switch pet</button></div></div>
+        <div className="profile-hero-copy"><strong>{petName}</strong><small>{petDetailsLabel}</small><div className="pet-hero-actions">{canEditPetDetails && <button className="mini-action" onClick={onPetEdit}><span>✎</span> Edit details</button>}<button className="mini-action" onClick={onPetSwitcher}>⇄ Switch pet</button></div></div>
       </section>
 
       <section className="profile-section care-section">
@@ -3624,7 +3625,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const initialSharedOwnerWorkspace = initialPet?.sharedGroupId
     ? prototypeSession.accounts.find((entry) => entry.id === initialPet.sharedOwnerAccountId)?.pets.find((pet) => pet.sharedGroupId === initialPet.sharedGroupId)?.workspace
     : undefined;
-  const initialSharedWorkspace = initialSharedOwnerWorkspace ?? initialWorkspace;
+  const initialSharedWorkspace = initialSharedOwnerWorkspace && initialWorkspace && initialAccount ? mergePrivateWorkspace(initialSharedOwnerWorkspace, initialWorkspace, initialAccount.id) : initialWorkspace;
   const [petName, setPetName] = useState(() => initialPet?.name ?? readStorageString('pawsona-pet-name', 'Luna'));
   const [petAvatar, setPetAvatar] = useState(() => initialPet?.avatar ?? readStorageString('pawsona-pet-avatar', ''));
   const [petBreed, setPetBreed] = useState(() => initialPet?.breed ?? readStorageString('pawsona-pet-breed', 'Golden Retriever'));
@@ -4047,7 +4048,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     const sharedOwnerWorkspace = pet.sharedGroupId
       ? session.accounts.find((entry) => entry.id === pet.sharedOwnerAccountId)?.pets.find((groupPet) => groupPet.sharedGroupId === pet.sharedGroupId)?.workspace
       : undefined;
-    const sharedWorkspace = sharedOwnerWorkspace ?? pet.workspace;
+    const sharedWorkspace = sharedOwnerWorkspace ? mergePrivateWorkspace(sharedOwnerWorkspace, pet.workspace, account.id) : pet.workspace;
     const sharedContexts = pet.sharedGroupId
       ? session.accounts.flatMap((entry) => entry.pets.filter((groupPet) => groupPet.sharedGroupId === pet.sharedGroupId).flatMap((groupPet) => groupPet.workspace.contexts))
       : pet.workspace.contexts;
@@ -4254,7 +4255,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       if (!recipientAccountId) return 'Choose a registered account from the search results.';
       const groupId = activePetRecord.sharedGroupId ?? crypto.randomUUID();
       try {
-        await cloud.sendInvitation({ groupId, recipientId: recipientAccountId, role, petId: activePetRecord.id, petName, petBreed, petAge, petAvatar, petSpecies, groupName: activeGroupName, workspace: workspaceFromState() });
+        await cloud.sendInvitation({ groupId, recipientId: recipientAccountId, role, petId: activePetRecord.id, petName, petBreed, petAge, petAvatar, petSpecies, groupName: activeGroupName, workspace: sharedSnapshot() });
         if (!activePetRecord.sharedGroupId) {
           const captured = captureCurrentSpace(prototypeSession);
           const next = { ...captured, accounts: captured.accounts.map((account) => account.id !== activeAccount.id ? account : { ...account, pets: account.pets.map((pet) => pet.id === activePetRecord.id ? { ...pet, sharedGroupId: groupId, sharedOwnerAccountId: activeAccount.id } : pet) }) };
@@ -4380,7 +4381,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
         if (!group || !activeAccount) return;
         const members = careMembersFromCloudGroup(group);
         const sharedPetId = 'shared-' + group.groupId;
-        const workspace = { ...emptyPetWorkspace(group.ownerId), ...(group.workspace as Partial<PetWorkspace>), groupName: group.groupName, careMembers: members, askMessages: [] } as PetWorkspace;
+        const workspace = { ...emptyPetWorkspace(group.ownerId), ...redactSharedWorkspace(group.workspace as Partial<PetWorkspace>), groupName: group.groupName, careMembers: members, askMessages: [] } as PetWorkspace;
         const sharedPet: PrototypePet = { id: sharedPetId, sharedGroupId: group.groupId, sharedOwnerAccountId: group.ownerId,
           name: group.petName, breed: group.petBreed, species: group.petSpecies, sex: group.petSex, age: group.petAge, avatar: group.petAvatar, hasDemoMoments: false, isEmptyProfile: false, workspace };
         const captured = captureCurrentSpace(prototypeSession);
@@ -4410,7 +4411,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       if (account.id === owner.id) return { ...account, pets: account.pets.map((pet) => pet.id === ownerPet.id ? { ...pet, sharedGroupId: invite.groupId, sharedOwnerAccountId: owner.id, workspace: { ...pet.workspace, askOwnerAccountId: owner.id, careMembers: members } } : pet) };
       if (account.id === activeAccount.id && !account.pets.some((pet) => pet.sharedGroupId === invite.groupId)) {
         const ownPets = account.pets.filter((pet) => !pet.isEmptyProfile);
-        const sharedPet: PrototypePet = { id: sharedPetId, sharedGroupId: invite.groupId, sharedOwnerAccountId: owner.id, name: invite.petName, breed: invite.petBreed, age: invite.petAge, avatar: invite.petAvatar, hasDemoMoments: true, workspace: { ...ownerPet.workspace, askMessages: [], askOwnerAccountId: activeAccount.id, careMembers: members } };
+        const sharedPet: PrototypePet = { id: sharedPetId, sharedGroupId: invite.groupId, sharedOwnerAccountId: owner.id, name: invite.petName, breed: invite.petBreed, age: invite.petAge, avatar: invite.petAvatar, hasDemoMoments: true, workspace: { ...redactSharedWorkspace(ownerPet.workspace), askMessages: [], askOwnerAccountId: activeAccount.id, careMembers: members } };
         const pets = [...ownPets, sharedPet];
         return { ...account, pets, activePetId: sharedPetId };
       }
@@ -4840,12 +4841,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const canContributeToSharedPet = isPrimaryCaregiver || !activePetRecord?.sharedGroupId || (currentCareMember?.access === 'editor' && !temporaryAccessExpired);
   const canInteractWithGroupContext = canContributeToSharedPet;
   const canManageLongTermCare = isPrimaryCaregiver || !activePetRecord?.sharedGroupId || (currentCareMember?.access === 'editor' && currentCareMember.role !== 'Temporary caregiver');
-  function sharedSnapshot() {
-    const workspace = workspaceFromState();
-    const observations = workspace.observations.filter(o => !o.privateRecord);
-    const ids = new Set(observations.map(o => o.id));
-    return { ...workspace, observations, lifeEvents: workspace.lifeEvents.filter(e => e.useForAsk), contexts: workspace.contexts.filter(c => ids.has(c.momentId)), askMessages: [], drafts: [], careMembers: [], askOwnerAccountId: undefined, sharedUpdatedAt: undefined };
-  }
+  function sharedSnapshot() { return redactSharedWorkspace(workspaceFromState()); }
   const stableShared = (value: unknown): string => JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);
   const sharedPayload = sharedSnapshot();
   const sharedSerialized = stableShared({ workspace: sharedPayload, petName, petBreed, petAge, petAvatar, petSpecies });
@@ -4865,11 +4861,11 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       setCareMembers(careMembersFromCloudGroup(group));
       if (group.updatedAt === sync.updatedAt) return;
       const remote = normalizeWorkspace({ ...group.workspace, groupName: group.groupName }, ownerName, false);
-      const nextWorkspace = { ...remote, petSex: group.petSex, lifeEvents: [...lifeCareEvents.filter(e => !e.useForAsk), ...remote.lifeEvents.filter(e => e.useForAsk)], observations: [...storyObservations.filter(o => o.privateRecord), ...remote.observations.filter(o => !o.privateRecord)], askMessages, askOwnerAccountId: activeAccount!.id, drafts: storyDrafts, sharedUpdatedAt: group.updatedAt };
+      const nextWorkspace = { ...mergePrivateWorkspace(remote, workspaceFromState(), activeAccount!.id), petSex: group.petSex, askMessages, askOwnerAccountId: activeAccount!.id, drafts: storyDrafts, sharedUpdatedAt: group.updatedAt };
       sync.updatedAt = group.updatedAt;
-      sync.baseline = stableShared({ workspace: { ...nextWorkspace, lifeEvents: nextWorkspace.lifeEvents.filter(e => e.useForAsk), observations: nextWorkspace.observations.filter(o => !o.privateRecord), contexts: nextWorkspace.contexts, askMessages: [], drafts: [], careMembers: [], askOwnerAccountId: undefined, sharedUpdatedAt: undefined }, petName: group.petName, petBreed: group.petBreed, petAge: group.petAge, petAvatar: group.petAvatar, petSpecies: group.petSpecies });
+      sync.baseline = stableShared({ workspace: redactSharedWorkspace(nextWorkspace), petName: group.petName, petBreed: group.petBreed, petAge: group.petAge, petAvatar: group.petAvatar, petSpecies: group.petSpecies });
       setPetName(group.petName); setPetBreed(group.petBreed); setPetAge(group.petAge); setPetAvatar(group.petAvatar);
-      setStoryObservations(nextWorkspace.observations); setSavedContexts(remote.contexts); setTypicalPatterns(remote.patterns); setLifeCareEvents(nextWorkspace.lifeEvents); setMediaSources(remote.mediaSources); setMomentEngagement(remote.momentEngagement); setIncludedStoryMoments(remote.visibility); setCareTasks(remote.careTasks ?? []); setInsightReviews(remote.insightReviews ?? []);
+      setStoryObservations(nextWorkspace.observations); setSavedContexts(nextWorkspace.contexts); setTypicalPatterns(remote.patterns); setLifeCareEvents(nextWorkspace.lifeEvents); setMediaSources(remote.mediaSources); setMomentEngagement(remote.momentEngagement); setIncludedStoryMoments(remote.visibility); setCareTasks(remote.careTasks ?? []); setInsightReviews(remote.insightReviews ?? []);
       setPrototypeSession(session => ({ ...session, accounts: session.accounts.map(a => a.id !== activeAccount!.id ? a : { ...a, pets: a.pets.map(p => p.id !== activePetRecord!.id ? p : { ...p, name: group.petName, breed: group.petBreed, species: group.petSpecies, sex: group.petSex, age: group.petAge, avatar: group.petAvatar, workspace: nextWorkspace }) }) }));
     } catch (cause) { setAccountActionError(cause instanceof Error ? cause.message : 'Shared updates are temporarily unavailable.'); }
   };
@@ -5381,7 +5377,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
                 </section>
               </div>
             </section>}
-            {view === 'petDetails' && <SettingsPage kind="petDetails" initialName={petName} initialAvatar={petAvatar} initialSpecies={petSpecies} initialSex={petSex} initialBreed={petBreed} initialAge={petAge} onSaved={setPetName} onPetSaved={({ name, breed, species, sex, age, avatar }) => { setPetName(name); setPetBreed(breed); setPetAge(age); setPetAvatar(avatar); updateActivePetRecord({ name, breed, species, sex, age, avatar }); setProfileSaveNotice('Pet details saved successfully'); }} onBack={() => goBack('pets')} />}
+            {view === 'petDetails' && isPrimaryCaregiver && <SettingsPage kind="petDetails" initialName={petName} initialAvatar={petAvatar} initialSpecies={petSpecies} initialSex={petSex} initialBreed={petBreed} initialAge={petAge} onSaved={setPetName} onPetSaved={({ name, breed, species, sex, age, avatar }) => { if (!isPrimaryCaregiver) return; setPetName(name); setPetBreed(breed); setPetAge(age); setPetAvatar(avatar); updateActivePetRecord({ name, breed, species, sex, age, avatar }); setProfileSaveNotice('Pet details saved successfully'); }} onBack={() => goBack('pets')} />}
             {view === 'profile' && <SettingsPage kind="profile" initialName={ownerName} initialAvatar={ownerAvatar} initialPreference={ownerPreference} initialCareProfile={activeAccount?.careProfile} onSaved={setOwnerName} onProfileSaved={({ name, avatar, preference, careProfile }) => { setOwnerName(name); setOwnerAvatar(avatar); setOwnerPreference(preference); updateActiveAccountRecord({ name, avatar, preference, careProfile }); setProfileSaveNotice('Profile saved successfully'); }} onBack={() => goBack('you')} />}
             {view === 'memberDetails' && selectedCareMember && <CareMemberDetailsPage member={selectedCareMember} ownerName={groupOwnerAccount?.name ?? groupOwnerMember?.name ?? ownerName} ownerRole={groupOwnerAccount?.role ?? 'Primary caregiver'} ownerAvatar={primaryCaregiverAvatar} ownerPreference={ownerPreference} memberAvatar={selectedMemberAccount?.avatar ?? selectedCareMember.avatar ?? ''} activityCounts={selectedMemberActivityCounts} primaryMemberId={primaryMemberId} isPrimaryCaregiver={isPrimaryCaregiver} petName={petName} onBack={() => goBack('careMembers')} />}
             {view === 'careMembers' && (

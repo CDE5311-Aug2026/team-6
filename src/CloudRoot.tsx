@@ -1,3 +1,4 @@
+import { mergePrivateWorkspace, redactSharedWorkspace } from './sharedWorkspace';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import App, { createCloudSession, type PrototypeSession } from './App';
 import Welcome from './Welcome';
@@ -88,7 +89,7 @@ function attachCloudCareGroups(session: PrototypeSession, groups: Awaited<Return
   for (let i = pets.length - 1; i >= 0; i--) if (pets[i].sharedGroupId && !allowedGroupIds.has(pets[i].sharedGroupId!)) pets.splice(i, 1);
   for (const group of groups) {
     const workspace: Record<string, unknown> = {
-      ...group.workspace,
+      ...redactSharedWorkspace(group.workspace),
       sharedUpdatedAt: group.updatedAt,
       groupName: group.groupName,
       careMembers: group.members.map(member => ({
@@ -154,7 +155,7 @@ function attachCloudCareGroups(session: PrototypeSession, groups: Awaited<Return
           // Story image so Sunny's header stays tied to the Golden Retriever
           // records loaded for this workspace.
           avatar: preferGoldenStoryImage ? storyAvatar || ownerAvatar || groupAvatar : groupAvatar || ownerAvatar || storyAvatar,
-          workspace: recoveredWorkspace as typeof pets[number]['workspace'] };
+          workspace: mergePrivateWorkspace(recoveredWorkspace as typeof pets[number]['workspace'], ownerPet.workspace, session.accounts[0].id) };
       }
     } else {
       const sharedPetId = 'shared-' + group.groupId;
@@ -166,7 +167,7 @@ function attachCloudCareGroups(session: PrototypeSession, groups: Awaited<Return
         name: group.petName, breed: group.petBreed, species: group.petSpecies, sex: group.petSex, age: group.petAge,
         avatar: preferGoldenStoryImage ? storyAvatar || (usableMediaUrl(group.petAvatar, media) ? group.petAvatar : '') : (usableMediaUrl(group.petAvatar, media) ? group.petAvatar : '') || storyAvatar, hasDemoMoments: false,
         workspace: {
-          ...workspace,
+          ...mergePrivateWorkspace(workspace, index >= 0 ? pets[index].workspace : undefined, session.accounts[0].id),
           // Keep this account's private Ask AI history separate from shared group data.
           askMessages: Array.isArray(index >= 0 ? pets[index].workspace.askMessages : undefined)
             ? pets[index].workspace.askMessages
