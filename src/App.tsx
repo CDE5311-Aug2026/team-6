@@ -1,3 +1,5 @@
+import { observationBelongsToAccount, observationCompletedByAccount } from './profileRecords';
+import { storyActivity, storyActivityKind } from './storyActivity';
 import SavedCareReview from './SavedCareReview';
 import { buildInboxDemo, isInboxDemoTask, type InboxDemoState } from './inboxDemo';
 import Inbox, { InboxButton, InboxIcon } from './Inbox';
@@ -260,7 +262,7 @@ function saveCareMembersToStorage(members: CareMember[]) {
 type StoryMedia = { name: string; type: string; url: string };
 type StorySourceNote = { id: string; text: string; label: string };
 type StoryObservation = { linkedCareTaskId?: string; careTaskId?: string; id: string; note: string; title: string; image: string; mediaType?: string; relatedPhotos?: StoryMedia[]; momentCount: number; momentIds?: string[]; sourceNotes?: StorySourceNote[]; context: string; foodType?: string; privateRecord: boolean; sourceKind?: string; savedAt: string; authorId?: string; authorName?: string; authorAvatar?: string; synthetic?: boolean; observationKind?: 'meal' | 'walk' | 'play' | 'rest' | string; simulationKey?: string; metrics?: Record<string, number> };
-type StoryDraft = { id: string; selectedMoments: string[]; note: string; title?: string; momentAt?: string; momentEndAt?: string; intakeAmount?: string; foodType?: string; relatedPhotos?: StoryMedia[]; context: string; savedAt: string; privateRecord?: boolean; uploadedMedia?: StoryMedia };
+type StoryDraft = { activity?: string; id: string; selectedMoments: string[]; note: string; title?: string; momentAt?: string; momentEndAt?: string; intakeAmount?: string; foodType?: string; relatedPhotos?: StoryMedia[]; context: string; savedAt: string; privateRecord?: boolean; uploadedMedia?: StoryMedia };
 type AskAttachment = { url: string; name: string; kind: 'image' | 'audio'; type: string };
 type AskMessage = { role: 'user' | 'assistant'; text: string; attachment?: AskAttachment };
 type PetWorkspace = {
@@ -344,21 +346,6 @@ type MomentEngagement = { likes: string[]; favorites: string[]; likeEvents?: Lik
 type MomentEngagementById = Record<string, MomentEngagement>;
 type ProfileActivityCategory = 'records' | 'likes' | 'favorites' | 'contexts';
 type ProfileActivityCounts = Record<ProfileActivityCategory, number>;
-
-function observationBelongsToAccount(pet: PrototypePet, observation: StoryObservation, accountId: string) {
-  return observation.authorId === accountId || (!observation.authorId && (!pet.sharedGroupId || pet.sharedOwnerAccountId === accountId));
-}
-
-function observationCompletedByAccount(pet: PrototypePet, observation: StoryObservation, accountId: string, accountName?: string) {
-  const normalizedAccountName = accountName?.trim().toLocaleLowerCase();
-  const task = pet.workspace.careTasks.find((entry) => entry.sourceObservationId === observation.id);
-  if (task?.status === 'skipped') return false;
-  if (task?.status === 'done') return task.completedBy === accountId || (task.autoCompleted === true && !!normalizedAccountName && task.completedByName?.trim().toLocaleLowerCase() === normalizedAccountName);
-  if (!observation.synthetic || new Date(observation.savedAt).getTime() > Date.now()) return false;
-  const completerId = task?.assignedTo && ['open', 'accepted'].includes(task.status) ? task.assignedTo : observation.authorId || 'simulation';
-  const completerName = completerId === (observation.authorId || 'simulation') ? observation.authorName : undefined;
-  return completerId === accountId || (!observation.authorId && !!normalizedAccountName && completerName?.trim().toLocaleLowerCase() === normalizedAccountName);
-}
 
 function itemCountForPet(pet: PrototypePet, category: ProfileActivityCategory, accountId: string, accountName?: string) {
   if (category === 'records') return pet.workspace.observations.filter((entry) => observationCompletedByAccount(pet, entry, accountId, accountName) && (!entry.privateRecord || observationBelongsToAccount(pet, entry, accountId))).length;
@@ -1969,8 +1956,10 @@ function MomentDateTimePicker({ value, onChange, label, placeholder, minDateTime
   </section>;
 }
 
-export function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelectedMoments, uploadedMedia, setUploadedMedia, title, setTitle, momentAt, setMomentAt, momentEndAt, setMomentEndAt, intakeAmount, setIntakeAmount, foodType, setFoodType, relatedPhotos, setRelatedPhotos, note, setNote, context, setContext, privateRecord, setPrivateRecord, petName, ownerName, hasDemoMoments, saveError, savedObservation, canSaveDraft, onSaveDraft, onSave, onEdit, careTasks = [], careMembers = [], currentUserId = '', isPrimary = false, onConfirmTask, onOpenCarePlan }: {
+export function StoryAddPage({ activity = '', setActivity = () => {}, step, onBack, onCancel, selectedMoments, setSelectedMoments, uploadedMedia, setUploadedMedia, title, setTitle, momentAt, setMomentAt, momentEndAt, setMomentEndAt, intakeAmount, setIntakeAmount, foodType, setFoodType, relatedPhotos, setRelatedPhotos, note, setNote, context, setContext, privateRecord, setPrivateRecord, petName, ownerName, hasDemoMoments, saveError, savedObservation, canSaveDraft, onSaveDraft, onSave, onEdit, careTasks = [], careMembers = [], currentUserId = '', isPrimary = false, onConfirmTask, onOpenCarePlan }: {
   careTasks?: CareTask[]; careMembers?: CareMember[]; currentUserId?: string; isPrimary?: boolean; onConfirmTask?: (task: CareTask) => boolean; onOpenCarePlan?: () => void;
+  activity?: string;
+  setActivity?: (activity: string) => void;
   step: 'moments' | 'compose' | 'preview' | 'saved';
   onBack: () => void;
   onCancel: () => void;
@@ -2021,19 +2010,20 @@ export function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelec
     { label: 'Grooming', icon: '✂️', text: `${petName} had a grooming session.` },
     { label: 'Training', icon: '🏅', text: `${petName} had a training session.` },
   ];
+  const activityType = activity || storyActivity(title);
   const selectedActivity = selectedMoments.length === 0 && !uploadedMedia
-    ? quickActivities.find((activity) => title === activity.label) : undefined;
-  const intakeUnit = title === 'Meal' ? 'g' : title === 'Water' ? 'ml' : null;
+    ? quickActivities.find((activity) => activityType === activity.label) : undefined;
+  const intakeUnit = activityType === 'Meal' ? 'g' : activityType === 'Water' ? 'ml' : null;
   const startDate = momentAt ? new Date(momentAt) : new Date();
   const endOfStartDay = new Date(startDate);
   endOfStartDay.setHours(23, 59, 0, 0);
   const endMaximum = endOfStartDay.getTime() < Date.now() ? endOfStartDay : new Date();
   const momentTimeFields = <div className="moment-time-range"><strong className="moment-time-range-heading">When did this moment happen?</strong><div className="moment-time-range-cards"><MomentDateTimePicker label="Start time" value={momentAt} onChange={setMomentAt} maxDateTime={toLocalDateTimeInput(new Date())} open={openMomentPicker === 'start'} onToggle={() => setOpenMomentPicker(current => current === 'start' ? null : 'start')} onClose={() => setOpenMomentPicker(null)} /><MomentDateTimePicker label="End time (optional)" placeholder="Choose time" value={momentEndAt} onChange={setMomentEndAt} minDateTime={momentAt} maxDateTime={toLocalDateTimeInput(endMaximum)} requiredDay={momentAt} open={openMomentPicker === 'end'} onToggle={() => setOpenMomentPicker(current => current === 'end' ? null : 'end')} onClose={() => setOpenMomentPicker(null)} align="right" /></div><small className="moment-time-range-hint">End time is optional and must be later on the same day.</small></div>;
-  const timingAndIntake = <>{intakeUnit && <div className="moment-extra-fields">{title === 'Meal' ? <><label className="moment-extra-field"><strong>Food amount (required)</strong><span className="moment-amount-input"><input type="number" min="0" step="any" inputMode="decimal" value={intakeAmount} onChange={(event) => setIntakeAmount(event.target.value)} placeholder="Amount" /><span>{intakeUnit}</span></span></label><label className="moment-extra-field"><strong>Food type (optional)</strong><input type="text" value={foodType} onChange={(event) => setFoodType(event.target.value)} placeholder="e.g. Kibble, wet food" /></label></> : <label className="moment-extra-field"><strong>Water drunk (optional)</strong><span className="moment-amount-input"><input type="number" min="0" step="any" inputMode="decimal" value={intakeAmount} onChange={(event) => setIntakeAmount(event.target.value)} placeholder="Unknown" /><span>{intakeUnit}</span></span><small>Leave blank if unknown. Do not guess; blank is different from 0 ml.</small></label>}</div>}</>;
+  const timingAndIntake = <>{intakeUnit && <div className="moment-extra-fields">{activityType === 'Meal' ? <><label className="moment-extra-field"><strong>Food amount (required)</strong><span className="moment-amount-input"><input type="number" min="0" step="any" inputMode="decimal" value={intakeAmount} onChange={(event) => setIntakeAmount(event.target.value)} placeholder="Amount" /><span>{intakeUnit}</span></span></label><label className="moment-extra-field"><strong>Food type (optional)</strong><input type="text" value={foodType} onChange={(event) => setFoodType(event.target.value)} placeholder="e.g. Kibble, wet food" /></label></> : <label className="moment-extra-field"><strong>Water drunk (optional)</strong><span className="moment-amount-input"><input type="number" min="0" step="any" inputMode="decimal" value={intakeAmount} onChange={(event) => setIntakeAmount(event.target.value)} placeholder="Unknown" /><span>{intakeUnit}</span></span><small>Leave blank if unknown. Do not guess; blank is different from 0 ml.</small></label>}</div>}</>;
   const invalidRange = Boolean(momentEndAt && (new Date(momentEndAt).getTime() < new Date(momentAt).getTime() || new Date(momentEndAt).toDateString() !== new Date(momentAt).toDateString() || new Date(momentEndAt).getTime() > Date.now()));
-  const invalidAmount = Boolean(intakeUnit && (title === 'Meal' && !intakeAmount.trim() || (intakeAmount && (!Number.isFinite(Number(intakeAmount)) || Number(intakeAmount) <= 0))));
+  const invalidAmount = Boolean(intakeUnit && (activityType === 'Meal' && !intakeAmount.trim() || (intakeAmount && (!Number.isFinite(Number(intakeAmount)) || Number(intakeAmount) <= 0))));
   function startWrittenMoment() {
-    setUploadedMedia(null); setSelectedMoments([]); setTitle('');
+    setUploadedMedia(null); setSelectedMoments([]); setActivity(''); setTitle('');
     setRelatedPhotos([]); setNote(''); onEdit();
   }
   const latest = savedObservation ?? null;
@@ -2106,7 +2096,7 @@ export function StoryAddPage({ step, onBack, onCancel, selectedMoments, setSelec
     {header('Add a moment', `A LITTLE MOMENT WITH ${petName.toUpperCase()}`)}
     <div className="quick-moment-intro"><strong>What has {petName} been up to?</strong><p>Choose what happened. Photos are optional. Meal amount is required; water amount can be unknown.</p></div>
     <section className="quick-moment-content">
-      <div className="quick-activity-grid" aria-label="Common pet activities">{quickActivities.map((activity) => <button type="button" key={activity.label} aria-pressed={selectedActivity?.label === activity.label} className={`quick-activity ${selectedActivity?.label === activity.label ? 'selected' : ''}`} onClick={() => { setUploadedMedia(null); setSelectedMoments([]); setRelatedPhotos([]); if (title !== activity.label) { setIntakeAmount(''); setFoodType(''); } setTitle(activity.label); setNote(activity.text); }}><span aria-hidden="true">{activity.icon}</span><strong>{'displayLabel' in activity ? activity.displayLabel : activity.label}</strong>{selectedActivity?.label === activity.label && <span className="quick-activity-check" aria-hidden="true">✓</span>}</button>)}</div>
+      <div className="quick-activity-grid" aria-label="Common pet activities">{quickActivities.map((activity) => <button type="button" key={activity.label} aria-pressed={selectedActivity?.label === activity.label} className={`quick-activity ${selectedActivity?.label === activity.label ? 'selected' : ''}`} onClick={() => { setUploadedMedia(null); setSelectedMoments([]); setRelatedPhotos([]); if (activityType !== activity.label) { setIntakeAmount(''); setFoodType(''); } setActivity(activity.label); setTitle(activity.label); setNote(activity.text); }}><span aria-hidden="true">{activity.icon}</span><strong>{'displayLabel' in activity ? activity.displayLabel : activity.label}</strong>{selectedActivity?.label === activity.label && <span className="quick-activity-check" aria-hidden="true">✓</span>}</button>)}</div>
       <button type="button" className="quick-custom-moment" onClick={startWrittenMoment}>＋ Something else</button>
       {selectedActivity && <div className="quick-moment-summary"><strong>Ready to save</strong><p aria-live="polite">{note}</p>{momentTimeFields}{timingAndIntake}<button type="button" className="quick-details-button" onClick={onEdit}>＋ Add details or photo/video</button><label className="quick-private-choice"><input type="checkbox" checked={privateRecord} onChange={(event) => setPrivateRecord(event.target.checked)} />Keep as a private record</label><small>{privateRecord ? 'Only you can see this moment.' : `Visible in ${petName}’s Story to your care group.`}</small></div>}
     </section>
@@ -3669,6 +3659,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const [showStoryAddOptions, setShowStoryAddOptions] = useState(false);
   const [draftMoments, setDraftMoments] = useState<string[]>([]);
   const [draftUploadedMedia, setDraftUploadedMedia] = useState<StoryMedia | null>(null);
+  const [draftActivity, setDraftActivity] = useState('');
   const [draftObservationTitle, setDraftObservationTitle] = useState('');
   const [draftMomentAt, setDraftMomentAt] = useState(() => toLocalDateTimeInput(new Date()));
   const [draftMomentEndAt, setDraftMomentEndAt] = useState('');
@@ -4683,6 +4674,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setActiveStoryDraftId(null);
     setDraftMoments([]);
     setDraftUploadedMedia(null);
+    setDraftActivity('');
     setDraftObservationTitle('');
     setDraftMomentAt(toLocalDateTimeInput(new Date()));
     setDraftMomentEndAt('');
@@ -4707,7 +4699,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   function saveStoryDraft() {
     if (!canContributeToSharedPet || editingStoryObservationId || !(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)) return;
     setStorySaveError('');
-    const draft: StoryDraft = { id: activeStoryDraftId ?? `story-draft-${Date.now()}`, selectedMoments: draftMoments, note: draftObservation, title: draftObservationTitle, momentAt: draftMomentAt, momentEndAt: draftMomentEndAt, intakeAmount: draftIntakeAmount, foodType: draftFoodType, relatedPhotos: draftRelatedPhotos, context: draftObservationContext, savedAt: new Date().toISOString(), privateRecord: draftPrivateRecord, uploadedMedia: draftUploadedMedia ?? undefined };
+    const draft: StoryDraft = { id: activeStoryDraftId ?? `story-draft-${Date.now()}`, activity: draftActivity, selectedMoments: draftMoments, note: draftObservation, title: draftObservationTitle, momentAt: draftMomentAt, momentEndAt: draftMomentEndAt, intakeAmount: draftIntakeAmount, foodType: draftFoodType, relatedPhotos: draftRelatedPhotos, context: draftObservationContext, savedAt: new Date().toISOString(), privateRecord: draftPrivateRecord, uploadedMedia: draftUploadedMedia ?? undefined };
     const next = [draft, ...storyDrafts.filter((entry) => entry.id !== draft.id)];
     if (!persistWorkspacePatch({ drafts: next })) {
       setStorySaveError('This draft could not be saved on this device. Remove a large photo or video, then try again.');
@@ -4722,14 +4714,15 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     if (!canContributeToSharedPet) return;
     setStorySaveError('');
     const existing = storyObservations.find((entry) => entry.id === editingStoryObservationId);
-    const isMeal = draftObservationTitle === 'Meal';
+    const activityType = draftActivity || storyActivity(draftObservationTitle, existing?.observationKind, existing?.metrics);
+    const isMeal = activityType === 'Meal';
     const start = new Date(draftMomentAt || existing?.savedAt || Date.now());
     const end = draftMomentEndAt ? new Date(draftMomentEndAt) : null;
     if (end && (end.getTime() < start.getTime() || end.toDateString() !== start.toDateString() || end.getTime() > Date.now())) {
       setStorySaveError('Choose an end time after the start, on the same day and no later than now.');
       return;
     }
-    const intakeUnit = draftObservationTitle === 'Meal' ? 'foodGrams' : draftObservationTitle === 'Water' ? 'waterMilliliters' : null;
+    const intakeUnit = activityType === 'Meal' ? 'foodGrams' : activityType === 'Water' ? 'waterMilliliters' : null;
     const amount = draftIntakeAmount.trim() ? Number(draftIntakeAmount) : null;
     if (intakeUnit && ((isMeal && amount === null) || (amount !== null && (!Number.isFinite(amount) || amount <= 0)))) {
       setStorySaveError('Enter an amount greater than zero.');
@@ -4751,6 +4744,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
       linkedCareTaskId: existing?.linkedCareTaskId,
       note: draftObservation.trim(),
       sourceKind: existing?.sourceKind ?? 'caregiver',
+      observationKind: storyActivityKind(activityType) ?? existing?.observationKind,
       title,
       image: uploadedSelected && draftUploadedMedia ? draftUploadedMedia.url : selected[0] ? asset(selected[0].image) : '',
       mediaType: uploadedSelected ? draftUploadedMedia?.type : undefined,
@@ -4989,6 +4983,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setDraftMoments(existing?.momentIds ?? (existing ? [] : [row.id]));
     setDraftUploadedMedia(existing?.mediaType ? { name: 'Uploaded media', type: existing.mediaType, url: existing.image } : null);
     setDraftObservation(existing?.note ?? row.note ?? '');
+    setDraftActivity(storyActivity(existing?.title ?? row.title, existing?.observationKind, existing?.metrics));
     setDraftObservationTitle(existing?.title ?? row.title);
     setDraftMomentAt(toLocalDateTimeInput(existing ? new Date(existing.savedAt) : new Date()));
     setDraftMomentEndAt(existing?.metrics?.durationMinutes ? toLocalDateTimeInput(new Date(new Date(existing.savedAt).getTime() + existing.metrics.durationMinutes * 60000)) : '');
@@ -5005,6 +5000,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     setDraftMoments(draft.selectedMoments.slice(0, 1));
     setDraftUploadedMedia(draft.uploadedMedia ?? null);
     setDraftObservation(draft.note);
+    setDraftActivity(draft.activity || storyActivity(draft.title ?? ''));
     setDraftObservationTitle(draft.title ?? '');
     setDraftMomentAt(draft.momentAt ?? toLocalDateTimeInput(new Date()));
     setDraftMomentEndAt(draft.momentEndAt ?? '');
@@ -5326,10 +5322,10 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
               /* Keep the selection for this session. */
             } navigateTo('story'); }} />}
             {view === 'drafts' && <StoryDraftsPage drafts={storyDrafts} onBack={() => goBack('story')} onResume={resumeStoryDraft} onDelete={deleteStoryDraft} />}
-            {view === 'addMoments' && <StoryAddPage step="moments" saveError={storySaveError} onBack={cancelStoryObservation} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} foodType={draftFoodType} setFoodType={setDraftFoodType} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
-            {view === 'addCompose' && <StoryAddPage step="compose" saveError={storySaveError} onBack={() => goBack('addMoments')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} foodType={draftFoodType} setFoodType={setDraftFoodType} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addPreview')} />}
-            {view === 'addPreview' && <StoryAddPage step="preview" saveError={storySaveError} onBack={() => goBack('addCompose')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} foodType={draftFoodType} setFoodType={setDraftFoodType} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
-            {view === 'addSaved' && <StoryAddPage careTasks={[...careTasks, ...careTasksForDate(typicalPatterns, storyObservations, careTasks, new Date(), new Date(), petName, primaryMemberId).filter(task => !careTasks.some(saved => saved.id === task.id))]} careMembers={displayedCareMembers} currentUserId={activeAccount.id} isPrimary={isPrimaryCaregiver} onConfirmTask={confirmSavedCareTask} onOpenCarePlan={() => { setCareInitialTab('tasks'); navigateTo('careTasks'); }} savedObservation={savedStoryObservation} step="saved" saveError={storySaveError} onBack={() => goBack('addPreview')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} foodType={draftFoodType} setFoodType={setDraftFoodType} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
+            {view === 'addMoments' && <StoryAddPage activity={draftActivity} setActivity={setDraftActivity} step="moments" saveError={storySaveError} onBack={cancelStoryObservation} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} foodType={draftFoodType} setFoodType={setDraftFoodType} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
+            {view === 'addCompose' && <StoryAddPage activity={draftActivity} setActivity={setDraftActivity} step="compose" saveError={storySaveError} onBack={() => goBack('addMoments')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} foodType={draftFoodType} setFoodType={setDraftFoodType} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addPreview')} />}
+            {view === 'addPreview' && <StoryAddPage activity={draftActivity} setActivity={setDraftActivity} step="preview" saveError={storySaveError} onBack={() => goBack('addCompose')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} foodType={draftFoodType} setFoodType={setDraftFoodType} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
+            {view === 'addSaved' && <StoryAddPage activity={draftActivity} setActivity={setDraftActivity} careTasks={[...careTasks, ...careTasksForDate(typicalPatterns, storyObservations, careTasks, new Date(), new Date(), petName, primaryMemberId).filter(task => !careTasks.some(saved => saved.id === task.id))]} careMembers={displayedCareMembers} currentUserId={activeAccount.id} isPrimary={isPrimaryCaregiver} onConfirmTask={confirmSavedCareTask} onOpenCarePlan={() => { setCareInitialTab('tasks'); navigateTo('careTasks'); }} savedObservation={savedStoryObservation} step="saved" saveError={storySaveError} onBack={() => goBack('addPreview')} onCancel={cancelStoryObservation} selectedMoments={draftMoments} setSelectedMoments={setDraftMoments} uploadedMedia={draftUploadedMedia} setUploadedMedia={setDraftUploadedMedia} title={draftObservationTitle} setTitle={setDraftObservationTitle} momentAt={draftMomentAt} setMomentAt={setDraftMomentAt} momentEndAt={draftMomentEndAt} setMomentEndAt={setDraftMomentEndAt} intakeAmount={draftIntakeAmount} setIntakeAmount={setDraftIntakeAmount} foodType={draftFoodType} setFoodType={setDraftFoodType} relatedPhotos={draftRelatedPhotos} setRelatedPhotos={setDraftRelatedPhotos} note={draftObservation} setNote={setDraftObservation} context={draftObservationContext} setContext={setDraftObservationContext} privateRecord={draftPrivateRecord} setPrivateRecord={setDraftPrivateRecord} observations={storyObservations} petName={petName} ownerName={ownerName} hasDemoMoments={activePetRecord.hasDemoMoments} canSaveDraft={!editingStoryObservationId && Boolean(draftObservationTitle.trim() || draftObservation.trim() || draftMoments.length || draftUploadedMedia)} onSaveDraft={saveStoryDraft} onSave={saveStoryObservation} onEdit={() => navigateTo('addCompose')} />}
             {view === 'momentDetail' && <MomentDetailPage moment={selectedMoment} contexts={selectedMomentContexts} accounts={prototypeSession.accounts} careMembers={displayedCareMembers} ownerName={ownerName} ownerAvatar={ownerAvatar} currentAccountId={activeAccount.id} groupOwnerAccountId={activePetRecord.sharedGroupId ? groupOwnerAccountId : undefined} petName={petName} groupId={activePetRecord.sharedGroupId} groupName={activeGroupName} canShare={Boolean(cloud && activePetRecord.sharedGroupId)} canContribute={canContributeToSharedPet} canInteract={canInteractWithGroupContext} engagement={momentEngagement[selectedMoment.id] ?? { likes: [], favorites: [] }} onToggleMomentLike={() => toggleMomentEngagement(selectedMoment.id, 'likes')} onToggleMomentFavorite={() => toggleMomentEngagement(selectedMoment.id, 'favorites')} onBack={() => goBack('story')} onAddContext={() => startContextForMoment(selectedMoment.id)} onEditContext={(context) => startContextForMoment(selectedMoment.id, context)} onDeleteContext={deleteOwnerContext} onToggleLike={toggleContextLike} onAddComment={addContextComment} onEditOwnComment={editOwnContextComment} onDeleteOwnComment={deleteOwnContextComment} />}
             {view === 'overview' && <OverviewPage onBack={() => goBack('today')} onClip={() => { setSelectedMomentId('window'); navigateTo('clip'); }} saved={savedContexts.find((context) => context.momentId === 'window') ?? null} onSaved={() => openMomentDetail('window')} petName={petName}/>}
             {view === 'clip' && <ClipPage onBack={() => goBack('overview')} onContext={() => startContextForMoment('window')} petName={petName} ownerName={ownerName} canContribute={canContributeToSharedPet} />}
