@@ -2843,3 +2843,54 @@ button.profile-link, button.activity-insight-link {
 .chat-shared-moment .chat-shared-open-label { margin-top: 8px; color: #856800; font-weight: 700; }
 @media (min-width: 600px) { .moment-share-backdrop { align-items: center; } }
 
+
+/* 2026-11-07 user-test iteration: distinct status, content and actions. */
+.home-screen > .today-care-action { margin: 12px 0 18px; padding: 16px; border: 1px solid #ced8d0; border-radius: 20px; background: #fffdf8; }
+.today-care-progress { color: #284638; font-size: 13px; font-weight: 700; }
+.today-care-task-meta { flex-wrap: wrap; color: #46594f; font-size: 12px; line-height: 18px; }
+.today-care-recent { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding: 12px; border: 1px solid #bad0c1; border-radius: 12px; background: #edf5ef; }
+.today-care-recent strong, .today-care-recent small { display: block; }
+.today-care-recent small { margin-top: 4px; color: #46594f; }
+.today-care-recent button { min-height: 44px; padding: 8px 12px; border: 1px solid #648471; border-radius: 10px; background: #fff; font-weight: 600; }
+.care-check-summary { margin: 0; padding: 16px; background: #f4f6f2; }
+.care-check-summary h2 { margin: 0 0 12px; font: 600 17px/24px 'Poppins',sans-serif; }
+.care-check-summary dl { margin: 0; display: grid; gap: 10px; }
+.care-check-summary dl > div { display: grid; grid-template-columns: 92px minmax(0,1fr); gap: 10px; }
+.care-check-summary dt { color: #526358; font: 400 12px/18px 'Roboto',sans-serif; }
+.care-check-summary dd { margin: 0; font: 600 14px/20px 'Roboto',sans-serif; overflow-wrap: anywhere; }
+.care-check-summary p { margin: 14px 0 0; font: 400 12px/18px 'Roboto',sans-serif; color: #526358; }
+.record-description { padding: 16px; background: #fffdf8; }
+.record-description summary { cursor: pointer; font-weight: 600; }
+.record-description p { line-height: 1.6; white-space: pre-wrap; }
+.quick-moment-summary { background: #fffdf8; border: 1px solid #d7dfd8; }
+.quick-moment-summary .moment-extra-field small { font: 400 12px/18px 'Roboto',sans-serif; color: #46594f; }
+.observation-saved-banner { background: #edf5ef; border: 1px solid #bad0c1; }
+.saved-observation-card .observation-note-visual { min-height: 0; gap: 12px; background: #f3f4f0; }
+.saved-care-review { margin: 16px 20px; padding: 16px; border: 1px solid #d7dfd8; border-radius: 16px; background: #fffdf8; }
+.saved-care-review h2 { margin: 0 0 10px; font: 600 15px/22px 'Poppins',sans-serif; }
+.saved-care-review p { font: 400 13px/20px 'Roboto',sans-serif; }
+.saved-care-review label { display: grid; gap: 8px; font: 500 13px/20px 'Roboto',sans-serif; }
+.saved-care-review select { width: 100%; min-height: 44px; border: 1px solid #aebdb2; border-radius: 8px; padding: 8px; background: white; font: inherit; }
+.saved-care-review .care-completion-confirm { display: flex; align-items: flex-start; margin: 12px 0; }
+.care-completion-confirm input { width: 20px; height: 20px; flex-shrink: 0; }
+.saved-care-review .primary-button { width: 100%; min-height: 48px; height: auto; padding: 12px; white-space: normal; }
+.saved-care-review .text-link { margin-top: 12px; }
+.ask-capabilities { margin: 12px 0 18px; padding: 14px; border: 1px solid #d7dfd8; border-radius: 12px; background: #f4f6f2; }
+.ask-capabilities strong { font-size: 14px; }
+.ask-capabilities p { margin: 8px 0 0; font: 400 13px/20px 'Roboto',sans-serif; }
+.demo-tour-intro { margin: 12px 0; padding-bottom: 12px; border-bottom: 1px solid #d7dfd8; }
+.demo-tour-intro h3 { font-size: 16px; margin: 0 0 8px; }
+.demo-tour-intro p { font-size: 13px; line-height: 20px; }
+.guided-tour-panel { max-height: 82dvh; overflow-y: auto; }
+/* Keep every privacy/detail control in normal flow before the action bar,
+   including short viewports with the software keyboard open. */
+.add-flow-page .sticky-action { position: static; margin-top: 20px; padding-bottom: calc(16px + env(safe-area-inset-bottom,0px)); background: #fffdf8; border-top: 1px solid #d7dfd8; }
+.quick-moment-content { padding-bottom: 20px; }
+.quick-private-choice { min-height: 44px; align-items: center; }
+.task-care-summary { margin: 12px 0; padding: 10px 12px; border-left: 3px solid #a9bdb0; background: #f3f6f1; }
+.task-care-summary p { margin: 4px 0; font: 400 12px/19px 'Roboto',sans-serif; }
+.task-care-summary strong { margin-right: 5px; }
+.task-care-summary .text-link { display: inline; font-size: inherit; }
+.ask-task-status { margin: 12px 0; padding: 12px 14px; border: 1px solid #d7dfd8; border-radius: 12px; }
+.ask-task-status summary { cursor: pointer; font: 600 13px/20px 'Roboto',sans-serif; }
+.ask-task-status p { font: 400 13px/20px 'Roboto',sans-serif; }

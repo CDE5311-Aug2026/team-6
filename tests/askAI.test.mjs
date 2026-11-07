@@ -126,3 +126,32 @@ test('a replaced session cannot read pet history, consume quota or call OpenAI',
   assert.equal(app.calls.length, 0);
   assert.equal(app.quotas.length, 0);
 });
+
+test('care status remains distinct from a saved Story record and excludes private content', () => {
+  const now = new Date('2026-11-07T08:00:00Z');
+  const workspace = {
+    observations: [{ id:'refill', title:'Fresh water provided', note:'Refilled the bowl', savedAt:'2026-11-07T07:00:00Z' }, { id:'private', title:'Private', note:'PRIVATE', privateRecord:true, savedAt:'2026-11-07T07:00:00Z' }],
+    careTasks: [
+      { id:'water', title:'Refresh water', status:'accepted', dueAt:'2026-11-07T07:55:00Z', createdAt:'2026-11-07T01:00:00Z', note:'DO_NOT_SEND_TASK_NOTE' },
+      { id:'meal', title:'Breakfast', status:'done', dueAt:'2026-11-07T00:05:00Z', completedAt:'2026-11-07T00:12:00Z', completedByName:'Alex', createdAt:'2026-11-07T00:00:00Z' },
+      { id:'future', title:'FUTURE', status:'open', dueAt:'2027-01-01', createdAt:'2026-11-07T01:00:00Z' },
+    ]
+  };
+  const raw = historyModule.buildHistory(workspace,now); const data = JSON.parse(raw);
+  assert.equal(data.careTasks.find(t=>t.id==='water').status,'accepted');
+  assert.equal(data.careTasks.find(t=>t.id==='water').completedAt,'');
+  assert.notEqual(data.careTasks.find(t=>t.id==='meal').plannedAt,data.careTasks.find(t=>t.id==='meal').completedAt);
+  assert.equal(data.careTasks.length,2);
+  assert.doesNotMatch(raw,/PRIVATE|FUTURE|DO_NOT_SEND_TASK_NOTE/);
+});
+test('task context is bounded and disabling history omits both tasks and Story', async () => {
+  const workspace={careTasks:Array.from({length:100},(_,i)=>({id:'t'+i,title:'Refresh water',status:'open',dueAt:new Date().toISOString(),createdAt:new Date(Date.now()-10000).toISOString()}))};
+  const history=historyModule.buildHistory(workspace);
+  assert.equal(JSON.parse(history).careTasks.length,12);
+  assert.ok(history.length<=historyModule.HISTORY_LIMIT);
+  const app=await handler({workspace}); await app.send({...chat,includeHistory:false});
+  const body=app.calls.find(call=>call.upstream).body;
+  assert.doesNotMatch(body.instructions,/"id":"t\d+"/);
+  assert.match(body.instructions,/cannot set reminders/);
+  assert.match(body.instructions,/Story observation is not a care-task completion/);
+});

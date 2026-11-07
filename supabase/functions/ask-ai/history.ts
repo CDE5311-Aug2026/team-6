@@ -25,10 +25,18 @@ export function buildHistory(workspace: Row = {}, now = new Date()) {
     && typeof e.startDate === 'string' && e.startDate <= now.toISOString().slice(0, 10)
     && (e.ongoing === true || String(e.endDate || e.startDate) >= start.toISOString().slice(0, 10)))
     .sort((a, b) => String(b.startDate).localeCompare(String(a.startDate))).slice(0, 5);
+  const careTasks = rows(workspace.careTasks).filter(task => {
+    const due = Date.parse(String(task.dueAt));
+    const created = Date.parse(String(task.createdAt));
+    return ['open', 'requested', 'accepted', 'declined', 'done', 'skipped'].includes(String(task.status))
+      && Number.isFinite(due) && due >= start.getTime() && due <= now.getTime() + 86400000
+      && Number.isFinite(created) && created <= now.getTime();
+  }).sort((a,b) => String(b.dueAt).localeCompare(String(a.dueAt))).slice(0, 12);
   const result = {
     windowStart: start.toISOString(), windowEnd: now.toISOString(),
     availableRecentRecords: recent.length, includedRecords: selected.length,
-    scope: 'Up to 28 public Story text records from the last 7 days, 8 linked owner contexts, 5 confirmed patterns and 5 permitted recent/ongoing life events. Partial extract; omitted records are unknown. Dates are ISO timestamps. No historical media or private notes.',
+    scope: 'Up to 28 public Story text records from the last 7 days, 8 linked owner contexts, 5 confirmed patterns and 5 permitted recent/ongoing life events. Up to 12 saved care tasks due in the last 7 days or next 24 hours; generated unsaved routines are not included. Partial extract; omitted records and tasks are unknown. Dates are ISO timestamps. No historical media or private notes.',
+    careTasks: careTasks.map(task => ({ id: text(task.id, 80), title: text(task.title, 80), status: text(task.status, 20), plannedAt: text(task.dueAt, 40), completedAt: task.status === 'done' ? text(task.completedAt, 40) : '', completedBy: task.status === 'done' ? text(task.completedByName, 60) : '', simulated: task.autoCompleted === true })),
     observations: selected.map(o => ({ id: text(o.id, 80), at: text(o.savedAt, 40), title: text(o.title, 70), note: text(o.note, 160), context: text(o.context, 80), simulated: o.synthetic === true })),
     contexts: contexts.map(c => ({ momentId: text(c.momentId, 80), note: text(c.note, 120), interpretation: text(c.interpretation, 30) })),
     patterns: patterns.map(p => ({ title: text(p.title, 70), detail: text(p.detail, 160) })),
@@ -40,6 +48,7 @@ export function buildHistory(workspace: Row = {}, now = new Date()) {
     else if (result.contexts.length) result.contexts.pop();
     else if (result.events.length) result.events.pop();
     else if (result.patterns.length) result.patterns.pop();
+    else if (result.careTasks.length) result.careTasks.pop();
     else break;
   }
   const retainedIds = new Set(result.observations.map(o => o.id));
