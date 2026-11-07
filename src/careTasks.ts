@@ -1,3 +1,9 @@
+/** ISO offsets may differ between persisted demo data and browser-authored data. */
+export function compareCareTimes(left: string, right: string): number {
+  const a = Date.parse(left), b = Date.parse(right);
+  return (Number.isFinite(a) ? a : 0) - (Number.isFinite(b) ? b : 0);
+}
+
 export type CareTaskStatus = 'open' | 'requested' | 'accepted' | 'declined' | 'done' | 'skipped';
 
 export type CareTaskEventType = 'assigned' | 'requested' | 'reassigned' | 'accepted' | 'declined' | 'released' | 'taken_over' | 'completed' | 'reopened' | 'skipped' | 'restored' | 'auto_completed' | 'reminded';
@@ -114,8 +120,8 @@ export function careTaskInboxCount(tasks: CareTask[], userId: string, isPrimary:
 /** Select the compact Today summary: urgent work first, otherwise recent context plus what is next. */
 export function careTaskSummaryTasks(tasks: CareTask[], now: Date): CareTask[] {
   const visible = tasks.filter((task) => task.status !== 'skipped');
-  const completed = visible.filter((task) => task.status === 'done').sort((left, right) => (right.completedAt ?? right.dueAt).localeCompare(left.completedAt ?? left.dueAt));
-  const unfinished = visible.filter((task) => task.status !== 'done').sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+  const completed = visible.filter((task) => task.status === 'done').sort((left, right) => compareCareTimes(right.completedAt ?? right.dueAt, left.completedAt ?? left.dueAt));
+  const unfinished = visible.filter((task) => task.status !== 'done').sort((left, right) => compareCareTimes(left.dueAt, right.dueAt));
   const urgent = unfinished.filter((task) => task.status === 'declined' || new Date(task.dueAt).getTime() < now.getTime());
   if (urgent.length) {
     const second = urgent[1] ?? unfinished.find((task) => task.id !== urgent[0].id) ?? completed[0];
@@ -173,7 +179,7 @@ function simulatedCareTasksForDate(observations: SimulatedActivity[], savedTasks
       };
       return completeWhenRecorded(saved ?? generated, now);
     })
-    .sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+    .sort((left, right) => compareCareTimes(left.dueAt, right.dueAt));
 }
 
 function patternCareTasksForDate(patterns: CarePattern[], savedTasks: CareTask[], date: Date, petName: string, observations: SimulatedActivity[], now: Date, primaryId: string): CareTask[] {
@@ -202,7 +208,7 @@ function patternCareTasksForDate(patterns: CarePattern[], savedTasks: CareTask[]
       const windowEndAt = new Date(date.getFullYear(), date.getMonth(), date.getDate(), Math.floor(end / 60), end % 60).toISOString();
       return { ...(saved ?? generated), windowEndAt };
     })
-    .sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+    .sort((left, right) => compareCareTimes(left.dueAt, right.dueAt));
 }
 
 /** Build the selected day's checklist from its simulation, with Pattern as a fallback. */

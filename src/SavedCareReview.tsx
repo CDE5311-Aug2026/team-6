@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { canToggleCareTaskCompletion, type CareTask } from './careTasks';
+import { compareCareTimes, canToggleCareTaskCompletion, type CareTask } from './careTasks';
 
 type Observation = { id: string; title: string; savedAt: string; linkedCareTaskId?: string; authorName?: string };
 type Member = { id: string; name: string };
@@ -17,7 +17,7 @@ export default function SavedCareReview({ observation, tasks, members, currentUs
     && new Date(task.dueAt).toDateString() === new Date(observation.savedAt).toDateString()
     && new Date(task.dueAt).toDateString() === new Date().toDateString()
     && canToggleCareTaskCompletion(task, currentUserId, isPrimary))
-    .sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+    .sort((a, b) => compareCareTimes(a.dueAt, b.dueAt));
   const selected = candidates.find(task => task.id === selectedId);
   return <section className="saved-care-review" aria-label="Record and task status">
     <h2>{linked?.status === 'done' ? 'Record linked · task completed' : 'Record saved · task completion separate'}</h2>

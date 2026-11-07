@@ -24,7 +24,7 @@ import { searchCareAccounts, type CareAccountSearchResult, type CloudCareGroup, 
 import { visibleStoryObservations } from './storyVisibility';
 import { buildRollingStorySimulation, isSyntheticSunnyProfile } from './storySimulation';
 import { mergeSharedStoryObservations } from './sharedStoryObservations';
-import { careRhythmForDate, careTaskTiming, canToggleCareTaskCompletion, toggleCareTaskCompletion, appendCareTaskEvent, canViewCareTaskEvent, careTaskAttentionCount, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask, type CareTask, type CareTaskEvent, type CareTaskEventType } from './careTasks';
+import { compareCareTimes, careRhythmForDate, careTaskTiming, canToggleCareTaskCompletion, toggleCareTaskCompletion, appendCareTaskEvent, canViewCareTaskEvent, careTaskAttentionCount, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask, type CareTask, type CareTaskEvent, type CareTaskEventType } from './careTasks';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
 
 type View =
@@ -766,7 +766,7 @@ function DailyRhythmCard({ petName, moments, scheduledMoments, onOpenActivitySum
   };
   const routineTasks = careTasksForDate(patterns, scheduledMoments, careTasks, selectedDate, now, displayName, careMembers.find(member => member.role === 'Primary caregiver')?.id ?? 'emily');
   const datedTasks = careTasks.filter(task => !task.sourcePatternId && (!task.sourceObservationId || !!task.demoSlot) && isSameLocalDay(task.dueAt, selectedDate) && task.status !== 'declined');
-  const dayCareTasks = [...routineTasks, ...datedTasks].sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+  const dayCareTasks = [...routineTasks, ...datedTasks].sort((left, right) => compareCareTimes(left.dueAt, right.dueAt));
   const isToday = dayOffset === 0;
   const dayTitle = isToday ? 'TODAY' : dayOffset === -1 ? 'YESTERDAY' : new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(selectedDate).toUpperCase();
   const selectedDateLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(selectedDate);
@@ -1508,13 +1508,13 @@ export function CareTasksPage({ onOpenObservation, initialTab = 'tasks', tasks, 
   const [helpNote, setHelpNote] = useState('');
   const [releaseTaskId, setReleaseTaskId] = useState<string | null>(null);
   const selectedRoutine = careTasksForDate(patterns, observations, tasks, selectedDate, now, petName);
-  const visibleTasks = tasks.filter(task => !task.sourcePatternId && (!task.sourceObservationId || !!task.demoSlot) && isSameLocalDay(task.dueAt, selectedDate) && (isPrimary || task.assignedTo === currentUserId)).sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+  const visibleTasks = tasks.filter(task => !task.sourcePatternId && (!task.sourceObservationId || !!task.demoSlot) && isSameLocalDay(task.dueAt, selectedDate) && (isPrimary || task.assignedTo === currentUserId)).sort((a, b) => compareCareTimes(a.dueAt, b.dueAt));
   const planTasks = [...selectedRoutine, ...visibleTasks];
-  const activeRoutineTasks = planTasks.filter(task => task.status !== 'done' && task.status !== 'skipped').sort((a,b) => a.dueAt.localeCompare(b.dueAt));
+  const activeRoutineTasks = planTasks.filter(task => task.status !== 'done' && task.status !== 'skipped').sort((a,b) => compareCareTimes(a.dueAt, b.dueAt));
   const completedRoutineTasks = selectedRoutine.filter(task => task.status === 'done');
   const skippedRoutineTasks = selectedRoutine.filter(task => task.status === 'skipped');
-  const completedPlanTasks = [...completedRoutineTasks, ...visibleTasks.filter(task => task.status === 'done')].sort((left, right) => (right.completedAt ?? right.dueAt).localeCompare(left.completedAt ?? left.dueAt));
-  const skippedPlanTasks = [...skippedRoutineTasks, ...visibleTasks.filter(task => task.status === 'skipped')].sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+  const completedPlanTasks = [...completedRoutineTasks, ...visibleTasks.filter(task => task.status === 'done')].sort((left, right) => compareCareTimes(right.completedAt ?? right.dueAt, left.completedAt ?? left.dueAt));
+  const skippedPlanTasks = [...skippedRoutineTasks, ...visibleTasks.filter(task => task.status === 'skipped')].sort((left, right) => compareCareTimes(left.dueAt, right.dueAt));
   const canEditSelectedDay = canAct && dayOffset === 0;
   const releaseTask = [...selectedRoutine, ...visibleTasks].find(task => task.id === releaseTaskId);
   const helperCandidates = members.filter(member => member.id !== currentUserId && member.access !== 'viewer' && member.role !== 'Viewer');
@@ -1522,7 +1522,7 @@ export function CareTasksPage({ onOpenObservation, initialTab = 'tasks', tasks, 
   const declinedAttention = isPrimary ? tasks.filter(task => task.status === 'declined') : [];
   const needsAttention = [...incoming, ...declinedAttention].filter((task, index, list) => list.findIndex(entry => entry.id === task.id) === index);
   const historyTasks = [...selectedRoutine, ...visibleTasks, ...tasks].filter((task, index, list) => list.findIndex(entry => entry.id === task.id) === index);
-  const eventHistory = historyTasks.flatMap(task => (task.events ?? []).map(event => ({ task, event }))).filter(({ event }) => canViewCareTaskEvent(event, currentUserId, isPrimary)).sort((left, right) => right.event.createdAt.localeCompare(left.event.createdAt));
+  const eventHistory = historyTasks.flatMap(task => (task.events ?? []).map(event => ({ task, event }))).filter(({ event }) => canViewCareTaskEvent(event, currentUserId, isPrimary)).sort((left, right) => compareCareTimes(right.event.createdAt, left.event.createdAt));
   const linkedRecords = (task: CareTask) => {
     const records = observations.filter(record => !record.privateRecord && record.linkedCareTaskId === task.id);
     return <div className="task-care-summary"><p><strong>Assigned to</strong> {people(task.assignedTo)}</p><p><strong>Completion</strong> {task.status === 'done' ? `${task.completedByName ?? people(task.completedBy ?? '')} · ${task.completedAt ? new Date(task.completedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'Time not recorded'}` : 'Not confirmed · check before repeating care'}</p>{records.length ? records.map(record => <p key={record.id}><strong>Linked record</strong> {onOpenObservation ? <button className="text-link" onClick={() => onOpenObservation(record.id)}>{record.title} →</button> : record.title} · recorded by {record.authorName ?? 'Caregiver'}</p>) : <p>No record explicitly linked. A separate Story note does not complete this task.</p>}</div>;

@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../src/careTasks.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
-const { careRhythmForDate, toggleCareTaskCompletion, canToggleCareTaskCompletion, canRemindCareTask, careTaskTiming, appendCareTaskEvent, careTaskAttentionCount, careTaskInboxCount, careTaskSummaryTasks, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
+const { compareCareTimes, careRhythmForDate, toggleCareTaskCompletion, canToggleCareTaskCompletion, canRemindCareTask, careTaskTiming, appendCareTaskEvent, careTaskAttentionCount, careTaskInboxCount, careTaskSummaryTasks, careTaskUnreadCount, careTasksForDate, isObservationSkippedForToday, markCareTaskEventsRead, releaseAcceptedCareTask, takeOverDeclinedCareTask } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
 
 const activity = (id, hour, title) => ({
   id,
@@ -312,4 +312,19 @@ test('rhythm places overnight completion on its actual day, excludes future/priv
   assert.equal(careRhythmForDate([], [task], yesterday,now).completions.length,0);
   assert.equal(careRhythmForDate([], [{...task,completedAt:new Date(2026,9,23,15).toISOString()}], now,now).completions.length,0);
   assert.equal(careRhythmForDate([], [{...task,status:'open'}], now,now).completions.length,0);
+});
+
+
+test('care chronology compares instants across Singapore offsets and UTC, including day boundaries', () => {
+  assert.ok(compareCareTimes('2026-11-07T20:45:00+08:00', '2026-11-07T15:30:00Z') < 0);
+  assert.equal(compareCareTimes('2026-11-07T20:45:00+08:00', '2026-11-07T12:45:00Z'), 0);
+  assert.ok(compareCareTimes('2026-11-08T00:15:00+08:00', '2026-11-07T15:45:00Z') > 0);
+});
+test('home task summary selects the actual earliest unfinished task with mixed timestamp offsets', () => {
+  const now = new Date('2026-11-07T14:00:00Z');
+  const tasks = [
+    {id:'later',title:'UI verification',status:'open',dueAt:'2026-11-07T15:30:00Z'},
+    {id:'earlier',title:'Handover',status:'open',dueAt:'2026-11-07T20:45:00+08:00'},
+  ];
+  assert.equal(careTaskSummaryTasks(tasks, now)[0].id,'earlier');
 });

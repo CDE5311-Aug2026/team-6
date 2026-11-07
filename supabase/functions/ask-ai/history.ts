@@ -14,11 +14,11 @@ export function buildHistory(workspace: Row = {}, now = new Date()) {
     const time = Date.parse(String(o.savedAt));
     return Number.isFinite(time) && time >= start.getTime() && time <= now.getTime()
       && (!enforceVisibility || visible!.includes(o.id));
-  }).sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt)));
+  }).sort((a, b) => Date.parse(String(b.savedAt)) - Date.parse(String(a.savedAt)));
   const selected = recent.slice(0, 28);
   const ids = new Set(selected.map(o => o.id));
   const contexts = rows(workspace.contexts).filter(c => ids.has(c.momentId)
-    && Date.parse(String(c.savedAt)) <= now.getTime()).sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt))).slice(0, 8);
+    && Date.parse(String(c.savedAt)) <= now.getTime()).sort((a, b) => Date.parse(String(b.savedAt)) - Date.parse(String(a.savedAt))).slice(0, 8);
   const patterns = rows(workspace.patterns).filter(p => p.status === 'confirmed')
     .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))).slice(0, 5);
   const events = rows(workspace.lifeEvents).filter(e => e.useForAsk === true
@@ -31,7 +31,7 @@ export function buildHistory(workspace: Row = {}, now = new Date()) {
     return ['open', 'requested', 'accepted', 'declined', 'done', 'skipped'].includes(String(task.status))
       && Number.isFinite(due) && due >= start.getTime() && due <= now.getTime() + 86400000
       && Number.isFinite(created) && created <= now.getTime();
-  }).sort((a,b) => String(b.dueAt).localeCompare(String(a.dueAt))).slice(0, 12);
+  }).sort((a,b) => Date.parse(String(b.dueAt)) - Date.parse(String(a.dueAt))).slice(0, 12);
   const result = {
     windowStart: start.toISOString(), windowEnd: now.toISOString(),
     availableRecentRecords: recent.length, includedRecords: selected.length,

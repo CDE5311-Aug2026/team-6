@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { canToggleCareTaskCompletion, careTaskTiming, careTaskUnreadCount, careTasksForDate, type CareTask } from './careTasks';
+import { compareCareTimes, canToggleCareTaskCompletion, careTaskTiming, careTaskUnreadCount, careTasksForDate, type CareTask } from './careTasks';
 import type { DailyPattern, TimedRecord } from '../supabase/functions/_shared/dailyPatterns';
 
 type Member = { id: string; name: string; role: string; avatar?: string; access?: 'editor' | 'viewer'; expiresAt?: string };
@@ -27,7 +27,7 @@ export default function TodayCare({ petName, patterns, observations, tasks, memb
   const routine = careTasksForDate(patterns, observations, tasks, selectedDate, now, petName, primaryMemberId);
   const manual = tasks.filter(task => !task.sourcePatternId && (!task.sourceObservationId || !!task.demoSlot) && sameDay(task.dueAt));
   const today = [...routine, ...manual].filter(task => task.status !== 'skipped');
-  const pending = today.filter(task => task.status !== 'done').sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+  const pending = today.filter(task => task.status !== 'done').sort((a, b) => compareCareTimes(a.dueAt, b.dueAt));
   const visiblePending = pending.slice(0, 2);
   const hiddenPendingCount = Math.max(0, pending.length - visiblePending.length);
   const completed = today.filter(task => task.status === 'done');
