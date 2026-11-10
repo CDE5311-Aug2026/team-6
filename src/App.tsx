@@ -3743,6 +3743,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   const scrollRef = useRef<HTMLElement>(null);
   const returnScrollPosition = useRef<number | null>(null);
   const askEndRef = useRef<HTMLDivElement>(null);
+  const askScrollIdentityRef = useRef<string | null>(null);
   const navigationHistory = useRef<View[]>([]);
   const pendingFavoriteMomentRef = useRef<{ petId: string; momentId: string } | null>(null);
   const contextReturnView = useRef<View>('momentDetail');
@@ -4465,6 +4466,7 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
   }
 
   useEffect(() => {
+    if (view === 'ask') return;
     if (view === 'today' && returnScrollPosition.current !== null) {
       const top = returnScrollPosition.current;
       returnScrollPosition.current = null;
@@ -4500,11 +4502,18 @@ export default function App({ cloud, guest = false, onExit, notice }: AppProps) 
     return () => window.clearTimeout(timer);
   }, [storyDraftSavedNotice]);
 
-  useEffect(() => {
-    if (view === 'ask' && scrollRef.current) {
-      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: preferredScrollBehavior() });
+  useLayoutEffect(() => {
+    if (view !== 'ask') {
+      askScrollIdentityRef.current = null;
+      return;
     }
-  }, [askMessages, view, askBusy, askPending]);
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    const isOpeningConversation = askScrollIdentityRef.current !== askIdentity;
+    askScrollIdentityRef.current = askIdentity;
+    // Open at the latest message before paint; animate only subsequent chat updates.
+    scroll.scrollTo({ top: scroll.scrollHeight, behavior: isOpeningConversation ? 'instant' : preferredScrollBehavior() });
+  }, [askMessages, view, askBusy, askPending, askIdentity]);
 
   const selectedMoment = resolveMoment(selectedMomentId, storyObservations);
   const selectedMomentContexts = savedContexts.filter((context) => context.momentId === selectedMomentId);
