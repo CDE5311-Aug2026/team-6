@@ -2862,12 +2862,14 @@ function SimplePage({ onInbox, inboxUnread, kind, petName, petAvatar, petBreed, 
     </div>
   ) : (
     <div className="profile-page you-page">
-      <MainHeader onInbox={onInbox} inboxUnread={inboxUnread} eyebrow="MY SPACE" title="My Profile" onPetsNavigate={onPetsNavigate} onSettingsNavigate={onSettingsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
+      <MainHeader eyebrow="MY SPACE" title="My Profile" onPetsNavigate={onPetsNavigate} onSettingsNavigate={onSettingsNavigate} petName={petName} petAvatar={petAvatar} hasPet={!noPetYet} />
       <div className="account-hero-activity">
         <section className="account-profile-hero">
           <OwnerAvatar src={ownerAvatar} name={ownerName} className="account-avatar" />
-          <span className="profile-hero-copy"><span className="profile-name-status"><strong>{ownerName}</strong><select aria-label="My availability" className="availability-picker" value={availability} onChange={event => { setAvailability(event.target.value); try { localStorage.setItem('pawsona-availability:' + ownerName, event.target.value); } catch {} window.dispatchEvent(new Event('pawsona-availability-change')); }}><option value="home">🏠 At home</option><option value="away">🚶 Away</option><option value="busy">🔕 Busy</option><option value="available">😊 Available</option></select></span><small>{ownerPreference}</small><button type="button" className="mini-action" onClick={onProfileEdit}><b>✎</b> Edit my profile</button></span>
+          <div className="account-identity-copy"><h2>{ownerName}</h2>{ownerPreference && ownerPreference !== 'Manage your profile details here.' && <p>{ownerPreference}</p>}</div>
+          <button type="button" className="account-edit-button" aria-label="Edit my profile" onClick={onProfileEdit}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15.5 4.5 4 4M4 20l4.5-1 12-12a2.8 2.8 0 0 0-4-4l-12 12L4 20Z"/></svg></button>
         </section>
+        <div className="account-availability-row"><span>Care availability</span><select aria-label="My availability" className="availability-picker" value={availability} onChange={event => { setAvailability(event.target.value); try { localStorage.setItem('pawsona-availability:' + ownerName, event.target.value); } catch {} window.dispatchEvent(new Event('pawsona-availability-change')); }}><option value="home">🏠 At home</option><option value="away">🚶 Away</option><option value="busy">🔕 Busy</option><option value="available">😊 Available</option></select></div>
         <div className="profile-card profile-activity-shortcuts" aria-label="My activity">
           {([
             { id: 'records', label: 'My records', icon: <><path d="M7 3.75h7l4.25 4.3v12.2H7a2 2 0 0 1-2-2v-12a2 2 0 0 1 2-2Z"/><path d="M14 4v5h5M9 13h6M9 16.5h6"/></> },

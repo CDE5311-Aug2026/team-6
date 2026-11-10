@@ -1263,15 +1263,27 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .context-card .knowledge-row:first-child { min-height: 76px; }
 .you-page .main-header { height: 97px; }
 .you-page .main-header > .header-avatar-button { display: none; }
-.account-hero-activity { overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding: 9px; border: 1px solid #f0efea; border-radius: 26px; background: #fff0a7; box-shadow: 0 2px 8px #1a29210a; }
-.account-profile-hero { min-height: 112px; margin-top: 0; gap: 16px; border-radius: 20px; }
-.account-hero-activity .profile-activity-shortcuts { min-height: 70px; margin-top: 0; border: 1px solid #f0efea; border-radius: 20px; background: #fff; box-shadow: none; }
-.account-hero-activity .profile-activity-icon { width: 32px; height: 32px; }
-.account-hero-activity .profile-activity-icon svg { width: 27px; height: 27px; }
-.account-avatar { width: 59px; height: 59px; font-size: 0; }
-.account-profile-hero .profile-hero-copy { gap: 0; }
-.account-profile-hero .profile-hero-copy > strong { font-size: 20px; }
-.account-profile-hero .profile-hero-copy > .mini-action { margin-top: 9px; }
+/* Profile: identity, availability, then activity destinations. */
+.you-page .header-settings-button { background: #fff; border: 1px solid #e9e7df; }
+.you-page .header-settings-button:hover { background: #fff; border-color: #c6cec7; }
+.account-hero-activity { overflow: hidden; display: flex; flex-direction: column; padding: 0; border: 1px solid #e9e7df; border-radius: 24px; background: #fff; box-shadow: 0 3px 14px #1a292106; }
+.account-hero-activity .account-profile-hero { min-height: 108px; display: flex; gap: 14px; margin: 0; padding: 22px 20px 18px; border: 0; border-radius: 0; background: transparent; }
+.account-hero-activity .account-avatar { width: 60px; height: 60px; flex: 0 0 60px; margin: 0; border: 3px solid #fff; box-shadow: 0 0 0 1px #e9e7df; font-size: 22px; }
+.account-identity-copy { flex: 1; min-width: 0; }
+.account-identity-copy h2 { margin: 0; overflow-wrap: anywhere; color: var(--color-text-primary); font: 600 21px/28px 'Poppins', sans-serif; letter-spacing: -.4px; }
+.account-identity-copy p { margin: 4px 0 0; color: var(--color-text-muted); font: 400 12px/18px 'Roboto', sans-serif; overflow-wrap: anywhere; }
+.account-edit-button { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; padding: 10px; border: 1px solid #e9e7df; border-radius: 50%; background: #fff; color: var(--color-text-primary); }
+.account-edit-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.account-edit-button:hover { background: #fff9df; }
+.account-availability-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 20px 16px; padding: 10px 12px; border-radius: 12px; background: #faf9f5; }
+.account-availability-row > span { color: var(--color-text-muted); font: 400 12px/18px 'Roboto', sans-serif; }
+.account-hero-activity .account-availability-row .availability-picker { width: auto; min-height: 30px; max-width: 145px; padding: 5px 24px 5px 9px; border: 0; border-radius: 8px; background-color: transparent; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m3 4.5 3 3 3-3' fill='none' stroke='%23667069' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E"); background-position: right 6px center; background-repeat: no-repeat; color: var(--color-text-primary); font: 500 12px/18px 'Roboto', sans-serif; }
+.account-hero-activity .profile-activity-shortcuts { min-height: 82px; margin: 0; padding: 10px 12px 12px; border: 0; border-top: 1px solid #efeee8; border-radius: 0; background: transparent; box-shadow: none; }
+.account-hero-activity .profile-activity-shortcut { gap: 7px; min-height: 60px; border-radius: 10px; }
+.account-hero-activity .profile-activity-shortcut:hover { background: #faf9f5; }
+.account-hero-activity .profile-activity-shortcut .profile-activity-icon { width: 26px; height: 26px; color: #96751d; }
+.account-hero-activity .profile-activity-shortcut .profile-activity-icon svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.65; }
+.account-hero-activity .profile-activity-shortcut strong { color: var(--color-text-primary); font: 500 11px/16px 'Roboto', sans-serif; }
 .settings-hub-page { min-height: calc(100dvh - var(--status-bar-height)); color: var(--color-text-primary); background: var(--color-page-bg); }
 .settings-hub-header { position: sticky; z-index: 8; top: var(--status-bar-height); height: 57px; display: flex; align-items: flex-start; gap: 10px; padding: 0 20px; border-bottom: 1px solid var(--color-border); background: var(--color-page-bg); }
 .settings-hub-header h1 { margin: 10px 0 0; font: 600 20px/28px 'Poppins', sans-serif; letter-spacing: -.3px; }
