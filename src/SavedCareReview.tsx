@@ -22,7 +22,7 @@ export default function SavedCareReview({ observation, tasks, members, currentUs
   return <section className="saved-care-review" aria-label="Record and task status">
     <h2>{linked?.status === 'done' ? 'Record linked · task completed' : 'Record saved · task completion separate'}</h2>
     {linked ? <><p><strong>{linked.title}</strong></p><p>Assigned to {name(linked.assignedTo)} · {linked.status === 'done' ? `Completed by ${linked.completedByName ?? name(linked.completedBy ?? '')}` : 'Completion not confirmed'}</p></>
-      : <><p>Recorded by {observation.authorName ?? 'you'}. Saving this record has not completed or reassigned a task.</p>
+      : <><p>Recorded by {observation.authorName ?? 'you'}.</p>
         {candidates.length > 0 && <><label>Link an existing task (optional)<select value={selectedId} onChange={event => { setSelectedId(event.target.value); setConfirmed(false); setError(''); }}><option value="">Choose a task to review</option>{candidates.map(task => <option key={task.id} value={task.id}>{task.title} · {name(task.assignedTo)}</option>)}</select></label>
           {selected && <><p>Assigned to {name(selected.assignedTo)} · {selected.status}. Confirm only if this record describes the same care action.</p><label className="care-completion-confirm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />I personally completed this task. Record me as the performer.</label><button type="button" className="primary-button" disabled={!confirmed} onClick={() => { if (!onConfirm(selected)) setError('Could not confirm completion. The record is saved; review the task and try again.'); }}>Link record &amp; confirm completion</button></>}
         </>}

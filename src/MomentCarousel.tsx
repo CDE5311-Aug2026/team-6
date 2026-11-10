@@ -16,6 +16,13 @@ export default function MomentCarousel({ children }: { children: ReactNode }) {
   const suppressClick = useRef(false);
   const touching = useRef(false);
   const pause = () => { pausedUntil.current = performance.now() + 2000; };
+  const normalizeScroll = (el: HTMLDivElement) => {
+    const set = el.querySelector<HTMLElement>('.moment-carousel-set');
+    const segment = set ? set.getBoundingClientRect().width + (parseFloat(getComputedStyle(el).columnGap) || 0) : 0;
+    if (!segment) return;
+    while (el.scrollLeft < segment * 1.5) el.scrollLeft += segment;
+    while (el.scrollLeft > segment * 2.5) el.scrollLeft -= segment;
+  };
   const signature = cards.map(card => card.key).join('|');
   useEffect(() => {
     const el = viewport.current;
@@ -50,10 +57,7 @@ export default function MomentCarousel({ children }: { children: ReactNode }) {
       onFocusCapture={pause} onWheel={pause} onTouchStart={() => { touching.current = true; pause(); }} onTouchEnd={() => { touching.current = false; pause(); }} onTouchCancel={() => { touching.current = false; pause(); }}
       onScroll={event => {
         if (cards.length < 2 || dragging.current) return;
-        const el = event.currentTarget, set = el.querySelector<HTMLElement>('.moment-carousel-set');
-        const segment = set ? set.getBoundingClientRect().width + (parseFloat(getComputedStyle(el).columnGap) || 0) : 0;
-        if (segment && el.scrollLeft < segment * 1.5) el.scrollLeft += segment;
-        else if (segment && el.scrollLeft > segment * 2.5) el.scrollLeft -= segment;
+        normalizeScroll(event.currentTarget);
       }}
       onPointerDown={event => {
         pause(); suppressClick.current = false;
@@ -66,7 +70,7 @@ export default function MomentCarousel({ children }: { children: ReactNode }) {
         if (Math.abs(delta) > 6) { drag.moved = true; event.currentTarget.setPointerCapture(event.pointerId); }
         if (drag.moved) { event.preventDefault(); event.currentTarget.scrollLeft = drag.scroll - delta; }
       }}
-      onPointerUp={() => { suppressClick.current = dragging.current?.moved ?? false; dragging.current = null; pause(); }}
+      onPointerUp={event => { suppressClick.current = dragging.current?.moved ?? false; dragging.current = null; normalizeScroll(event.currentTarget); pause(); }}
       onPointerCancel={() => { dragging.current = null; pause(); }}
       onClickCapture={event => { if (suppressClick.current) { event.preventDefault(); event.stopPropagation(); suppressClick.current = false; } }}>
       {(cards.length > 1 ? [0, 1, 2, 3, 4] : [2]).map(copy => <div className="moment-carousel-set" key={copy} aria-hidden={copy !== 2 ? true : undefined}>

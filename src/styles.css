@@ -264,13 +264,13 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-circle-heading { align-items:flex-start; margin-bottom:6px; }
 .daily-rhythm-circle-heading .rhythm-circle-legend { flex-direction:column; align-items:flex-start; gap:4px; padding-top:2px; }
 .daily-rhythm-dial-controls { flex:0 0 auto; margin-left:auto; flex-wrap:nowrap; justify-content:flex-end; gap:7px; }
-.daily-rhythm-dial-controls .daily-rhythm-dial-toggle { position:relative; display:grid; grid-template-columns:1fr 1fr; align-items:center; width:108px; height:26px; padding:3px; border-radius:999px; background:#f1efe8; box-shadow:inset 0 0 0 1px #e9e5d9; }
+.daily-rhythm-dial-controls .daily-rhythm-dial-toggle { position:relative; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:center; width:108px; height:26px; padding:3px; border-radius:999px; background:#f1efe8; box-shadow:inset 0 0 0 1px #e9e5d9; }
 .daily-rhythm-dial-toggle-thumb { position:absolute; top:3px; bottom:3px; left:3px; width:calc(50% - 3px); border-radius:999px; background:#fffdf8; box-shadow:0 1px 4px #51452a20; transition:transform 220ms ease; }
-.daily-rhythm-dial-toggle.is-full-day .daily-rhythm-dial-toggle-thumb { transform:translateX(100%); background:#ffeaa0; }
+.daily-rhythm-dial-toggle.is-full-day .daily-rhythm-dial-toggle-thumb { transform:translateX(100%); background:var(--color-accent-soft); }
 .daily-rhythm-dial-toggle.is-instant .daily-rhythm-dial-toggle-thumb { transition:none; }
 .rhythm-circle-center-copy { opacity:1; pointer-events:none; transition:opacity 100ms ease-out; }
 .rhythm-circle-center-copy.is-hidden { opacity:0; transition:opacity 80ms ease-in; }
-.daily-rhythm-dial-controls .daily-rhythm-dial-toggle button { position:relative; z-index:1; width:auto; min-width:0; height:24px; padding:0 3px; border:0; border-radius:999px; background:transparent; color:#806000; font:600 9px/1 'Roboto',sans-serif; }
+.daily-rhythm-dial-controls .daily-rhythm-dial-toggle button { position:relative; z-index:1; width:100%; min-width:0; height:24px; padding:0 3px; border:0; border-radius:999px; background:transparent; color:#806000; font:600 9px/1 'Roboto',sans-serif; }
 .daily-rhythm-dial-controls .daily-rhythm-dial-toggle button[aria-pressed="true"] { color:#684f08; }
 .daily-rhythm-dial-controls > button { padding:5px 7px; border-radius:999px; background:#f7f3e8; }
 .daily-rhythm-dial-controls .daily-rhythm-dial-toggle button { height:20px; font-size:9px; }
@@ -965,7 +965,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .ask-page .ask-status strong { font: 600 14px/20px 'Poppins', sans-serif; }
 .ask-page .ask-status small { font: 400 12px/18px 'Roboto', sans-serif; }
 
-.moment-detail-media { height: 250px; margin: 0; overflow: hidden; border-radius: 0; background: #eee9df; }
+.moment-detail-media { height: 200px; margin: 12px 12px 0; overflow: hidden; border-radius: 16px; background: #eee9df; }
 .moment-detail-media img, .moment-detail-media video { width: 100%; height: 100%; display: block; object-fit: cover; }
 .moment-context-section { margin: 2px 0 0; }
 .moment-context-section .section-heading { margin: 0 20px 12px; }
@@ -2315,10 +2315,11 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .daily-rhythm-date-nav button { width: 36px; height: 36px; flex: none; color: #5f4700; }
 .daily-rhythm-date-nav span { font-size: 12px; }
 .daily-rhythm-circle-heading { position: relative; align-items: center; min-height: 40px; }
-.daily-rhythm-dial-controls .daily-rhythm-dial-toggle { width: 136px; height: 38px; }
-.daily-rhythm-dial-controls .daily-rhythm-dial-toggle button { height: 32px; font-size: 12px; color: #4a4539; }
+.daily-rhythm-dial-controls .daily-rhythm-dial-toggle { width: 136px; height: 38px; background: #f1efe8; box-shadow: inset 0 0 0 1px #e9e5d9; }
+.daily-rhythm-dial-controls .daily-rhythm-dial-toggle button { width: 100%; height: 32px; font-size: 12px; color: #4a4539; background: transparent; }
 .daily-rhythm-dial-controls .daily-rhythm-dial-toggle button[aria-pressed="true"] { color: #765200; font-weight: 700; }
-.daily-rhythm-dial-toggle.is-full-day .daily-rhythm-dial-toggle-thumb { background: #ffe08a; }
+.daily-rhythm-dial-toggle-thumb { background: #fffdf8; box-shadow: 0 1px 4px #51452a20; }
+.daily-rhythm-dial-toggle.is-full-day .daily-rhythm-dial-toggle-thumb { background: var(--color-accent-soft); }
 .daily-rhythm-circle-chart .rhythm-hit-target { fill: transparent; stroke: none; pointer-events: all; }
 .activity-insight-card { padding: 14px; gap: 10px; }
 .activity-insight-copy h2 { font-size: 15px; line-height: 22px; }
@@ -2611,7 +2612,7 @@ button.profile-link, button.activity-insight-link {
 .inbox-intro>span:last-child { color:#7b725e; font-size:11px; }
 .inbox-filters { display:flex; gap:6px; overflow:auto; padding-bottom:8px; margin-bottom:18px; scrollbar-width:none; }
 .inbox-filters button { white-space:nowrap; border:1px solid #e6e3da; padding:9px 11px; background:#fffdf8; border-radius:24px; font:inherit; font-size:10px; color:#777367; display:flex; gap:5px; align-items:center; cursor:pointer; }
-.inbox-filters button[aria-selected=true] { background:#36382f; border-color:#36382f; color:#fffdf4; }
+.inbox-filters button[aria-selected=true] { background:var(--color-action); border-color:var(--color-action); color:var(--color-text-primary); }
 .inbox-filters i { height:5px; width:5px; border-radius:50%; background:#de6153; flex-shrink:0; }
 .inbox-list-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
 .inbox-list-heading h2 { font-size:14px; margin:0; }
@@ -2852,14 +2853,14 @@ button.profile-link, button.activity-insight-link {
 .today-care-recent strong, .today-care-recent small { display: block; }
 .today-care-recent small { margin-top: 4px; color: #46594f; }
 .today-care-recent button { min-height: 44px; padding: 8px 12px; border: 1px solid #648471; border-radius: 10px; background: #fff; font-weight: 600; }
-.care-check-summary { margin: 0; padding: 16px; background: #f4f6f2; }
+.care-check-summary { margin: 0; padding: 16px; background: transparent; }
 .care-check-summary h2 { margin: 0 0 12px; font: 600 17px/24px 'Poppins',sans-serif; }
 .care-check-summary dl { margin: 0; display: grid; gap: 10px; }
 .care-check-summary dl > div { display: grid; grid-template-columns: 92px minmax(0,1fr); gap: 10px; }
 .care-check-summary dt { color: #526358; font: 400 12px/18px 'Roboto',sans-serif; }
 .care-check-summary dd { margin: 0; font: 600 14px/20px 'Roboto',sans-serif; overflow-wrap: anywhere; }
 .care-check-summary p { margin: 14px 0 0; font: 400 12px/18px 'Roboto',sans-serif; color: #526358; }
-.record-description { padding: 16px; background: #fffdf8; }
+.record-description { padding: 16px; background: transparent; }
 .record-description summary { cursor: pointer; font-weight: 600; }
 .record-description p { line-height: 1.6; white-space: pre-wrap; }
 .quick-moment-summary { background: #fffdf8; border: 1px solid #d7dfd8; }

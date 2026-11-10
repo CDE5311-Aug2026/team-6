@@ -1451,7 +1451,19 @@ export function TodayPage({ onInbox, inboxUnread, onRequestCareTask, onStory, on
   const rankedActivities = rankDailyActivityInsights(visibleRecords, now);
   const homeNeedsAttention = hasActivityAttention(rankedActivities, insightReviews);
   const dialStandoutActivity = dialAttentionActivityInsights(rankedActivities, insightReviews)[0];
-  const featuredRecords = visibleRecords.slice(0, 2);
+  const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+  const featuredRecords = visibleRecords
+    .filter(record => {
+      const recordedAt = new Date(record.savedAt);
+      const recordDay = `${recordedAt.getFullYear()}-${recordedAt.getMonth()}-${recordedAt.getDate()}`;
+      const hasImage = (record.image && !isUnavailableMedia(record.image) && !record.mediaType?.startsWith('video/'))
+        || record.relatedPhotos?.some(media => media.type.startsWith('image/') && !isUnavailableMedia(media.url));
+      return recordDay === todayKey && Boolean(hasImage);
+    })
+    .map(record => record.image && !isUnavailableMedia(record.image) && !record.mediaType?.startsWith('video/')
+      ? record
+      : { ...record, image: record.relatedPhotos?.find(media => media.type.startsWith('image/') && !isUnavailableMedia(media.url))?.url ?? '', mediaType: 'image/jpeg' })
+    .filter(record => Boolean(record.image));
 
   return (
     <>
@@ -2247,8 +2259,8 @@ export function MomentDetailPage({ moment, contexts, accounts, careMembers, owne
     <>
       <DetailHeader title={moment.title} eyebrow="MOMENT DETAILS" onBack={onBack} action={canShare && moment.shareable !== false ? <button type="button" className="moment-share-header-button" aria-label="Share this moment" onClick={() => setShowShareDialog(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20c.6-6.2 3.6-9.8 10-10.2V5l8 7-8 7v-4c-4.2 0-7.5 1.5-10 5Z"/></svg></button> : undefined} />
       <article className={`moment-detail-card ${moment.image ? '' : 'note-only-moment-card'}`}>
-        <section className="care-check-summary" aria-label="Care record summary"><h2>Care record</h2><dl><div><dt>Occurred</dt><dd>{moment.time}</dd></div><div><dt>Recorded by</dt><dd>{moment.source}</dd></div>{moment.details?.map(detail => <div key={detail}><dt>{detail.split(':')[0]}</dt><dd>{detail.includes(':') ? detail.slice(detail.indexOf(':') + 1).trim() : detail}</dd></div>)}</dl><p>A saved record does not automatically complete a care task.</p></section>
         {moment.image && <section className="moment-detail-media"><StoryMediaView src={moment.image} type={moment.mediaType} alt={`${petName} · ${moment.title}`} controls={moment.mediaType?.startsWith('video/')} /></section>}
+        <section className="care-check-summary" aria-label="Care record summary"><h2>Care record</h2><dl><div><dt>Occurred</dt><dd>{moment.time}</dd></div><div><dt>Recorded by</dt><dd>{moment.source}</dd></div>{moment.details?.map(detail => <div key={detail}><dt>{detail.split(':')[0]}</dt><dd>{detail.includes(':') ? detail.slice(detail.indexOf(':') + 1).trim() : detail}</dd></div>)}</dl></section>
         <details className="record-description"><summary>What this moment shows</summary><p>{moment.description}</p></details>
         {canInteract && <div className="moment-engagement-actions"><button type="button" className={`moment-engagement-button like ${engagement.likes.includes(currentAccountId) ? 'active' : ''}`} aria-label={engagement.likes.includes(currentAccountId) ? 'Unlike this moment' : 'Like this moment'} aria-pressed={engagement.likes.includes(currentAccountId)} onClick={onToggleMomentLike}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.9a5.5 5.5 0 0 0-7.8 0L12 5.9l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.3 1-1a5.5 5.5 0 0 0 0-7.8Z" /></svg>{engagement.likes.length > 0 && <b>{engagement.likes.length}</b>}</button><button type="button" className={`moment-engagement-button favorite ${engagement.favorites.includes(currentAccountId) ? 'active' : ''}`} aria-label={engagement.favorites.includes(currentAccountId) ? 'Remove from favorites' : 'Add to favorites'} aria-pressed={engagement.favorites.includes(currentAccountId)} onClick={onToggleMomentFavorite}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3Z" /></svg>{engagement.favorites.length > 0 && <b>{engagement.favorites.length}</b>}</button></div>}
       </article>
