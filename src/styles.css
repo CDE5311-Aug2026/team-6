@@ -2354,8 +2354,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 
 /* Round 2: consistent page, section and content alignment. */
 :root { --layout-section-gap: 24px; --layout-card-gap: 12px; }
-.main-header, .ask-page .main-header, .you-page .main-header, .home-screen .main-header { height: auto; min-height: 80px; padding-bottom: 16px; }
-.main-header:has(.main-subtitle) { min-height: 92px; }
+.main-header, .ask-page .main-header, .you-page .main-header, .home-screen .main-header { height: auto; min-height: 64px; padding-bottom: 8px; }
+.main-header:has(.main-subtitle) { min-height: 76px; }
 .main-header > div { padding-right: 12px; }
 .main-header h1 { margin-top: 4px; }
 .header-avatar-button, .header-settings-button { margin-top: 4px; }
@@ -2516,7 +2516,7 @@ button.profile-link, button.activity-insight-link {
 .daily-rhythm-circle-heading .daily-rhythm-return-today { min-height: 32px; padding: 0 12px; border: 1px solid #e9e5d9; border-radius: 999px; background: #fffdf8; color: #5f4700; font: 600 12px/1 'Roboto', sans-serif; text-align: center; white-space: nowrap; }
 
 /* Stack Story's title, summary and day heading instead of scrolling the title away. */
-.main-content:has(> .story-main-header) { --story-header-height: 92px; }
+.main-content:has(> .story-main-header) { --story-header-height: 76px; }
 .story-main-header, .story-main-header:has(.main-subtitle) { height: var(--story-header-height); min-height: var(--story-header-height); }
 .story-main-header ~ .story-summary-wrap { top: calc(var(--status-bar-height) + var(--story-header-height)); }
 .story-main-header ~ .timeline-section .timeline-day-group .section-heading { top: calc(var(--status-bar-height) + var(--story-header-height) + 66px); }
