@@ -552,7 +552,7 @@ function StoryMediaView({ src, type, alt, controls = false }: { src: string; typ
   if (isUnavailableMedia(src) || failedSrc === src) return <span className="story-media-unavailable" role="img" aria-label={`${alt ? alt + ': ' : ''}Media unavailable`}><span aria-hidden="true">▧</span><small>Media unavailable</small></span>;
   if (type?.startsWith('audio/')) return <audio src={src} aria-label={alt} controls onError={() => setFailedSrc(src)} />;
   return type?.startsWith('video/')
-    ? <video src={src} aria-label={alt} controls={controls} muted playsInline preload="metadata" onError={() => setFailedSrc(src)} />
+    ? <video src={src} aria-label={alt} controls={controls} muted={!controls} autoPlay={controls} loop playsInline preload="metadata" onError={() => setFailedSrc(src)} />
     : <img src={src} alt={alt} onError={() => setFailedSrc(src)} />;
 }
 
